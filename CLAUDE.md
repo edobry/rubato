@@ -51,13 +51,30 @@ npm run interact    # Headed browser + Playwright Inspector for manual interacti
 
 ## Architecture
 
-The rendering pipeline is a linear chain of stages:
+### Current pipeline (Phases 1–3)
 
-**Camera Capture → Body Segmentation → Motion Detection → Trail Accumulation & Decay → Compositing → Display**
+**Camera Capture → Body Segmentation → Motion Detection → Overlay Visualization → Display**
 
-With **Fog Field Generation** feeding into Compositing as a parallel input.
+- **Camera Capture** — `getUserMedia` feed at tunable resolution (720p/480p/360p).
+- **Body Segmentation** — MediaPipe Selfie Segmentation producing raw + temporally-smoothed masks.
+- **Motion Detection** (in progress) — frame-to-frame diff of raw segmentation masks, producing a per-pixel motion map that distinguishes moving vs. still regions. This motion map will drive trail deposition in Phase 4.
+- **Overlay Visualization** — renders the segmentation mask in multiple selectable color modes.
+- **FPS Counter** — live counter with timeseries sparkline graph.
 
-Each pipeline stage is its own module with clear inputs (textures, parameters) and outputs (textures, framebuffers). WebGL utility code (program creation, shader compilation, texture management) is separated from pipeline logic.
+**Auto-tuner** is a cross-cutting concern: a hill-climbing optimizer that monitors FPS and adjusts model variant, camera resolution, and frame-skip count to maintain target framerate. Includes GPU→CPU delegate fallback on weak WebGL hardware.
+
+### Planned pipeline (Phases 4–7)
+
+Phases 4–7 extend the pipeline to the full installation:
+
+**… → Motion Map → Trail Buffer (accumulate & decay) → Compositing → Display**
+
+With **Fog Field** (procedural noise shader) feeding into Compositing as a parallel input.
+
+- **Phase 4 — Trail Accumulation:** WebGL framebuffer trail buffer; motion map drives deposition, configurable decay.
+- **Phase 5 — Fog Field:** Procedural simplex/Perlin noise shader as the ambient idle-state visual.
+- **Phase 6 — Compositing:** Blend fog + silhouette + trail buffer; parameter presets for A/B creative iteration.
+- **Phase 7 — Polish & Deployment:** Kiosk mode, error recovery, stress testing, final parameter lock with Sarah.
 
 ### Key design decisions
 
