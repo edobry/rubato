@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "VITE_DEV_GUI=true vite",
+		"dev": "VITE_DEV_GUI=true vite --host",
 		"build": "tsc --noEmit && vite build",
 		"preview": "vite preview",
 		"lint": "biome check .",
