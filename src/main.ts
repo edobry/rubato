@@ -53,7 +53,7 @@ async function main(): Promise<void> {
 
 	// Dev GUI — toggle with G key
 	if (import.meta.env.VITE_DEV_GUI === "true") {
-		initGui();
+		await initGui();
 	}
 
 	const ctx = canvas.getContext("2d");
