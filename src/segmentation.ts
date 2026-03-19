@@ -5,8 +5,9 @@
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
 
+// Landscape model: higher quality edges, 256x256 internal resolution
 const MODEL_URL =
-	"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+	"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite";
 
 let segmenter: ImageSegmenter | null = null;
 

@@ -3,8 +3,8 @@
  * Acquires video from getUserMedia and provides frames for downstream processing.
  */
 
-const CAMERA_WIDTH = 640;
-const CAMERA_HEIGHT = 480;
+const CAMERA_WIDTH = 1280;
+const CAMERA_HEIGHT = 720;
 
 export async function initCamera(): Promise<HTMLVideoElement> {
 	const video = document.createElement("video");
