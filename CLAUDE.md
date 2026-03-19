@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev        # Vite dev server with HMR (VITE_DEV_GUI=true)
 npm run build      # Production build to dist/ (dev GUI excluded)
+npm run check      # Run all validations: lint + typecheck + build
 npx serve dist     # Serve production build locally
 ```
 
@@ -55,6 +56,23 @@ Each pipeline stage is its own module with clear inputs (textures, parameters) a
 ## Git Workflow
 
 Commit proactively after every logical unit of work — don't wait to be asked. A "logical unit" is any coherent change: scaffolding a module, wiring up a pipeline stage, fixing a bug, adding a shader. Small, frequent commits are better than large, infrequent ones. Write concise commit messages that explain *why*, not just *what*. Always run Biome before committing and fix any issues.
+
+## Task Management
+
+All task tracking lives in the Notion **Implementation Tasks** database (ID: `d83e6058-0c04-405e-af82-f6e8a706255a`). Do NOT use Claude's native Tasks system.
+
+When told to "work through the tasks" or similar:
+
+1. Fetch tasks from Notion. Pick the next "Not started" task (lowest Phase, then oldest).
+2. Set it to "In progress" in Notion.
+3. Do the work. Commit.
+4. Mark it "Done" in Notion. Fill in:
+   - **Summary**: 1–3 sentences for a non-technical reader describing what changed from a user/viewer perspective. No jargon. Describe the observable result, not the implementation.
+   - **Notes**: Technical details for dev reference.
+5. If the next task has "Feedback Checkpoint" checked, stop and tell me — Sarah needs to review. Otherwise, loop back to step 1.
+6. If no "Not started" tasks remain, tell me we're done.
+
+If you find work that isn't in the task list, flag it to me — don't create tasks yourself.
 
 ## Notion Project Workspace (Source of Truth)
 
