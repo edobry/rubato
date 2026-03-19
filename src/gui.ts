@@ -644,13 +644,32 @@ export function initGui(): void {
 		background: #1a1a1a;
 		padding: 6px 8px;
 		max-height: 120px;
+		min-height: 40px;
 		overflow-y: auto;
 		white-space: pre;
 		line-height: 1.4;
 		border-top: 1px solid #333;
+		user-select: text;
+		cursor: text;
 	`;
 	logEl.textContent = "waiting\u2026";
 	tune.$children.appendChild(logEl);
+
+	// Copy Log button
+	tune
+		.add(
+			{
+				copyLog() {
+					const text = logEl.textContent || "";
+					navigator.clipboard.writeText(text).then(
+						() => console.log("Autotune log copied to clipboard"),
+						() => console.warn("Clipboard write failed"),
+					);
+				},
+			},
+			"copyLog",
+		)
+		.name("Copy Log");
 
 	// Reactively update controllers when params change (replaces polling)
 	onParamChange(() => {

@@ -142,10 +142,6 @@ function log(msg: string): void {
 	notifyLogListeners();
 }
 
-function qualityLevel(): string {
-	return `${params.camera.resolution}/${params.segmentation.model}/skip${params.segmentation.frameSkip}`;
-}
-
 function getCurrentConfig(): Config {
 	return {
 		frameSkip: params.segmentation.frameSkip,
@@ -274,12 +270,22 @@ function resetTimers(): void {
 	floorLogged = false;
 }
 
-function switchConfig(config: Config, direction: string): void {
-	applyConfig(config);
+function switchConfig(
+	newConfig: Config,
+	direction: string,
+	reason: string,
+): void {
+	const fps = autoTuneState.fps;
+	const target = params.autoTune.targetFps;
+	const oldKey = configKey(getCurrentConfig());
+	applyConfig(newConfig);
 	lastAdjustTime = performance.now();
 	frameTimes = [];
 	resetTimers();
-	log(`${direction} ${qualityLevel()}`);
+	const newKey = configKey(newConfig);
+	log(
+		`${direction} ${fps}fps (target ${target}) | ${oldKey} → ${newKey} | ${reason}`,
+	);
 }
 
 // --- Main tick ---
@@ -332,16 +338,16 @@ export function autoTuneTick(): void {
 				params.autoTune.dropSustainedDuration
 			) {
 				// Sustained drop: break out of stable and degrade
-				log(
-					`Stable config lost: FPS ${fps} dropped >20% below target ${target}`,
-				);
 				isStable = false;
 				dropDetectedAt = 0;
 				const degradeTarget = findDegradeTarget(current, target);
 				if (degradeTarget && !configsEqual(degradeTarget, current)) {
-					switchConfig(degradeTarget, "↓");
+					switchConfig(degradeTarget, "↓", "sustained drop while stable");
 					autoTuneState.status = "degrading";
 				} else {
+					log(
+						`⚠ ${fps}fps (target ${target}) | ${configKey(current)} | stable config lost, at floor`,
+					);
 					autoTuneState.status = "floor";
 				}
 				return;
@@ -360,7 +366,7 @@ export function autoTuneTick(): void {
 			) {
 				const upgradeTarget = findUpgradeTarget(current, target, fps);
 				if (upgradeTarget && !configsEqual(upgradeTarget, current)) {
-					switchConfig(upgradeTarget, "↑");
+					switchConfig(upgradeTarget, "↑", "headroom while stable");
 					autoTuneState.status = "upgrading";
 					return;
 				}
@@ -384,7 +390,10 @@ export function autoTuneTick(): void {
 			stableEnteredAt = 0;
 			upgradeHeadroomSince = 0;
 			dropDetectedAt = 0;
-			log(`Stable at ${qualityLevel()} (${fps} fps)`);
+			const stableSecs = Math.round(params.autoTune.stableDuration / 1000);
+			log(
+				`✓ ${fps}fps (target ${target}) | ${configKey(current)} | stable for ${stableSecs}s`,
+			);
 			autoTuneState.status = "stable";
 			return;
 		}
@@ -399,12 +408,14 @@ export function autoTuneTick(): void {
 		// Need to degrade
 		const degradeTarget = findDegradeTarget(current, target);
 		if (degradeTarget && !configsEqual(degradeTarget, current)) {
-			switchConfig(degradeTarget, "↓");
+			switchConfig(degradeTarget, "↓", "below target");
 			autoTuneState.status = "degrading";
 		} else {
 			autoTuneState.status = "floor";
 			if (!floorLogged) {
-				log(`⚠ At minimum quality, ${fps} fps (target: ${target})`);
+				log(
+					`⚠ ${fps}fps (target ${target}) | ${configKey(current)} | at floor, no lower config available`,
+				);
 				floorLogged = true;
 			}
 		}
@@ -419,7 +430,7 @@ export function autoTuneTick(): void {
 		) {
 			const upgradeTarget = findUpgradeTarget(current, target, fps);
 			if (upgradeTarget && !configsEqual(upgradeTarget, current)) {
-				switchConfig(upgradeTarget, "↑");
+				switchConfig(upgradeTarget, "↑", "above target");
 				autoTuneState.status = "upgrading";
 			} else {
 				autoTuneState.status = "optimal";
