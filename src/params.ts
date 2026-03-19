@@ -21,6 +21,7 @@ export const params = {
 	},
 	segmentation: {
 		model: "quality",
+		delegate: "auto",
 		confidenceThreshold: 0.5,
 		temporalSmoothing: 0.4,
 	},

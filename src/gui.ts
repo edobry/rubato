@@ -129,6 +129,9 @@ export function initGui(): void {
 
 	const seg = gui.addFolder("Segmentation");
 	seg.add(params.segmentation, "model", ["quality", "fast"]).name("Model");
+	seg
+		.add(params.segmentation, "delegate", ["auto", "GPU", "CPU"])
+		.name("Delegate");
 	addParam(
 		seg,
 		params.segmentation,
