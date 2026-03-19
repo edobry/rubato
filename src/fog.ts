@@ -7,6 +7,7 @@
 import { params } from "./params";
 import fragSrc from "./shaders/fog.frag.glsl";
 import vertSrc from "./shaders/fog.vert.glsl";
+import { createFramebuffer, createProgram, createTexture } from "./webgl-utils";
 
 let gl: WebGLRenderingContext | null = null;
 let program: WebGLProgram | null = null;
@@ -20,52 +21,37 @@ let uScale: WebGLUniformLocation | null = null;
 let uDensity: WebGLUniformLocation | null = null;
 let uBrightness: WebGLUniformLocation | null = null;
 
-function compileShader(
-	gl: WebGLRenderingContext,
-	type: number,
-	source: string,
-): WebGLShader {
-	const shader = gl.createShader(type);
-	if (!shader) throw new Error("Failed to create shader");
-	gl.shaderSource(shader, source);
-	gl.compileShader(shader);
-	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-		const info = gl.getShaderInfoLog(shader);
-		gl.deleteShader(shader);
-		throw new Error(`Shader compile error: ${info}`);
-	}
-	return shader;
-}
+// FBO path for renderFogToTexture
+let fboTexture: WebGLTexture | null = null;
+let fbo: WebGLFramebuffer | null = null;
+let fboWidth = 0;
+let fboHeight = 0;
 
-function createProgram(
-	gl: WebGLRenderingContext,
-	vertSrc: string,
-	fragSrc: string,
-): WebGLProgram {
-	const vert = compileShader(gl, gl.VERTEX_SHADER, vertSrc);
-	const frag = compileShader(gl, gl.FRAGMENT_SHADER, fragSrc);
-	const prog = gl.createProgram();
-	if (!prog) throw new Error("Failed to create program");
-	gl.attachShader(prog, vert);
-	gl.attachShader(prog, frag);
-	gl.linkProgram(prog);
-	if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-		const info = gl.getProgramInfoLog(prog);
-		throw new Error(`Program link error: ${info}`);
-	}
-	return prog;
-}
+/**
+ * Initialize the fog renderer.
+ *
+ * When called without arguments (or with `undefined`), creates its own canvas
+ * and WebGL context — the current dual-canvas behaviour.
+ *
+ * When called with an existing WebGLRenderingContext the fog program is built on
+ * that shared context instead (for the future unified pipeline).
+ *
+ * Returns the canvas element to be inserted into the DOM.
+ */
+export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
+	if (externalGl) {
+		gl = externalGl;
+		canvas = gl.canvas as HTMLCanvasElement;
+	} else {
+		canvas = document.createElement("canvas");
+		canvas.style.cssText =
+			"position:fixed;inset:0;width:100%;height:100%;z-index:-1";
 
-/** Initialize the fog renderer. Returns the canvas element to be inserted into the DOM. */
-export function initFog(): HTMLCanvasElement {
-	canvas = document.createElement("canvas");
-	canvas.style.cssText =
-		"position:fixed;inset:0;width:100%;height:100%;z-index:-1";
-
-	gl = canvas.getContext("webgl", { alpha: false });
-	if (!gl) {
-		console.error("WebGL not available for fog renderer");
-		return canvas;
+		gl = canvas.getContext("webgl", { alpha: false });
+		if (!gl) {
+			console.error("WebGL not available for fog renderer");
+			return canvas;
+		}
 	}
 
 	try {
@@ -109,17 +95,74 @@ export function resizeFog(): void {
 	}
 }
 
-/** Render one frame of the fog field. */
-export function drawFog(): void {
+/** Set uniforms for the current frame. */
+function setFogUniforms(): void {
 	if (!gl || !program) return;
-
 	const time = performance.now() / 1000 - startTime;
-
+	gl.useProgram(program);
 	gl.uniform1f(uTime, time);
 	gl.uniform1f(uSpeed, params.fog.speed);
 	gl.uniform1f(uScale, params.fog.scale);
 	gl.uniform1f(uDensity, params.fog.density);
 	gl.uniform1f(uBrightness, params.fog.brightness);
+}
 
+/** Render one frame of the fog field directly to screen. */
+export function drawFog(): void {
+	if (!gl || !program) return;
+
+	setFogUniforms();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/**
+ * Render the fog to a framebuffer texture and return the texture.
+ * The returned texture can be fed into a compositing pass by the unified pipeline.
+ * The texture is re-allocated whenever the canvas size changes.
+ */
+export function renderFogToTexture(): WebGLTexture | null {
+	if (!gl || !program || !canvas) return null;
+
+	const w = canvas.width;
+	const h = canvas.height;
+
+	// (Re-)allocate the FBO and its colour attachment when the size changes.
+	if (!fboTexture || !fbo || w !== fboWidth || h !== fboHeight) {
+		// Clean up previous resources
+		if (fboTexture) gl.deleteTexture(fboTexture);
+		if (fbo) gl.deleteFramebuffer(fbo);
+
+		fboTexture = createTexture(gl);
+		gl.bindTexture(gl.TEXTURE_2D, fboTexture);
+		gl.texImage2D(
+			gl.TEXTURE_2D,
+			0,
+			gl.RGBA,
+			w,
+			h,
+			0,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
+			null,
+		);
+		gl.bindTexture(gl.TEXTURE_2D, null);
+
+		fbo = createFramebuffer(gl, fboTexture);
+		fboWidth = w;
+		fboHeight = h;
+	}
+
+	setFogUniforms();
+
+	// Render into the FBO
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+	gl.viewport(0, 0, w, h);
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+	// Restore default framebuffer and viewport
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.viewport(0, 0, w, h);
+
+	return fboTexture;
 }
