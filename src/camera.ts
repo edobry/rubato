@@ -19,11 +19,13 @@ export async function initCamera(
 	video.playsInline = true;
 	video.muted = true;
 
-	// Stop existing tracks before re-acquiring
+	// Clean up existing stream
 	if (video.srcObject instanceof MediaStream) {
+		video.pause();
 		for (const track of video.srcObject.getTracks()) {
 			track.stop();
 		}
+		video.srcObject = null;
 	}
 
 	const [width, height] = CAMERA_RESOLUTIONS[resolution] ?? [640, 480];
@@ -38,6 +40,11 @@ export async function initCamera(
 	});
 
 	video.srcObject = stream;
+
+	// Wait for the stream to actually produce frames
+	await new Promise<void>((resolve) => {
+		video.onloadeddata = () => resolve();
+	});
 	await video.play();
 
 	currentVideo = video;
