@@ -15,18 +15,22 @@ let currentVideo: HTMLVideoElement | null = null;
 export async function initCamera(
 	resolution = "720p",
 ): Promise<HTMLVideoElement> {
+	// Fully tear down old video element — some browsers don't cleanly
+	// re-acquire on the same element after stopping tracks
+	if (currentVideo) {
+		currentVideo.pause();
+		if (currentVideo.srcObject instanceof MediaStream) {
+			for (const track of currentVideo.srcObject.getTracks()) {
+				track.stop();
+			}
+		}
+		currentVideo.srcObject = null;
+		currentVideo.load(); // Force reset
+	}
+
 	const video = currentVideo ?? document.createElement("video");
 	video.playsInline = true;
 	video.muted = true;
-
-	// Clean up existing stream
-	if (video.srcObject instanceof MediaStream) {
-		video.pause();
-		for (const track of video.srcObject.getTracks()) {
-			track.stop();
-		}
-		video.srcObject = null;
-	}
 
 	const [width, height] = CAMERA_RESOLUTIONS[resolution] ?? [640, 480];
 
@@ -41,7 +45,6 @@ export async function initCamera(
 
 	video.srcObject = stream;
 
-	// Wait for the stream to actually produce frames
 	await new Promise<void>((resolve) => {
 		video.onloadeddata = () => resolve();
 	});
