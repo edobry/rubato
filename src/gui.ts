@@ -190,7 +190,7 @@ export function initGui(): void {
 		border-top: 1px solid #333;
 	`;
 	logEl.textContent = "waiting…";
-	tune.domElement.querySelector(".children")?.appendChild(logEl);
+	tune.$children.appendChild(logEl);
 
 	// Reactively update controllers when params change (replaces polling)
 	onParamChange(() => {
