@@ -12,11 +12,14 @@ export const CAMERA_RESOLUTIONS: Record<string, [number, number]> = {
 
 let currentVideo: HTMLVideoElement | null = null;
 
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function initCamera(
 	resolution = "720p",
 ): Promise<HTMLVideoElement> {
-	// Fully tear down old video element — some browsers don't cleanly
-	// re-acquire on the same element after stopping tracks
+	// Fully tear down old stream — real cameras need time to release hardware
 	if (currentVideo) {
 		currentVideo.pause();
 		if (currentVideo.srcObject instanceof MediaStream) {
@@ -25,10 +28,13 @@ export async function initCamera(
 			}
 		}
 		currentVideo.srcObject = null;
-		currentVideo.load(); // Force reset
+		currentVideo.load();
+		// Give the OS time to release the camera hardware
+		await sleep(500);
 	}
 
-	const video = currentVideo ?? document.createElement("video");
+	// Create a fresh video element — reusing after teardown is unreliable
+	const video = document.createElement("video");
 	video.playsInline = true;
 	video.muted = true;
 
