@@ -332,6 +332,13 @@ export function initGui(): void {
 	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
 	trails.open();
 
+	const fog = creative.addFolder("Fog");
+	addParam(fog, params.fog, "speed", 0, 1, 0.01, "Speed");
+	addParam(fog, params.fog, "scale", 0.5, 10, 0.5, "Scale");
+	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
+	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
+	fog.open();
+
 	const detection = creative.addFolder("Detection");
 	addParam(
 		detection,
