@@ -162,6 +162,25 @@ function buildNavItems(rootGui: GUI): void {
 	});
 
 	navItems = entries.map((e) => e.item);
+
+	// Clamp selectedIndex so it stays within bounds after a rebuild
+	if (selectedIndex >= navItems.length) {
+		selectedIndex = Math.max(0, navItems.length - 1);
+	}
+
+	// (Re-)register click-to-select handlers on all nav items
+	registerClickHandlers();
+}
+
+/** Attach click-to-select handlers so clicking a nav item syncs the highlight. */
+function registerClickHandlers(): void {
+	for (let i = 0; i < navItems.length; i++) {
+		const idx = i;
+		navItems[i].element.addEventListener("click", () => {
+			selectedIndex = idx;
+			updateHighlight();
+		});
+	}
 }
 
 /** Handle Left/Right arrow for the currently selected item. */
@@ -292,19 +311,23 @@ export function initGui(): void {
 			font-size: 16px !important;
 			font-weight: 700;
 			text-transform: uppercase;
-			letter-spacing: 0.5px;
-			background: #1a2a3a !important;
+			letter-spacing: 1px;
+			background: #0a4a6a !important;
+			color: #fff !important;
 			padding: 10px 12px;
+			margin-top: 2px;
 		}
 
-		/* Sub-folder titles: smaller, subtler, left accent border */
+		/* Sub-folder titles: smaller, dimmer, indented with accent */
 		.lil-gui .lil-gui .lil-gui > .title {
-			font-size: 13px !important;
+			font-size: 12px !important;
 			font-weight: 400;
-			color: #9ab !important;
-			background: transparent !important;
-			padding: 5px 12px 5px 10px;
-			border-left: 3px solid #3a6a8a;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: #6aa !important;
+			background: rgba(255,255,255,0.03) !important;
+			padding: 4px 12px 4px 14px;
+			border-left: 2px solid #0af;
 		}
 	`;
 	document.head.appendChild(style);
@@ -319,7 +342,7 @@ export function initGui(): void {
 	function allPresetNames(): string[] {
 		const builtIn = Object.keys(getBuiltInPresets());
 		const saved = Object.keys(getSavedPresets());
-		return ["(none)", ...builtIn, ...saved.map((n) => `* ${n}`)];
+		return ["(none)", ...saved.map((n) => `* ${n}`), ...builtIn];
 	}
 
 	/** Look up a preset by display name. */
