@@ -65,6 +65,29 @@ export function computeCrop(
 }
 
 /**
+ * Compute crop in UV space (0–1 range) for WebGL shader use.
+ * Returns uvOffset (top-left corner) and uvScale (size) of the crop region,
+ * plus a mirror flag for horizontal flipping.
+ *
+ * In a GLSL fragment shader, sample the camera texture with:
+ *   vec2 cameraUV = uvOffset + uv * uvScale;
+ *   cameraUV.x = mirror ? (1.0 - cameraUV.x) : cameraUV.x;
+ */
+export function computeCropUV(
+	videoW: number,
+	videoH: number,
+	displayW: number,
+	displayH: number,
+): { uvOffset: [number, number]; uvScale: [number, number]; mirror: boolean } {
+	const { sx, sy, sw, sh } = computeCrop(videoW, videoH, displayW, displayH);
+	return {
+		uvOffset: [sx / videoW, sy / videoH],
+		uvScale: [sw / videoW, sh / videoH],
+		mirror: true,
+	};
+}
+
+/**
  * Draw a single camera frame to the canvas, cropped/fitted per fillAmount.
  * The image is mirrored horizontally so it feels like a mirror to the viewer.
  */
