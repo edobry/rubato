@@ -2,6 +2,7 @@ import { autoTuneTick } from "./autotune";
 import { initCamera } from "./camera";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
+import { detectMotion } from "./motion";
 import { params } from "./params";
 import { computeCrop, drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
@@ -73,6 +74,7 @@ async function main(): Promise<void> {
 
 	let frameCount = 0;
 	let lastMask: Float32Array | null = null;
+	let lastMotion: Float32Array | null = null;
 
 	function loop(): void {
 		if (!video || !ctx) return;
@@ -88,18 +90,26 @@ async function main(): Promise<void> {
 		// Draw camera feed
 		drawFrame(ctx, video);
 
-		// Overlay segmentation mask if ready
+		// Run segmentation + motion detection
 		if (segmentationReady && params.overlay.showOverlay) {
-			// Frame skipping: only run segmentation every Nth frame
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 			if (frameCount % skip === 0) {
 				const result = segmentFrame(video, performance.now());
-				if (result) lastMask = result.smoothed;
+				if (result) {
+					lastMask = result.smoothed;
+					const { width: mw, height: mh } = getSegmenterResolution(video);
+					lastMotion = detectMotion(result.raw, mw, mh);
+				}
 			}
 
-			if (lastMask) {
-				const { width: maskW, height: maskH } = getSegmenterResolution(video);
+			const { width: maskW, height: maskH } = getSegmenterResolution(video);
+			const viz = params.overlay.visualize;
+
+			if ((viz === "mask" || viz === "both") && lastMask) {
 				drawMaskOverlay(ctx, lastMask, maskW, maskH, width, height);
+			}
+			if ((viz === "motion" || viz === "both") && lastMotion) {
+				drawMaskOverlay(ctx, lastMotion, maskW, maskH, width, height);
 			}
 		}
 

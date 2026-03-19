@@ -154,10 +154,22 @@ export function initGui(): void {
 		"Temporal Smoothing",
 	);
 	addParam(seg, params.segmentation, "frameSkip", 1, 4, 1, "Frame Skip");
+	addParam(
+		seg,
+		params.segmentation,
+		"motionThreshold",
+		0,
+		0.5,
+		0.01,
+		"Motion Threshold",
+	);
 	seg.open();
 
 	const overlay = gui.addFolder("Overlay");
 	overlay.add(params.overlay, "showOverlay").name("Show Overlay");
+	overlay
+		.add(params.overlay, "visualize", ["mask", "motion", "both"])
+		.name("Visualize");
 	addParam(overlay, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
 	overlay.addColor(params.overlay, "color").name("Color");
 	overlay

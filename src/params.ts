@@ -64,6 +64,8 @@ export const params = {
 	}),
 	overlay: reactive("overlay", {
 		showOverlay: d.overlay.showOverlay,
+		// What to visualize: "mask" (segmentation), "motion" (moving pixels), "both"
+		visualize: d.overlay.visualize as "mask" | "motion" | "both",
 		opacity: d.overlay.opacity,
 		color: d.overlay.color,
 		colorMode: d.overlay.colorMode as
