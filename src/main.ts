@@ -1,5 +1,6 @@
 import { initCamera } from "./camera";
 import { FpsCounter } from "./fps";
+import { initGui } from "./gui";
 import { computeCrop, drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
 	getSegmenterResolution,
@@ -11,6 +12,11 @@ async function main(): Promise<void> {
 	const canvas = initCanvas();
 	resizeCanvas(canvas);
 	window.addEventListener("resize", () => resizeCanvas(canvas));
+
+	// Dev GUI — toggle with G key
+	if (import.meta.env.VITE_DEV_GUI === "true") {
+		initGui();
+	}
 
 	const ctx = canvas.getContext("2d");
 	if (!ctx) {

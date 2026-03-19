@@ -6,18 +6,12 @@
  */
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
+import { params } from "./params";
 
 // Multiclass model: separates person into sub-regions (hair, body, face, clothes)
 // for sharper boundaries than the single-class segmenter
 const MODEL_URL =
 	"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float16/latest/selfie_multiclass_256x256.tflite";
-
-// Confidence below this is clamped to 0 — reduces bleed onto nearby objects
-const CONFIDENCE_THRESHOLD = 0.5;
-
-// Temporal smoothing — blend current frame with previous to reduce jitter.
-// 0 = no smoothing (raw), 1 = fully frozen. 0.3–0.5 is a good range.
-const TEMPORAL_SMOOTHING = 0.4;
 
 let segmenter: ImageSegmenter | null = null;
 let prevMask: Float32Array | null = null;
@@ -75,14 +69,16 @@ export function segmentFrame(
 				// Find confidence for this pixel's class
 				const conf = confidenceMasks[cat]?.getAsFloat32Array();
 				const confidence = conf ? conf[i] : 1.0;
-				currentMask[i] = confidence > CONFIDENCE_THRESHOLD ? confidence : 0;
+				currentMask[i] =
+					confidence > params.segmentation.confidenceThreshold ? confidence : 0;
 			}
 		}
 	} else if (confidenceMasks && confidenceMasks.length > 0) {
 		// Fallback: single-class confidence mask
 		const raw = confidenceMasks[0].getAsFloat32Array();
 		for (let i = 0; i < pixelCount; i++) {
-			currentMask[i] = raw[i] > CONFIDENCE_THRESHOLD ? raw[i] : 0;
+			currentMask[i] =
+				raw[i] > params.segmentation.confidenceThreshold ? raw[i] : 0;
 		}
 	}
 
@@ -90,8 +86,8 @@ export function segmentFrame(
 	if (prevMask && prevMask.length === pixelCount) {
 		for (let i = 0; i < pixelCount; i++) {
 			currentMask[i] =
-				prevMask[i] * TEMPORAL_SMOOTHING +
-				currentMask[i] * (1 - TEMPORAL_SMOOTHING);
+				prevMask[i] * params.segmentation.temporalSmoothing +
+				currentMask[i] * (1 - params.segmentation.temporalSmoothing);
 		}
 	}
 
