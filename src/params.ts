@@ -4,6 +4,9 @@
  * Export JSON from the GUI to persist to params.json.
  */
 
+// Models ordered by quality (high→low) / cost (high→low):
+// - landscape: best edge quality, 256x256, recommended for decent hardware
+// - base: lighter, 256x144, good for constrained hardware (e.g. Raspberry Pi)
 export const SEGMENTATION_MODELS: Record<string, string> = {
 	landscape:
 		"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite",
