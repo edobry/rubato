@@ -12,8 +12,8 @@
  */
 
 import GUI from "lil-gui";
-import { autoTuneState } from "./autotune";
-import { params } from "./params";
+import { onLogChange } from "./autotune";
+import { onParamChange, params } from "./params";
 
 let gui: GUI | null = null;
 
@@ -192,20 +192,19 @@ export function initGui(): void {
 	logEl.textContent = "waiting…";
 	tune.domElement.querySelector(".children")?.appendChild(logEl);
 
-	let lastLogLength = 0;
-	setInterval(() => {
-		// Refresh all controllers so auto-tune changes are reflected
+	// Reactively update controllers when params change (replaces polling)
+	onParamChange(() => {
 		for (const c of gui!.controllersRecursive()) {
 			c.updateDisplay();
 		}
+	});
 
-		const log = autoTuneState.log;
-		if (log.length !== lastLogLength) {
-			lastLogLength = log.length;
-			logEl.textContent = log.join("\n") || "waiting…";
-			logEl.scrollTop = logEl.scrollHeight;
-		}
-	}, 500);
+	// Reactively update log panel when autotune logs a message
+	onLogChange((log) => {
+		logEl.textContent = log.join("\n") || "waiting…";
+		logEl.scrollTop = logEl.scrollHeight;
+	});
+
 	tune.open();
 
 	// Export button

@@ -39,6 +39,22 @@ export const autoTuneState = {
 	log: [] as string[],
 };
 
+type LogChangeListener = (log: string[]) => void;
+const logListeners: LogChangeListener[] = [];
+
+/** Subscribe to autotune log changes. Returns an unsubscribe function. */
+export function onLogChange(fn: LogChangeListener): () => void {
+	logListeners.push(fn);
+	return () => {
+		const idx = logListeners.indexOf(fn);
+		if (idx >= 0) logListeners.splice(idx, 1);
+	};
+}
+
+function notifyLogListeners(): void {
+	for (const fn of logListeners) fn(autoTuneState.log);
+}
+
 function currentFps(): number {
 	if (frameTimes.length < 2) return 0;
 	const elapsed = frameTimes[frameTimes.length - 1] - frameTimes[0];
@@ -53,6 +69,7 @@ function log(msg: string): void {
 	if (autoTuneState.log.length > 20) autoTuneState.log.shift();
 	autoTuneState.lastAction = msg;
 	autoTuneState.adjustCount++;
+	notifyLogListeners();
 }
 
 function qualityLevel(): string {
