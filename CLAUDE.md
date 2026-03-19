@@ -62,10 +62,11 @@ Each pipeline stage is its own module with clear inputs (textures, parameters) a
 ### Key design decisions
 
 - **Shaders are separate `.glsl` files**, not inline template literals. `vite-plugin-glsl` imports them as strings.
-- **Camera runs at ~640x480** for segmentation performance; display canvas renders at TV native resolution (1080p+). These are independent.
+- **Camera resolution is tunable** (720p/480p/360p) via GUI or `params.json`. Display canvas renders at TV native resolution (1080p+). These are independent.
 - **Aspect ratio mismatch** between camera and TV is handled by cropping, not letterboxing or stretching.
 - **State model** is explicit: idle (no person), active (person moving), still (person present but not moving), fading (person left, trails decaying).
-- **Parameters** load from `params.json` at startup. Dev GUI reads/writes the same in-memory object. "Export JSON" button copies current state to clipboard for pasting back into `params.json`.
+- **Parameters** load from `params.json` at build time. The params object is wrapped in reactive Proxies — changes propagate automatically to the GUI. "Export JSON" button copies current state to clipboard for pasting back into `params.json`.
+- **Auto-tuner** monitors FPS and adjusts quality settings (frame skip, model, resolution) via hill-climbing with history tracking. GPU→CPU delegate fallback is automatic on devices with weak WebGL.
 
 ## Target Environment
 
