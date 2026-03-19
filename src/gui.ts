@@ -17,6 +17,15 @@ import type { Controller } from "lil-gui";
 import GUI from "lil-gui";
 import { onLogChange } from "./autotune";
 import { onParamChange, params } from "./params";
+import {
+	applyPreset,
+	type CreativePreset,
+	deletePreset,
+	extractPreset,
+	getBuiltInPresets,
+	getSavedPresets,
+	savePreset,
+} from "./presets";
 
 let gui: GUI | null = null;
 
@@ -299,6 +308,85 @@ export function initGui(): void {
 		}
 	`;
 	document.head.appendChild(style);
+
+	// ── Presets section ──────────────────────────────────────────────
+	const presetsFolder = gui.addFolder("Presets");
+
+	// State for the preset selector
+	const presetState = { selected: "(none)", newName: "" };
+
+	/** Build the list of all available preset names. */
+	function allPresetNames(): string[] {
+		const builtIn = Object.keys(getBuiltInPresets());
+		const saved = Object.keys(getSavedPresets());
+		return ["(none)", ...builtIn, ...saved.map((n) => `* ${n}`)];
+	}
+
+	/** Look up a preset by display name. */
+	function resolvePreset(displayName: string): CreativePreset | null {
+		if (displayName === "(none)") return null;
+		const builtIns = getBuiltInPresets();
+		if (displayName in builtIns) return builtIns[displayName];
+		// User presets are prefixed with "* "
+		if (displayName.startsWith("* ")) {
+			const name = displayName.slice(2);
+			const saved = getSavedPresets();
+			if (name in saved) return saved[name];
+		}
+		return null;
+	}
+
+	const presetDropdown = presetsFolder
+		.add(presetState, "selected", allPresetNames())
+		.name("Preset")
+		.onChange((value: string) => {
+			const preset = resolvePreset(value);
+			if (preset) applyPreset(preset);
+		});
+
+	presetsFolder.add(presetState, "newName").name("New Preset Name");
+
+	presetsFolder
+		.add(
+			{
+				save() {
+					const name = presetState.newName.trim();
+					if (!name) return;
+					const preset = extractPreset(name);
+					savePreset(name, preset);
+					// Refresh the dropdown options
+					presetDropdown.options(allPresetNames());
+					presetState.selected = `* ${name}`;
+					presetDropdown.updateDisplay();
+					presetState.newName = "";
+					// Update the name input display
+					for (const c of presetsFolder.controllersRecursive()) {
+						c.updateDisplay();
+					}
+				},
+			},
+			"save",
+		)
+		.name("Save Preset");
+
+	presetsFolder
+		.add(
+			{
+				remove() {
+					const sel = presetState.selected;
+					if (!sel.startsWith("* ")) return; // can't delete built-ins
+					const name = sel.slice(2);
+					deletePreset(name);
+					presetState.selected = "(none)";
+					presetDropdown.options(allPresetNames());
+					presetDropdown.updateDisplay();
+				},
+			},
+			"remove",
+		)
+		.name("Delete Preset");
+
+	presetsFolder.open();
 
 	// ── Creative section ─────────────────────────────────────────────
 	const creative = gui.addFolder("Creative");
