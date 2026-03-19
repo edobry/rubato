@@ -490,6 +490,12 @@ export function initGui(): void {
 		)
 			return;
 
+		// If a <select> has focus (e.g. after clicking a dropdown), blur it
+		// so arrow keys are handled by our navigation instead of the browser.
+		if (document.activeElement instanceof HTMLSelectElement) {
+			document.activeElement.blur();
+		}
+
 		switch (e.key) {
 			case "g":
 			case "G":
