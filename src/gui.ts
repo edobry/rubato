@@ -490,9 +490,14 @@ export function initGui(): void {
 		)
 			return;
 
-		// If a <select> has focus (e.g. after clicking a dropdown), blur it
-		// so arrow keys are handled by our navigation instead of the browser.
-		if (document.activeElement instanceof HTMLSelectElement) {
+		// If any interactive element inside the GUI panel has focus (e.g. after
+		// clicking a dropdown, checkbox, or slider), blur it so navigation keys
+		// are handled by our handler instead of the browser.
+		if (
+			gui &&
+			document.activeElement instanceof HTMLElement &&
+			gui.domElement.contains(document.activeElement)
+		) {
 			document.activeElement.blur();
 		}
 
