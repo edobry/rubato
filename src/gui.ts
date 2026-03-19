@@ -252,8 +252,8 @@ export function initGui(): void {
 	seg.open();
 
 	const mot = gui.addFolder("Motion Trails");
-	addParam(mot, params.motion, "deposition", 0, 5, 0.1, "Deposition");
-	addParam(mot, params.motion, "decay", 0.9, 1, 0.005, "Decay");
+	addParam(mot, params.motion, "deposition", 0, 20, 0.5, "Deposition");
+	addParam(mot, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
 	mot.open();
 
 	const overlay = gui.addFolder("Overlay");
