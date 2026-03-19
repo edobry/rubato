@@ -8,6 +8,7 @@ import defaults from "../params.json";
 import { params } from "./params";
 
 const STORAGE_KEY = "rubato-presets";
+const LAST_PRESET_KEY = "rubato-last-preset";
 
 /** The subset of params that a creative preset captures. */
 export interface CreativePreset {
@@ -274,6 +275,16 @@ export function savePreset(name: string, preset: CreativePreset): void {
 	const saved = getSavedPresets();
 	saved[name] = preset;
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+}
+
+/** Get the last-used preset name from localStorage. */
+export function getLastPreset(): string {
+	return localStorage.getItem(LAST_PRESET_KEY) ?? "default";
+}
+
+/** Save the last-used preset name to localStorage. */
+export function setLastPreset(name: string): void {
+	localStorage.setItem(LAST_PRESET_KEY, name);
 }
 
 /** Delete a user-saved preset from localStorage. */

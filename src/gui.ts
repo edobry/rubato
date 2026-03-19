@@ -23,8 +23,10 @@ import {
 	deletePreset,
 	extractPreset,
 	getBuiltInPresets,
+	getLastPreset,
 	getSavedPresets,
 	savePreset,
+	setLastPreset,
 } from "./presets";
 
 let gui: GUI | null = null;
@@ -124,6 +126,17 @@ function isNavItemVisible(item: NavItem): boolean {
 	return true;
 }
 
+/** Attach click-to-select handlers so clicking a nav item syncs the highlight. */
+function registerClickHandlers(): void {
+	for (let i = 0; i < navItems.length; i++) {
+		const idx = i;
+		navItems[i].element.addEventListener("click", () => {
+			selectedIndex = idx;
+			updateHighlight();
+		});
+	}
+}
+
 /** Build the navItems array in DOM order from folders and controllers. */
 function buildNavItems(rootGui: GUI): void {
 	navItems = [];
@@ -170,17 +183,6 @@ function buildNavItems(rootGui: GUI): void {
 
 	// (Re-)register click-to-select handlers on all nav items
 	registerClickHandlers();
-}
-
-/** Attach click-to-select handlers so clicking a nav item syncs the highlight. */
-function registerClickHandlers(): void {
-	for (let i = 0; i < navItems.length; i++) {
-		const idx = i;
-		navItems[i].element.addEventListener("click", () => {
-			selectedIndex = idx;
-			updateHighlight();
-		});
-	}
 }
 
 /** Handle Left/Right arrow for the currently selected item. */
@@ -336,18 +338,17 @@ export function initGui(): void {
 	const presetsFolder = gui.addFolder("Presets");
 
 	// State for the preset selector
-	const presetState = { selected: "(none)", newName: "" };
+	const presetState = { selected: "default", newName: "" };
 
 	/** Build the list of all available preset names. */
 	function allPresetNames(): string[] {
 		const builtIn = Object.keys(getBuiltInPresets());
 		const saved = Object.keys(getSavedPresets());
-		return ["(none)", ...saved.map((n) => `* ${n}`), ...builtIn];
+		return [...saved.map((n) => `* ${n}`), ...builtIn];
 	}
 
 	/** Look up a preset by display name. */
 	function resolvePreset(displayName: string): CreativePreset | null {
-		if (displayName === "(none)") return null;
 		const builtIns = getBuiltInPresets();
 		if (displayName in builtIns) return builtIns[displayName];
 		// User presets are prefixed with "* "
@@ -365,7 +366,22 @@ export function initGui(): void {
 		.onChange((value: string) => {
 			const preset = resolvePreset(value);
 			if (preset) applyPreset(preset);
+			setLastPreset(value);
 		});
+
+	// Auto-select last-used preset on page load
+	{
+		const lastPreset = getLastPreset();
+		const names = allPresetNames();
+		if (names.includes(lastPreset)) {
+			presetState.selected = lastPreset;
+		} else {
+			presetState.selected = "default";
+		}
+		presetDropdown.updateDisplay();
+		const initialPreset = resolvePreset(presetState.selected);
+		if (initialPreset) applyPreset(initialPreset);
+	}
 
 	presetsFolder.add(presetState, "newName").name("New Preset Name");
 
@@ -380,12 +396,16 @@ export function initGui(): void {
 					// Refresh the dropdown options
 					presetDropdown.options(allPresetNames());
 					presetState.selected = `* ${name}`;
+					setLastPreset(`* ${name}`);
 					presetDropdown.updateDisplay();
 					presetState.newName = "";
 					// Update the name input display
 					for (const c of presetsFolder.controllersRecursive()) {
 						c.updateDisplay();
 					}
+					// Rebuild nav items since dropdown.options() replaces the DOM
+					buildNavItems(gui!);
+					updateHighlight();
 				},
 			},
 			"save",
@@ -400,9 +420,15 @@ export function initGui(): void {
 					if (!sel.startsWith("* ")) return; // can't delete built-ins
 					const name = sel.slice(2);
 					deletePreset(name);
-					presetState.selected = "(none)";
+					presetState.selected = "default";
+					setLastPreset("default");
 					presetDropdown.options(allPresetNames());
 					presetDropdown.updateDisplay();
+					const fallback = resolvePreset("default");
+					if (fallback) applyPreset(fallback);
+					// Rebuild nav items since dropdown.options() replaces the DOM
+					buildNavItems(gui!);
+					updateHighlight();
 				},
 			},
 			"remove",
@@ -583,7 +609,7 @@ export function initGui(): void {
 		line-height: 1.4;
 		border-top: 1px solid #333;
 	`;
-	logEl.textContent = "waiting…";
+	logEl.textContent = "waiting\u2026";
 	tune.$children.appendChild(logEl);
 
 	// Reactively update controllers when params change (replaces polling)
@@ -595,7 +621,7 @@ export function initGui(): void {
 
 	// Reactively update log panel when autotune logs a message
 	onLogChange((log) => {
-		logEl.textContent = log.join("\n") || "waiting…";
+		logEl.textContent = log.join("\n") || "waiting\u2026";
 		logEl.scrollTop = logEl.scrollHeight;
 	});
 
@@ -621,15 +647,6 @@ export function initGui(): void {
 	// Build flat navigation list from ALL controllers and folder headings
 	buildNavItems(gui);
 	selectedIndex = 0;
-
-	// Click-to-select: sync keyboard focus when user clicks a nav item
-	for (let i = 0; i < navItems.length; i++) {
-		const idx = i;
-		navItems[i].element.addEventListener("click", () => {
-			selectedIndex = idx;
-			updateHighlight();
-		});
-	}
 
 	// Initial highlight
 	updateHighlight();
