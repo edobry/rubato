@@ -1,3 +1,5 @@
 node_modules/
 dist/
 *.local
+e2e/screenshot.png
+test-results/

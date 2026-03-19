@@ -20,6 +20,6 @@
 		"enabled": true
 	},
 	"files": {
-		"includes": ["src/**", "*.json", "*.ts"]
+		"includes": ["src/**", "e2e/**", "*.json", "*.ts"]
 	}
 }

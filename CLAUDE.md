@@ -21,6 +21,14 @@ npx @biomejs/biome check .        # Check lint + format
 npx @biomejs/biome check --write . # Auto-fix
 ```
 
+Visual verification (requires dev server running on :5173):
+```bash
+npm run screenshot  # Headless screenshot → e2e/screenshot.png
+npm run interact    # Headed browser + Playwright Inspector for manual interaction
+```
+
+Use `npm run screenshot` to visually verify changes, then read `e2e/screenshot.png` to see the result. In headless mode, there's no real camera — screenshots will show the camera-unavailable fallback until the fog shader is implemented (which renders without camera input).
+
 ## Stack
 
 - **TypeScript** — no UI framework, single full-screen canvas
