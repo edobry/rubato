@@ -40,7 +40,7 @@ export const params = {
 			| "aura",
 	},
 	autoTune: {
-		enabled: false,
+		enabled: true,
 		targetFps: 30,
 	},
 };

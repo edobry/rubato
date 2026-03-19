@@ -63,24 +63,27 @@ function updateHighlight(): void {
 
 /** Make the GUI panel draggable by its title bar. */
 function makeDraggable(guiElement: HTMLElement): void {
-	const titleBar = guiElement.querySelector(".title") as HTMLElement | null;
-	if (!titleBar) return;
+	// lil-gui's root title is the first direct child with class "title"
+	const titleBar = guiElement.querySelector(
+		":scope > .title",
+	) as HTMLElement | null;
+	if (!titleBar) {
+		console.warn("Could not find GUI title bar for dragging");
+		return;
+	}
 
-	// Switch from fixed top-right to absolute positioning
 	guiElement.style.position = "fixed";
 	guiElement.style.top = "0px";
 	guiElement.style.right = "0px";
 	guiElement.style.left = "auto";
 	titleBar.style.cursor = "grab";
+	titleBar.style.userSelect = "none";
 
 	let dragging = false;
 	let offsetX = 0;
 	let offsetY = 0;
 
 	titleBar.addEventListener("mousedown", (e) => {
-		// Don't start drag if clicking the collapse arrow
-		if ((e.target as HTMLElement).closest(".lil-gui > .title") !== titleBar)
-			return;
 		dragging = true;
 		titleBar.style.cursor = "grabbing";
 		const rect = guiElement.getBoundingClientRect();
@@ -91,7 +94,6 @@ function makeDraggable(guiElement: HTMLElement): void {
 
 	window.addEventListener("mousemove", (e) => {
 		if (!dragging) return;
-		// Switch to left/top positioning once dragging starts
 		guiElement.style.right = "auto";
 		guiElement.style.left = `${e.clientX - offsetX}px`;
 		guiElement.style.top = `${e.clientY - offsetY}px`;
@@ -173,24 +175,31 @@ export function initGui(): void {
 	const tune = gui.addFolder("Auto-Tune");
 	tune.add(params.autoTune, "enabled").name("Enabled");
 	addParam(tune, params.autoTune, "targetFps", 15, 60, 5, "Target FPS");
-	const statusDisplay = { status: "", lastAction: "", adjustments: 0 };
-	const statusCtrl = tune.add(statusDisplay, "status").name("Status").disable();
-	const actionCtrl = tune
-		.add(statusDisplay, "lastAction")
-		.name("Last Action")
-		.disable();
-	const countCtrl = tune
-		.add(statusDisplay, "adjustments")
-		.name("Adjustments")
-		.disable();
-	// Update status display periodically
+
+	// Scrolling log panel
+	const logEl = document.createElement("div");
+	logEl.style.cssText = `
+		font: 11px monospace;
+		color: #aaa;
+		background: #1a1a1a;
+		padding: 6px 8px;
+		max-height: 120px;
+		overflow-y: auto;
+		white-space: pre;
+		line-height: 1.4;
+		border-top: 1px solid #333;
+	`;
+	logEl.textContent = "waiting…";
+	tune.domElement.querySelector(".children")?.appendChild(logEl);
+
+	let lastLogLength = 0;
 	setInterval(() => {
-		statusDisplay.status = autoTuneState.status;
-		statusDisplay.lastAction = autoTuneState.lastAction || "—";
-		statusDisplay.adjustments = autoTuneState.adjustCount;
-		statusCtrl.updateDisplay();
-		actionCtrl.updateDisplay();
-		countCtrl.updateDisplay();
+		const log = autoTuneState.log;
+		if (log.length !== lastLogLength) {
+			lastLogLength = log.length;
+			logEl.textContent = log.join("\n") || "waiting…";
+			logEl.scrollTop = logEl.scrollHeight;
+		}
 	}, 500);
 	tune.open();
 
