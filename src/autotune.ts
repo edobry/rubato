@@ -23,11 +23,11 @@ const MODEL_LADDER = ["quality", "fast"];
 const MAX_FRAME_SKIP = 4;
 
 /** How long FPS must stay in the target range before we consider the config stable (ms). */
-const STABLE_DURATION = 4000;
+const STABLE_DURATION = 3000;
 /** How long FPS must be well above target before we attempt an upgrade (ms). */
-const UPGRADE_HYSTERESIS = 5000;
+const UPGRADE_HYSTERESIS = 3000;
 /** FPS must exceed target by at least this much before upgrade hysteresis timer starts. */
-const UPGRADE_HEADROOM = 8;
+const UPGRADE_HEADROOM = 5;
 /** FPS must drop this fraction below target for a sustained period to trigger re-evaluation. */
 const DROP_THRESHOLD = 0.2;
 /** How long (ms) FPS must stay below the drop threshold to break out of stable state. */
@@ -313,9 +313,9 @@ export function autoTuneTick(): void {
 	recordFps(current, fps);
 	updateBestKnown(current, fps, target);
 
-	// Use a tolerance band: accept FPS within 15% below target as "good enough"
+	// Use a tolerance band: accept FPS within 10% below target as "good enough"
 	// This prevents thrashing when movement causes temporary dips
-	const tolerance = target * 0.15;
+	const tolerance = target * 0.1;
 	const belowTarget = fps < target - tolerance;
 	const significantDrop = fps < target * (1 - DROP_THRESHOLD);
 	const wellAboveTarget = fps > target + UPGRADE_HEADROOM;
