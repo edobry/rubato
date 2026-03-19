@@ -18,7 +18,7 @@ import { params } from "./params";
 const SAMPLE_WINDOW = 60;
 const RESOLUTION_LADDER = ["720p", "480p", "360p"];
 const MODEL_LADDER = ["quality", "fast"];
-const MAX_FRAME_SKIP = 4;
+const MAX_FRAME_SKIP = 6;
 const MIN_SAMPLES_FOR_TRUST = 3;
 
 // --- Configuration space ---

@@ -2,6 +2,8 @@
  * Creative presets system.
  * Save and load parameter configurations for creative params only.
  * Built-in presets ship with the app; user presets persist in localStorage.
+ * When running under the Vite dev server, presets are also synced to a
+ * shared JSON file so they are automatically available across all devices.
  */
 
 import defaults from "../params.json";
@@ -10,6 +12,9 @@ import { params } from "./params";
 
 const STORAGE_KEY = "rubato-presets";
 const LAST_PRESET_KEY = "rubato-last-preset";
+
+/** Cache of presets fetched from the dev server at startup. */
+let serverPresets: Record<string, CreativePreset> = {};
 
 /** The subset of params that a creative preset captures. */
 export interface CreativePreset {
@@ -260,8 +265,9 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 	};
 }
 
-/** Load user-saved presets from localStorage, merged with custom-presets.json.
- *  localStorage entries take priority over custom-presets.json entries. */
+/** Load user-saved presets from localStorage, merged with custom-presets.json
+ *  and server presets. Server presets take priority over the static import,
+ *  and localStorage entries take priority over both. */
 export function getSavedPresets(): Record<string, CreativePreset> {
 	const custom = (customPresets ?? {}) as Record<string, CreativePreset>;
 	try {
@@ -269,9 +275,9 @@ export function getSavedPresets(): Record<string, CreativePreset> {
 		const local = raw
 			? (JSON.parse(raw) as Record<string, CreativePreset>)
 			: {};
-		return { ...custom, ...local };
+		return { ...custom, ...serverPresets, ...local };
 	} catch {
-		return { ...custom };
+		return { ...custom, ...serverPresets };
 	}
 }
 
@@ -312,4 +318,52 @@ export function deletePreset(name: string): void {
 	const saved = getSavedPresets();
 	delete saved[name];
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+}
+
+// ── Dev-server preset sync ───────────────────────────────────────────
+
+/** Fetch presets from the dev server. Falls back silently in production. */
+export async function fetchServerPresets(): Promise<
+	Record<string, CreativePreset>
+> {
+	try {
+		const res = await fetch("/api/presets");
+		if (!res.ok) return {};
+		return (await res.json()) as Record<string, CreativePreset>;
+	} catch {
+		// No dev server (production build) — silently fall back.
+		return {};
+	}
+}
+
+/** POST a preset to the dev server so it is persisted in custom-presets.json. */
+export async function syncPresetToServer(
+	name: string,
+	preset: CreativePreset,
+): Promise<void> {
+	try {
+		await fetch("/api/presets", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ name, preset }),
+		});
+	} catch {
+		// Silently ignore — server may not be available.
+	}
+}
+
+/** DELETE a preset from the dev server's custom-presets.json. */
+export async function deletePresetFromServer(name: string): Promise<void> {
+	try {
+		await fetch(`/api/presets/${encodeURIComponent(name)}`, {
+			method: "DELETE",
+		});
+	} catch {
+		// Silently ignore — server may not be available.
+	}
+}
+
+/** Load server presets into the local cache. Call once at startup. */
+export async function initServerPresets(): Promise<void> {
+	serverPresets = await fetchServerPresets();
 }

@@ -21,14 +21,17 @@ import {
 	applyPreset,
 	type CreativePreset,
 	deletePreset,
+	deletePresetFromServer,
 	exportAllPresets,
 	extractPreset,
 	getBuiltInPresets,
 	getLastPreset,
 	getSavedPresets,
 	importPresets,
+	initServerPresets,
 	savePreset,
 	setLastPreset,
+	syncPresetToServer,
 } from "./presets";
 
 let gui: GUI | null = null;
@@ -296,7 +299,10 @@ function makeDraggable(guiElement: HTMLElement): void {
 	});
 }
 
-export function initGui(): void {
+export async function initGui(): Promise<void> {
+	// Fetch server presets before building the GUI so the dropdown is complete.
+	await initServerPresets();
+
 	gui = new GUI({ title: "rubato params", width: 350 });
 	gui.domElement.style.zIndex = "10000";
 
@@ -395,6 +401,7 @@ export function initGui(): void {
 					if (!name) return;
 					const preset = extractPreset(name);
 					savePreset(name, preset);
+					syncPresetToServer(name, preset);
 					// Refresh the dropdown options
 					presetDropdown.options(allPresetNames());
 					presetState.selected = `* ${name}`;
@@ -422,6 +429,7 @@ export function initGui(): void {
 					if (!sel.startsWith("* ")) return; // can't delete built-ins
 					const name = sel.slice(2);
 					deletePreset(name);
+					deletePresetFromServer(name);
 					presetState.selected = "default";
 					setLastPreset("default");
 					presetDropdown.options(allPresetNames());
@@ -505,13 +513,13 @@ export function initGui(): void {
 	overlayStyle.open();
 
 	const trails = creative.addFolder("Trails");
-	addParam(trails, params.motion, "deposition", 0, 20, 0.5, "Deposition");
+	addParam(trails, params.motion, "deposition", 0, 8, 0.1, "Deposition");
 	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
 	trails.open();
 
 	const fog = creative.addFolder("Fog");
-	addParam(fog, params.fog, "speed", 0, 1, 0.01, "Speed");
-	addParam(fog, params.fog, "scale", 0.5, 10, 0.5, "Scale");
+	addParam(fog, params.fog, "speed", 0, 0.5, 0.01, "Speed");
+	addParam(fog, params.fog, "scale", 0.5, 10, 0.25, "Scale");
 	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
 	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
 	fog.open();
@@ -562,7 +570,7 @@ export function initGui(): void {
 	seg
 		.add(params.segmentation, "delegate", ["auto", "GPU", "CPU"])
 		.name("Delegate");
-	addParam(seg, params.segmentation, "frameSkip", 1, 4, 1, "Frame Skip");
+	addParam(seg, params.segmentation, "frameSkip", 1, 6, 1, "Frame Skip");
 	seg.open();
 
 	const tune = performance.addFolder("Auto-Tune");
