@@ -58,19 +58,30 @@ export function segmentFrame(
 	const currentMask = new Float32Array(pixelCount);
 
 	if (categoryMask && confidenceMasks && confidenceMasks.length > 0) {
-		// Multiclass path: use category to decide person vs background,
-		// then use the max confidence across person classes for smooth edges
+		// Multiclass path: category mask is the authoritative person/background signal.
+		// Confidence masks soften edges — sum all person-class confidences to get
+		// overall "person-ness" per pixel, then threshold for clean boundaries.
 		const categories = categoryMask.getAsUint8Array();
+
+		// Pre-fetch all person-class confidence arrays
+		const personConfs: Float32Array[] = [];
+		for (let c = 1; c <= 5 && c < confidenceMasks.length; c++) {
+			personConfs.push(confidenceMasks[c].getAsFloat32Array());
+		}
 
 		for (let i = 0; i < pixelCount; i++) {
 			const cat = categories[i];
-			// Categories: 0=background, 1=hair, 2=body-skin, 3=face-skin, 4=clothes, 5=others(accessories)
+			// Categories: 0=background, 1=hair, 2=body-skin, 3=face-skin, 4=clothes, 5=others
 			if (cat >= 1 && cat <= 5) {
-				// Find confidence for this pixel's class
-				const conf = confidenceMasks[cat]?.getAsFloat32Array();
-				const confidence = conf ? conf[i] : 1.0;
+				// Sum confidence across all person classes for this pixel
+				let totalConf = 0;
+				for (const conf of personConfs) {
+					totalConf += conf[i];
+				}
+				// Clamp to 0–1 and apply threshold
+				totalConf = Math.min(totalConf, 1);
 				currentMask[i] =
-					confidence > params.segmentation.confidenceThreshold ? confidence : 0;
+					totalConf > params.segmentation.confidenceThreshold ? totalConf : 0;
 			}
 		}
 	} else if (confidenceMasks && confidenceMasks.length > 0) {

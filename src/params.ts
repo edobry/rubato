@@ -6,7 +6,7 @@
 
 export const params = {
 	segmentation: {
-		confidenceThreshold: 0.5,
+		confidenceThreshold: 0.3,
 		temporalSmoothing: 0.4,
 	},
 };
