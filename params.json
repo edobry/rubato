@@ -1,5 +1,6 @@
 {
 	"camera": {
+		"showFeed": true,
 		"resolution": "720p",
 		"fillAmount": 1.0
 	},

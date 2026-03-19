@@ -51,6 +51,7 @@ const d = defaults;
 
 export const params = {
 	camera: reactive("camera", {
+		showFeed: d.camera.showFeed,
 		resolution: d.camera.resolution,
 		fillAmount: d.camera.fillAmount,
 	}),

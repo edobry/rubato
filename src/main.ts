@@ -88,8 +88,13 @@ async function main(): Promise<void> {
 			changeResolution(params.camera.resolution);
 		}
 
-		// Draw camera feed
-		drawFrame(ctx, video);
+		// Draw camera feed (or black background when feed is hidden)
+		if (params.camera.showFeed) {
+			drawFrame(ctx, video);
+		} else {
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, width, height);
+		}
 
 		// Run segmentation + motion detection
 		if (segmentationReady && params.overlay.showOverlay) {

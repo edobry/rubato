@@ -213,6 +213,7 @@ export function initGui(): void {
 	document.head.appendChild(style);
 
 	const cam = gui.addFolder("Camera");
+	cam.add(params.camera, "showFeed").name("Show Feed");
 	cam
 		.add(params.camera, "resolution", ["720p", "480p", "360p"])
 		.name("Resolution");
