@@ -150,12 +150,18 @@ export function initGui(): void {
 		0.05,
 		"Temporal Smoothing",
 	);
+	addParam(seg, params.segmentation, "frameSkip", 1, 4, 1, "Frame Skip");
 	seg.open();
 
 	const overlay = gui.addFolder("Overlay");
 	overlay.add(params.overlay, "showOverlay").name("Show Overlay");
 	addParam(overlay, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
 	overlay.open();
+
+	const tune = gui.addFolder("Auto-Tune");
+	tune.add(params.autoTune, "enabled").name("Enabled");
+	addParam(tune, params.autoTune, "targetFps", 15, 60, 5, "Target FPS");
+	tune.open();
 
 	// Export button
 	gui

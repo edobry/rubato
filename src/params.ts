@@ -24,10 +24,16 @@ export const params = {
 		delegate: "auto",
 		confidenceThreshold: 0.5,
 		temporalSmoothing: 0.4,
+		// Run segmentation every Nth frame (1 = every frame, 2 = skip one, etc.)
+		frameSkip: 1,
 	},
 	overlay: {
 		opacity: 0.5,
 		showOverlay: true,
+	},
+	autoTune: {
+		enabled: false,
+		targetFps: 30,
 	},
 };
 

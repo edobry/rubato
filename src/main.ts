@@ -1,3 +1,4 @@
+import { autoTuneTick } from "./autotune";
 import { initCamera } from "./camera";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
@@ -70,11 +71,16 @@ async function main(): Promise<void> {
 			console.error("Segmentation failed to load:", err);
 		});
 
+	let frameCount = 0;
+	let lastMask: Float32Array | null = null;
+
 	function loop(): void {
 		if (!video || !ctx) return;
 		const { width, height } = canvas;
 
-		// Check if resolution changed via GUI
+		autoTuneTick();
+
+		// Check if resolution changed via GUI (or auto-tuner)
 		if (params.camera.resolution !== currentResolution) {
 			changeResolution(params.camera.resolution);
 		}
@@ -84,13 +90,20 @@ async function main(): Promise<void> {
 
 		// Overlay segmentation mask if ready
 		if (segmentationReady && params.overlay.showOverlay) {
-			const mask = segmentFrame(video, performance.now());
-			if (mask) {
+			// Frame skipping: only run segmentation every Nth frame
+			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
+			if (frameCount % skip === 0) {
+				const mask = segmentFrame(video, performance.now());
+				if (mask) lastMask = mask;
+			}
+
+			if (lastMask) {
 				const { width: maskW, height: maskH } = getSegmenterResolution(video);
-				drawMaskOverlay(ctx, mask, maskW, maskH, width, height);
+				drawMaskOverlay(ctx, lastMask, maskW, maskH, width, height);
 			}
 		}
 
+		frameCount++;
 		fps.draw(ctx);
 		requestAnimationFrame(loop);
 	}
