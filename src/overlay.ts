@@ -6,6 +6,13 @@
 import { params } from "./params";
 import { computeCrop } from "./renderer";
 
+// Cached per-frame allocations to avoid GC pressure on constrained hardware
+let cachedImageData: ImageData | null = null;
+let cachedOffscreen: OffscreenCanvas | null = null;
+let cachedOffCtx: OffscreenCanvasRenderingContext2D | null = null;
+let cachedW = 0;
+let cachedH = 0;
+
 /** Parse hex color string to RGB. */
 function hexToRgb(hex: string): [number, number, number] {
 	const n = Number.parseInt(hex.replace("#", ""), 16);
@@ -60,8 +67,18 @@ export function drawMaskOverlay(
 	displayW: number,
 	displayH: number,
 ): void {
-	const imageData = ctx.createImageData(maskW, maskH);
+	// Reuse allocations across frames to avoid GC pressure
+	if (cachedW !== maskW || cachedH !== maskH) {
+		cachedImageData = ctx.createImageData(maskW, maskH);
+		cachedOffscreen = new OffscreenCanvas(maskW, maskH);
+		cachedOffCtx = cachedOffscreen.getContext("2d")!;
+		cachedW = maskW;
+		cachedH = maskH;
+	}
+	const imageData = cachedImageData!;
 	const data = imageData.data;
+	// Clear previous frame's data
+	data.fill(0);
 	const mode = params.overlay.colorMode;
 	const opacity = params.overlay.opacity;
 
@@ -138,9 +155,7 @@ export function drawMaskOverlay(
 		data[idx + 3] = alpha;
 	}
 
-	const offscreen = new OffscreenCanvas(maskW, maskH);
-	const offCtx = offscreen.getContext("2d")!;
-	offCtx.putImageData(imageData, 0, 0);
+	cachedOffCtx!.putImageData(imageData, 0, 0);
 
 	const crop = computeCrop(maskW, maskH, displayW, displayH);
 	ctx.save();
@@ -150,7 +165,7 @@ export function drawMaskOverlay(
 	ctx.translate(displayW, 0);
 	ctx.scale(-1, 1);
 	ctx.drawImage(
-		offscreen,
+		cachedOffscreen!,
 		crop.sx,
 		crop.sy,
 		crop.sw,

@@ -203,10 +203,10 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 			name: "silhouette",
 			overlay: {
 				showOverlay: true,
-				visualize: "trail",
+				visualize: "both",
 				opacity: 0.85,
 				color: "#ffffff",
-				colorMode: "invert",
+				colorMode: "solid",
 			},
 			motion: {
 				deposition: 6,
