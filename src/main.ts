@@ -75,6 +75,7 @@ async function main(): Promise<void> {
 	let frameCount = 0;
 	let lastMask: Float32Array | null = null;
 	let lastMotion: Float32Array | null = null;
+	let lastTrail: Float32Array | null = null;
 
 	function loop(): void {
 		if (!video || !ctx) return;
@@ -98,7 +99,9 @@ async function main(): Promise<void> {
 				if (result) {
 					lastMask = result.smoothed;
 					const { width: mw, height: mh } = getSegmenterResolution(video);
-					lastMotion = detectMotion(result.raw, mw, mh);
+					const motionResult = detectMotion(result.raw, mw, mh);
+					lastMotion = motionResult.motion;
+					lastTrail = motionResult.trail;
 				}
 			}
 
@@ -108,8 +111,11 @@ async function main(): Promise<void> {
 			if ((viz === "mask" || viz === "both") && lastMask) {
 				drawMaskOverlay(ctx, lastMask, maskW, maskH, width, height);
 			}
-			if ((viz === "motion" || viz === "both") && lastMotion) {
+			if (viz === "motion" && lastMotion) {
 				drawMaskOverlay(ctx, lastMotion, maskW, maskH, width, height);
+			}
+			if ((viz === "trail" || viz === "both") && lastTrail) {
+				drawMaskOverlay(ctx, lastTrail, maskW, maskH, width, height);
 			}
 		}
 

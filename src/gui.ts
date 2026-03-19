@@ -165,10 +165,15 @@ export function initGui(): void {
 	);
 	seg.open();
 
+	const mot = gui.addFolder("Motion Trails");
+	addParam(mot, params.motion, "deposition", 0, 5, 0.1, "Deposition");
+	addParam(mot, params.motion, "decay", 0.9, 1, 0.005, "Decay");
+	mot.open();
+
 	const overlay = gui.addFolder("Overlay");
 	overlay.add(params.overlay, "showOverlay").name("Show Overlay");
 	overlay
-		.add(params.overlay, "visualize", ["mask", "motion", "both"])
+		.add(params.overlay, "visualize", ["mask", "motion", "trail", "both"])
 		.name("Visualize");
 	addParam(overlay, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
 	overlay.addColor(params.overlay, "color").name("Color");

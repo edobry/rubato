@@ -11,6 +11,10 @@
 		"frameSkip": 1,
 		"motionThreshold": 0.1
 	},
+	"motion": {
+		"deposition": 2.0,
+		"decay": 0.97
+	},
 	"overlay": {
 		"showOverlay": true,
 		"visualize": "mask",

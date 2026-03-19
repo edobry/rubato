@@ -62,10 +62,16 @@ export const params = {
 		frameSkip: d.segmentation.frameSkip,
 		motionThreshold: d.segmentation.motionThreshold,
 	}),
+	motion: reactive("motion", {
+		// How strongly motion deposits into the trail buffer (0-5)
+		deposition: d.motion.deposition,
+		// Per-frame decay multiplier (0.9 = fast fade, 0.99 = slow fade)
+		decay: d.motion.decay,
+	}),
 	overlay: reactive("overlay", {
 		showOverlay: d.overlay.showOverlay,
-		// What to visualize: "mask" (segmentation), "motion" (moving pixels), "both"
-		visualize: d.overlay.visualize as "mask" | "motion" | "both",
+		// What to visualize: "mask", "motion" (raw diff), "trail" (accumulated), "both" (mask+trail)
+		visualize: d.overlay.visualize as "mask" | "motion" | "trail" | "both",
 		opacity: d.overlay.opacity,
 		color: d.overlay.color,
 		colorMode: d.overlay.colorMode as
