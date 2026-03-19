@@ -1,32 +1,45 @@
 /**
  * Body segmentation module.
  * Wraps MediaPipe ImageSegmenter to produce per-frame person masks.
- * Uses the landscape model with thresholding and temporal smoothing.
  */
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
-import { params } from "./params";
-
-// Landscape model: better edge quality than base selfie_segmenter,
-// single-class confidence output (0=background, 1=person)
-const MODEL_URL =
-	"https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite";
+import { params, SEGMENTATION_MODELS } from "./params";
 
 let segmenter: ImageSegmenter | null = null;
 let prevMask: Float32Array | null = null;
+let currentModelKey: string | null = null;
+let vision: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>> | null =
+	null;
 
-export async function initSegmentation(): Promise<void> {
-	const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
+async function loadModel(modelKey: string): Promise<void> {
+	const url = SEGMENTATION_MODELS[modelKey];
+	if (!url) return;
+
+	if (segmenter) {
+		segmenter.close();
+	}
+
+	if (!vision) {
+		vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
+	}
 
 	segmenter = await ImageSegmenter.createFromOptions(vision, {
 		baseOptions: {
-			modelAssetPath: MODEL_URL,
+			modelAssetPath: url,
 			delegate: "GPU",
 		},
 		runningMode: "VIDEO",
 		outputConfidenceMasks: true,
 		outputCategoryMask: false,
 	});
+
+	currentModelKey = modelKey;
+	prevMask = null;
+}
+
+export async function initSegmentation(): Promise<void> {
+	await loadModel(params.segmentation.model);
 }
 
 /**
@@ -40,6 +53,12 @@ export function segmentFrame(
 ): Float32Array | null {
 	if (!segmenter) return null;
 
+	// Hot-swap model if changed via GUI
+	if (currentModelKey !== params.segmentation.model) {
+		loadModel(params.segmentation.model);
+		return prevMask; // return last good mask while loading
+	}
+
 	const result = segmenter.segmentForVideo(video, timestampMs);
 	const confidenceMasks = result.confidenceMasks;
 	if (!confidenceMasks?.length) return null;
@@ -50,12 +69,10 @@ export function segmentFrame(
 	const currentMask = new Float32Array(pixelCount);
 	const threshold = params.segmentation.confidenceThreshold;
 
-	// Threshold: cut low-confidence pixels to reduce bleed onto nearby objects
 	for (let i = 0; i < pixelCount; i++) {
 		currentMask[i] = raw[i] > threshold ? raw[i] : 0;
 	}
 
-	// Temporal smoothing: blend with previous frame to reduce jitter
 	const smooth = params.segmentation.temporalSmoothing;
 	if (smooth > 0 && prevMask && prevMask.length === pixelCount) {
 		for (let i = 0; i < pixelCount; i++) {
@@ -63,7 +80,6 @@ export function segmentFrame(
 		}
 	}
 
-	// Store for next frame
 	if (!prevMask || prevMask.length !== pixelCount) {
 		prevMask = new Float32Array(pixelCount);
 	}

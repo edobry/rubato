@@ -3,6 +3,8 @@
  * Draws camera frames to a full-screen canvas, cropping to match display aspect ratio.
  */
 
+import { params } from "./params";
+
 export function initCanvas(): HTMLCanvasElement {
 	const canvas = document.createElement("canvas");
 	canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%";
@@ -16,8 +18,9 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
 }
 
 /**
- * Compute source crop rectangle so camera feed fills the display
- * without letterboxing or stretching.
+ * Compute source crop rectangle.
+ * fillAmount=1.0: fill display (crop excess), fillAmount=0.0: fit display (letterbox).
+ * Values in between blend the two behaviors.
  */
 export function computeCrop(
 	videoW: number,
@@ -27,19 +30,33 @@ export function computeCrop(
 ): { sx: number; sy: number; sw: number; sh: number } {
 	const displayAspect = displayW / displayH;
 	const videoAspect = videoW / videoH;
+	const fill = params.camera.fillAmount;
 
-	let sw: number;
-	let sh: number;
-
+	// "Fill" crop: zoom in to eliminate black bars
+	let fillSw: number;
+	let fillSh: number;
 	if (videoAspect > displayAspect) {
-		// Video is wider than display — crop sides
-		sh = videoH;
-		sw = videoH * displayAspect;
+		fillSh = videoH;
+		fillSw = videoH * displayAspect;
 	} else {
-		// Video is taller than display — crop top/bottom
-		sw = videoW;
-		sh = videoW / displayAspect;
+		fillSw = videoW;
+		fillSh = videoW / displayAspect;
 	}
+
+	// "Fit" crop: show full frame (may have black bars)
+	let fitSw: number;
+	let fitSh: number;
+	if (videoAspect > displayAspect) {
+		fitSw = videoW;
+		fitSh = videoW / displayAspect;
+	} else {
+		fitSh = videoH;
+		fitSw = videoH * displayAspect;
+	}
+
+	// Blend between fit and fill
+	const sw = fitSw + (fillSw - fitSw) * fill;
+	const sh = fitSh + (fillSh - fitSh) * fill;
 
 	const sx = (videoW - sw) / 2;
 	const sy = (videoH - sh) / 2;
@@ -48,7 +65,7 @@ export function computeCrop(
 }
 
 /**
- * Draw a single camera frame to the canvas, cropped to fill.
+ * Draw a single camera frame to the canvas, cropped/fitted per fillAmount.
  * The image is mirrored horizontally so it feels like a mirror to the viewer.
  */
 export function drawFrame(
@@ -57,6 +74,9 @@ export function drawFrame(
 ): void {
 	const { width, height } = ctx.canvas;
 	if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+	// Clear in case fit mode leaves borders
+	ctx.clearRect(0, 0, width, height);
 
 	const crop = computeCrop(video.videoWidth, video.videoHeight, width, height);
 

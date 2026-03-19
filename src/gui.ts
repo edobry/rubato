@@ -1,6 +1,13 @@
 /**
  * Dev GUI panel (lil-gui).
  * Toggle visibility with 'G' key. Only included when VITE_DEV_GUI is set.
+ *
+ * Keyboard controls:
+ *   G          — toggle panel visibility
+ *   Up/Down    — select previous/next parameter
+ *   Left/Right — decrease/increase selected parameter
+ *   Shift+L/R  — larger step (10x)
+ *   E          — export params to clipboard
  */
 
 import GUI from "lil-gui";
@@ -8,20 +15,103 @@ import { params } from "./params";
 
 let gui: GUI | null = null;
 
+interface TunableParam {
+	name: string;
+	controller: ReturnType<GUI["add"]>;
+	object: Record<string, number>;
+	key: string;
+	step: number;
+	min: number;
+	max: number;
+}
+
+const tunables: TunableParam[] = [];
+let selectedIndex = 0;
+
+function addParam(
+	folder: GUI,
+	obj: Record<string, unknown>,
+	key: string,
+	min: number,
+	max: number,
+	step: number,
+	label: string,
+): void {
+	const controller = folder.add(obj, key, min, max, step).name(label);
+	tunables.push({
+		name: label,
+		controller,
+		object: obj as Record<string, number>,
+		key,
+		step,
+		min,
+		max,
+	});
+}
+
+function updateHighlight(): void {
+	for (let i = 0; i < tunables.length; i++) {
+		const el = tunables[i].controller.domElement.closest(".lil-gui.controller");
+		if (el instanceof HTMLElement) {
+			el.style.outline = i === selectedIndex ? "2px solid #0ff" : "none";
+			el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
+		}
+	}
+}
+
 export function initGui(): void {
-	gui = new GUI({ title: "rubato params" });
+	gui = new GUI({ title: "rubato params", width: 350 });
 	gui.domElement.style.zIndex = "10000";
+
+	// Scale up the GUI for easier interaction
+	const style = document.createElement("style");
+	style.textContent = `
+		.lil-gui { --font-size: 14px; --row-height: 32px; --widget-height: 28px; font-size: 14px !important; }
+		.lil-gui .controller { min-height: 32px; }
+		.lil-gui input[type="number"] { font-size: 14px; width: 60px; }
+		.lil-gui .slider { height: 28px; }
+		.lil-gui .title { font-size: 15px !important; padding: 8px 12px; }
+		.lil-gui .controller .name { padding: 0 8px; }
+	`;
+	document.head.appendChild(style);
+
+	const cam = gui.addFolder("Camera");
+	addParam(cam, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
+	cam.open();
 
 	const seg = gui.addFolder("Segmentation");
 	seg
-		.add(params.segmentation, "confidenceThreshold", 0, 1, 0.01)
-		.name("Confidence Threshold");
-	seg
-		.add(params.segmentation, "temporalSmoothing", 0, 0.95, 0.01)
-		.name("Temporal Smoothing");
+		.add(params.segmentation, "model", ["landscape", "base"])
+		.name("Model")
+		.onChange(() => {
+			// Model swap is handled in segmentFrame
+		});
+	addParam(
+		seg,
+		params.segmentation,
+		"confidenceThreshold",
+		0,
+		1,
+		0.05,
+		"Confidence Threshold",
+	);
+	addParam(
+		seg,
+		params.segmentation,
+		"temporalSmoothing",
+		0,
+		0.95,
+		0.05,
+		"Temporal Smoothing",
+	);
 	seg.open();
 
-	// Export button — copies current params to clipboard as JSON
+	const overlay = gui.addFolder("Overlay");
+	overlay.add(params.overlay, "showOverlay").name("Show Overlay");
+	addParam(overlay, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
+	overlay.open();
+
+	// Export button
 	gui
 		.add(
 			{
@@ -32,12 +122,59 @@ export function initGui(): void {
 			},
 			"exportJSON",
 		)
-		.name("Export JSON");
+		.name("Export JSON (E)");
 
-	// Toggle with G key
+	// Initial highlight
+	updateHighlight();
+
+	// Keyboard controls
 	window.addEventListener("keydown", (e) => {
-		if (e.key === "g" || e.key === "G") {
-			if (gui) gui.show(gui._hidden);
+		// Don't intercept if user is typing in an input
+		if (
+			e.target instanceof HTMLInputElement ||
+			e.target instanceof HTMLTextAreaElement
+		)
+			return;
+
+		switch (e.key) {
+			case "g":
+			case "G":
+				if (gui) gui.show(gui._hidden);
+				break;
+
+			case "ArrowUp":
+				e.preventDefault();
+				selectedIndex = (selectedIndex - 1 + tunables.length) % tunables.length;
+				updateHighlight();
+				break;
+
+			case "ArrowDown":
+				e.preventDefault();
+				selectedIndex = (selectedIndex + 1) % tunables.length;
+				updateHighlight();
+				break;
+
+			case "ArrowLeft":
+			case "ArrowRight": {
+				e.preventDefault();
+				const t = tunables[selectedIndex];
+				const multiplier = e.shiftKey ? 10 : 1;
+				const delta =
+					e.key === "ArrowRight" ? t.step * multiplier : -t.step * multiplier;
+				const newVal = Math.min(
+					t.max,
+					Math.max(t.min, t.object[t.key] + delta),
+				);
+				t.object[t.key] = Math.round(newVal * 1000) / 1000; // avoid float drift
+				t.controller.updateDisplay();
+				break;
+			}
+
+			case "e":
+			case "E":
+				navigator.clipboard.writeText(JSON.stringify(params, null, "\t"));
+				console.log("Params copied to clipboard");
+				break;
 		}
 	});
 }

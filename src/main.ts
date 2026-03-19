@@ -1,6 +1,7 @@
 import { initCamera } from "./camera";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
+import { params } from "./params";
 import { computeCrop, drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
 	getSegmenterResolution,
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
 		drawFrame(ctx!, video);
 
 		// Overlay segmentation mask if ready
-		if (segmentationReady) {
+		if (segmentationReady && params.overlay.showOverlay) {
 			const mask = segmentFrame(video, performance.now());
 			if (mask) {
 				const { width: maskW, height: maskH } = getSegmenterResolution(video);
@@ -95,7 +96,7 @@ function drawMaskOverlay(
 		data[idx] = 0; // R
 		data[idx + 1] = 255; // G
 		data[idx + 2] = 255; // B
-		data[idx + 3] = Math.floor(confidence * 128); // A — semi-transparent
+		data[idx + 3] = Math.floor(confidence * 255 * params.overlay.opacity);
 	}
 
 	// Draw mask to offscreen canvas at camera resolution
