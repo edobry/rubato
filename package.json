@@ -1,0 +1,33 @@
+{
+	"name": "rubato",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "VITE_DEV_GUI=true vite",
+		"build": "tsc --noEmit && vite build",
+		"preview": "vite preview",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "tsc --noEmit",
+		"prepare": "husky"
+	},
+	"lint-staged": {
+		"*.{ts,js,json,jsonc,glsl}": [
+			"biome check --write --no-errors-on-unmatched"
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/edobry/rubato.git"
+	},
+	"license": "ISC",
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.8",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.4.0",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.0",
+		"vite-plugin-glsl": "^1.5.6"
+	}
+}
