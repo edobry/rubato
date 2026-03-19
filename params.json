@@ -1,0 +1,31 @@
+{
+	"camera": {
+		"resolution": "720p",
+		"fillAmount": 1.0
+	},
+	"segmentation": {
+		"model": "quality",
+		"delegate": "auto",
+		"confidenceThreshold": 0.5,
+		"temporalSmoothing": 0.4,
+		"frameSkip": 1
+	},
+	"overlay": {
+		"showOverlay": true,
+		"opacity": 0.5,
+		"color": "#00ffff",
+		"colorMode": "solid"
+	},
+	"autoTune": {
+		"enabled": true,
+		"targetFps": 30,
+		"simulatedLoad": 0,
+		"settletime": 3000,
+		"stableDuration": 3000,
+		"upgradeHysteresis": 3000,
+		"upgradeHeadroom": 5,
+		"dropThreshold": 0.2,
+		"dropSustainedDuration": 2000,
+		"tolerancePct": 0.1
+	}
+}

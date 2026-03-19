@@ -1,11 +1,13 @@
 /**
  * Central parameter store.
  * All tunable values live here. The dev GUI reads/writes this object directly.
- * Export JSON from the GUI to persist to params.json.
+ * Defaults are loaded from params.json at build time via Vite's JSON import.
  *
  * Sub-objects are wrapped with Proxy so that any property write automatically
  * fires registered listeners — no polling needed.
  */
+
+import defaults from "../params.json";
 
 // Segmentation models — quality vs speed tradeoff:
 // - "quality": selfie_segmenter_landscape, better edges, 256x256 internal
@@ -45,25 +47,25 @@ function reactive<T extends Record<string, unknown>>(
 	});
 }
 
+const d = defaults;
+
 export const params = {
 	camera: reactive("camera", {
-		resolution: "720p",
-		// 1.0 = fill (crop to remove black bars), 0.0 = fit (show full frame, letterbox)
-		fillAmount: 1.0,
+		resolution: d.camera.resolution,
+		fillAmount: d.camera.fillAmount,
 	}),
 	segmentation: reactive("segmentation", {
-		model: "quality",
-		delegate: "auto",
-		confidenceThreshold: 0.5,
-		temporalSmoothing: 0.4,
-		// Run segmentation every Nth frame (1 = every frame, 2 = skip one, etc.)
-		frameSkip: 1,
+		model: d.segmentation.model,
+		delegate: d.segmentation.delegate,
+		confidenceThreshold: d.segmentation.confidenceThreshold,
+		temporalSmoothing: d.segmentation.temporalSmoothing,
+		frameSkip: d.segmentation.frameSkip,
 	}),
 	overlay: reactive("overlay", {
-		showOverlay: true,
-		opacity: 0.5,
-		color: "#00ffff",
-		colorMode: "solid" as
+		showOverlay: d.overlay.showOverlay,
+		opacity: d.overlay.opacity,
+		color: d.overlay.color,
+		colorMode: d.overlay.colorMode as
 			| "solid"
 			| "rainbow"
 			| "gradient"
@@ -72,10 +74,16 @@ export const params = {
 			| "aura",
 	}),
 	autoTune: reactive("autoTune", {
-		enabled: true,
-		targetFps: 30,
-		// Artificial delay (ms) added to segmentation to simulate slow hardware (0 = off)
-		simulatedLoad: 0,
+		enabled: d.autoTune.enabled,
+		targetFps: d.autoTune.targetFps,
+		simulatedLoad: d.autoTune.simulatedLoad,
+		settleTime: d.autoTune.settletime,
+		stableDuration: d.autoTune.stableDuration,
+		upgradeHysteresis: d.autoTune.upgradeHysteresis,
+		upgradeHeadroom: d.autoTune.upgradeHeadroom,
+		dropThreshold: d.autoTune.dropThreshold,
+		dropSustainedDuration: d.autoTune.dropSustainedDuration,
+		tolerancePct: d.autoTune.tolerancePct,
 	}),
 };
 

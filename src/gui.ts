@@ -175,15 +175,73 @@ export function initGui(): void {
 	const tune = gui.addFolder("Auto-Tune");
 	tune.add(params.autoTune, "enabled").name("Enabled");
 	addParam(tune, params.autoTune, "targetFps", 15, 60, 5, "Target FPS");
+	addParam(tune, params.autoTune, "simulatedLoad", 0, 100, 5, "Sim Load ms");
+
+	const tuneAdvanced = tune.addFolder("Advanced");
 	addParam(
-		tune,
+		tuneAdvanced,
 		params.autoTune,
-		"simulatedLoad",
-		0,
-		100,
-		5,
-		"Sim Load ms (0=off)",
+		"settleTime",
+		1000,
+		10000,
+		500,
+		"Settle Time ms",
 	);
+	addParam(
+		tuneAdvanced,
+		params.autoTune,
+		"stableDuration",
+		1000,
+		10000,
+		500,
+		"Stable Duration ms",
+	);
+	addParam(
+		tuneAdvanced,
+		params.autoTune,
+		"upgradeHysteresis",
+		1000,
+		10000,
+		500,
+		"Upgrade Hysteresis ms",
+	);
+	addParam(
+		tuneAdvanced,
+		params.autoTune,
+		"upgradeHeadroom",
+		1,
+		20,
+		1,
+		"Upgrade Headroom fps",
+	);
+	addParam(
+		tuneAdvanced,
+		params.autoTune,
+		"dropThreshold",
+		0.05,
+		0.5,
+		0.05,
+		"Drop Threshold %",
+	);
+	addParam(
+		tuneAdvanced,
+		params.autoTune,
+		"dropSustainedDuration",
+		500,
+		10000,
+		500,
+		"Drop Sustained ms",
+	);
+	addParam(
+		tuneAdvanced,
+		params.autoTune,
+		"tolerancePct",
+		0.05,
+		0.3,
+		0.01,
+		"Tolerance %",
+	);
+	tuneAdvanced.close();
 
 	// Scrolling log panel
 	const logEl = document.createElement("div");

@@ -16,23 +16,9 @@ import { params } from "./params";
 // --- Constants ---
 
 const SAMPLE_WINDOW = 60;
-const SETTLE_TIME = 3000;
-
 const RESOLUTION_LADDER = ["720p", "480p", "360p"];
 const MODEL_LADDER = ["quality", "fast"];
 const MAX_FRAME_SKIP = 4;
-
-/** How long FPS must stay in the target range before we consider the config stable (ms). */
-const STABLE_DURATION = 3000;
-/** How long FPS must be well above target before we attempt an upgrade (ms). */
-const UPGRADE_HYSTERESIS = 3000;
-/** FPS must exceed target by at least this much before upgrade hysteresis timer starts. */
-const UPGRADE_HEADROOM = 5;
-/** FPS must drop this fraction below target for a sustained period to trigger re-evaluation. */
-const DROP_THRESHOLD = 0.2;
-/** How long (ms) FPS must stay below the drop threshold to break out of stable state. */
-const DROP_SUSTAINED_DURATION = 2000;
-/** Minimum number of FPS samples before we trust a config's recorded average. */
 const MIN_SAMPLES_FOR_TRUST = 3;
 
 // --- Configuration space ---
@@ -214,7 +200,7 @@ function findDegradeTarget(current: Config, target: number): Config | null {
 		if (
 			record &&
 			record.fpsSamples.length >= MIN_SAMPLES_FOR_TRUST &&
-			record.averageFps < target * (1 - DROP_THRESHOLD)
+			record.averageFps < target * (1 - params.autoTune.dropThreshold)
 		) {
 			continue;
 		}
@@ -300,7 +286,7 @@ export function autoTuneTick(): void {
 		return;
 	}
 
-	if (now - lastAdjustTime < SETTLE_TIME) {
+	if (now - lastAdjustTime < params.autoTune.settleTime) {
 		autoTuneState.status = "settling";
 		return;
 	}
@@ -313,12 +299,10 @@ export function autoTuneTick(): void {
 	recordFps(current, fps);
 	updateBestKnown(current, fps, target);
 
-	// Use a tolerance band: accept FPS within 10% below target as "good enough"
-	// This prevents thrashing when movement causes temporary dips
-	const tolerance = target * 0.1;
+	const tolerance = target * params.autoTune.tolerancePct;
 	const belowTarget = fps < target - tolerance;
-	const significantDrop = fps < target * (1 - DROP_THRESHOLD);
-	const wellAboveTarget = fps > target + UPGRADE_HEADROOM;
+	const significantDrop = fps < target * (1 - params.autoTune.dropThreshold);
+	const wellAboveTarget = fps > target + params.autoTune.upgradeHeadroom;
 	const inTargetBand = fps >= target - tolerance && !wellAboveTarget;
 
 	// --- Stable state logic ---
@@ -327,7 +311,10 @@ export function autoTuneTick(): void {
 			// Start or continue drop detection timer
 			if (dropDetectedAt === 0) {
 				dropDetectedAt = now;
-			} else if (now - dropDetectedAt >= DROP_SUSTAINED_DURATION) {
+			} else if (
+				now - dropDetectedAt >=
+				params.autoTune.dropSustainedDuration
+			) {
 				// Sustained drop: break out of stable and degrade
 				log(
 					`Stable config lost: FPS ${fps} dropped >20% below target ${target}`,
@@ -351,7 +338,10 @@ export function autoTuneTick(): void {
 		if (wellAboveTarget) {
 			if (upgradeHeadroomSince === 0) {
 				upgradeHeadroomSince = now;
-			} else if (now - upgradeHeadroomSince >= UPGRADE_HYSTERESIS) {
+			} else if (
+				now - upgradeHeadroomSince >=
+				params.autoTune.upgradeHysteresis
+			) {
 				const upgradeTarget = findUpgradeTarget(current, target);
 				if (upgradeTarget && !configsEqual(upgradeTarget, current)) {
 					switchConfig(upgradeTarget, "↑");
@@ -373,7 +363,7 @@ export function autoTuneTick(): void {
 		// FPS is in the sweet spot — start stability timer
 		if (stableEnteredAt === 0) {
 			stableEnteredAt = now;
-		} else if (now - stableEnteredAt >= STABLE_DURATION) {
+		} else if (now - stableEnteredAt >= params.autoTune.stableDuration) {
 			isStable = true;
 			stableEnteredAt = 0;
 			upgradeHeadroomSince = 0;
@@ -407,7 +397,10 @@ export function autoTuneTick(): void {
 		if (upgradeHeadroomSince === 0) {
 			upgradeHeadroomSince = now;
 			autoTuneState.status = "optimal";
-		} else if (now - upgradeHeadroomSince >= UPGRADE_HYSTERESIS) {
+		} else if (
+			now - upgradeHeadroomSince >=
+			params.autoTune.upgradeHysteresis
+		) {
 			const upgradeTarget = findUpgradeTarget(current, target);
 			if (upgradeTarget && !configsEqual(upgradeTarget, current)) {
 				switchConfig(upgradeTarget, "↑");
