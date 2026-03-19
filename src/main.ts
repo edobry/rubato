@@ -9,6 +9,20 @@ import {
 	segmentFrame,
 } from "./segmentation";
 
+// Exposed so GUI can trigger camera re-acquisition
+let video: HTMLVideoElement | null = null;
+let currentResolution = params.camera.resolution;
+
+export async function changeResolution(resolution: string): Promise<void> {
+	try {
+		video = await initCamera(resolution);
+		currentResolution = resolution;
+		console.log(`Camera switched to ${resolution}`);
+	} catch (err) {
+		console.error("Failed to change resolution:", err);
+	}
+}
+
 async function main(): Promise<void> {
 	const canvas = initCanvas();
 	resizeCanvas(canvas);
@@ -27,9 +41,8 @@ async function main(): Promise<void> {
 
 	const fps = new FpsCounter();
 
-	let video: HTMLVideoElement;
 	try {
-		video = await initCamera();
+		video = await initCamera(params.camera.resolution);
 	} catch (err) {
 		console.error("Camera unavailable:", err);
 		ctx.fillStyle = "#000";
@@ -53,21 +66,27 @@ async function main(): Promise<void> {
 		});
 
 	function loop(): void {
+		if (!video || !ctx) return;
 		const { width, height } = canvas;
 
+		// Check if resolution changed via GUI
+		if (params.camera.resolution !== currentResolution) {
+			changeResolution(params.camera.resolution);
+		}
+
 		// Draw camera feed
-		drawFrame(ctx!, video);
+		drawFrame(ctx, video);
 
 		// Overlay segmentation mask if ready
 		if (segmentationReady && params.overlay.showOverlay) {
 			const mask = segmentFrame(video, performance.now());
 			if (mask) {
 				const { width: maskW, height: maskH } = getSegmenterResolution(video);
-				drawMaskOverlay(ctx!, mask, maskW, maskH, width, height);
+				drawMaskOverlay(ctx, mask, maskW, maskH, width, height);
 			}
 		}
 
-		fps.draw(ctx!);
+		fps.draw(ctx);
 		requestAnimationFrame(loop);
 	}
 

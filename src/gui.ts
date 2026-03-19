@@ -76,16 +76,14 @@ export function initGui(): void {
 	document.head.appendChild(style);
 
 	const cam = gui.addFolder("Camera");
+	cam
+		.add(params.camera, "resolution", ["720p", "480p", "360p"])
+		.name("Resolution");
 	addParam(cam, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
 	cam.open();
 
 	const seg = gui.addFolder("Segmentation");
-	seg
-		.add(params.segmentation, "model", ["landscape", "base"])
-		.name("Model")
-		.onChange(() => {
-			// Model swap is handled in segmentFrame
-		});
+	seg.add(params.segmentation, "model", ["quality", "fast"]).name("Model");
 	addParam(
 		seg,
 		params.segmentation,
