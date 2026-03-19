@@ -77,7 +77,7 @@ async function loadModel(modelKey: string, delegate: string): Promise<void> {
 
 // Track consecutive frames with no mask output — signals silent GPU failure
 let gpuFailCount = 0;
-const GPU_FAIL_THRESHOLD = 30; // ~1 second at 30fps
+const GPU_FAIL_THRESHOLD = 10; // Quick detection — ~0.3s at 30fps
 
 export async function initSegmentation(): Promise<void> {
 	await loadModel(params.segmentation.model, params.segmentation.delegate);
@@ -103,8 +103,15 @@ export function segmentFrame(
 		return prevMask;
 	}
 
-	const result = segmenter.segmentForVideo(video, timestampMs);
-	const confidenceMasks = result.confidenceMasks;
+	let confidenceMasks:
+		| ReturnType<ImageSegmenter["segmentForVideo"]>["confidenceMasks"]
+		| null = null;
+	try {
+		const result = segmenter.segmentForVideo(video, timestampMs);
+		confidenceMasks = result.confidenceMasks;
+	} catch (err) {
+		console.warn("segmentForVideo threw:", err);
+	}
 
 	if (!confidenceMasks?.length) {
 		// Silent GPU failure detection: if we're in auto mode and getting

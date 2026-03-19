@@ -194,6 +194,11 @@ export function initGui(): void {
 
 	let lastLogLength = 0;
 	setInterval(() => {
+		// Refresh all controllers so auto-tune changes are reflected
+		for (const c of gui!.controllersRecursive()) {
+			c.updateDisplay();
+		}
+
 		const log = autoTuneState.log;
 		if (log.length !== lastLogLength) {
 			lastLogLength = log.length;
