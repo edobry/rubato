@@ -84,10 +84,13 @@ function findTunable(c: Controller): TunableParam | undefined {
 
 function updateHighlight(): void {
 	for (let i = 0; i < navControllers.length; i++) {
-		const el = navControllers[i].domElement.closest(".lil-gui.controller");
+		// The controller's domElement IS the row — apply highlight directly
+		const el = navControllers[i].domElement;
 		if (el instanceof HTMLElement) {
 			el.style.outline = i === selectedIndex ? "2px solid #0ff" : "none";
 			el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
+			el.style.backgroundColor =
+				i === selectedIndex ? "rgba(0, 255, 255, 0.08)" : "";
 		}
 	}
 }
