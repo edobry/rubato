@@ -212,16 +212,27 @@ function findDegradeTarget(current: Config, target: number): Config | null {
 		: null;
 }
 
-/** Find the best upgrade target: use best-known config if available, otherwise step up one. */
-function findUpgradeTarget(current: Config, target: number): Config | null {
+/**
+ * Find the best upgrade target. Strategy:
+ * 1. If we have a best-known config that worked, jump straight there.
+ * 2. Otherwise, estimate how many levels to skip based on FPS headroom.
+ *    More headroom = more aggressive jumps. If we overshoot, the next
+ *    degrade cycle will catch it quickly.
+ */
+function findUpgradeTarget(
+	current: Config,
+	target: number,
+	fps: number,
+): Config | null {
 	const currentIdx = configIndex(current);
-	// If we have a best-known config that's higher quality, jump there
+	if (currentIdx <= 0) return null;
+
+	// If we have a proven best config, jump there
 	if (bestKnownConfig) {
 		const bestIdx = configIndex(bestKnownConfig);
 		if (bestIdx < currentIdx) {
 			const key = configKey(bestKnownConfig);
 			const record = configHistory.get(key);
-			// Only jump if we trust that it worked
 			if (
 				record &&
 				record.fpsSamples.length >= MIN_SAMPLES_FOR_TRUST &&
@@ -231,12 +242,18 @@ function findUpgradeTarget(current: Config, target: number): Config | null {
 			}
 		}
 	}
-	// Otherwise step up by one level, skipping configs known to be too demanding
-	for (let i = currentIdx - 1; i >= 0; i--) {
+
+	// Estimate jump size from headroom ratio:
+	// 2x target → jump half the ladder, 3x → jump 2/3, etc.
+	const headroomRatio = fps / target;
+	const maxJump = Math.max(1, Math.floor((headroomRatio - 1) * currentIdx));
+	const targetIdx = Math.max(0, currentIdx - maxJump);
+
+	// Walk from the aggressive target upward, skip known-bad configs
+	for (let i = targetIdx; i < currentIdx; i++) {
 		const candidate = CONFIG_LADDER[i];
 		const key = configKey(candidate);
 		const record = configHistory.get(key);
-		// Skip configs we know can't hit the target
 		if (
 			record &&
 			record.fpsSamples.length >= MIN_SAMPLES_FOR_TRUST &&
@@ -244,7 +261,6 @@ function findUpgradeTarget(current: Config, target: number): Config | null {
 		) {
 			continue;
 		}
-		// Only try one step up (conservative)
 		return candidate;
 	}
 	return null;
@@ -342,7 +358,7 @@ export function autoTuneTick(): void {
 				now - upgradeHeadroomSince >=
 				params.autoTune.upgradeHysteresis
 			) {
-				const upgradeTarget = findUpgradeTarget(current, target);
+				const upgradeTarget = findUpgradeTarget(current, target, fps);
 				if (upgradeTarget && !configsEqual(upgradeTarget, current)) {
 					switchConfig(upgradeTarget, "↑");
 					autoTuneState.status = "upgrading";
@@ -401,7 +417,7 @@ export function autoTuneTick(): void {
 			now - upgradeHeadroomSince >=
 			params.autoTune.upgradeHysteresis
 		) {
-			const upgradeTarget = findUpgradeTarget(current, target);
+			const upgradeTarget = findUpgradeTarget(current, target, fps);
 			if (upgradeTarget && !configsEqual(upgradeTarget, current)) {
 				switchConfig(upgradeTarget, "↑");
 				autoTuneState.status = "upgrading";
