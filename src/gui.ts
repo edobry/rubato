@@ -249,8 +249,8 @@ export function initGui(): void {
 		params.segmentation,
 		"motionThreshold",
 		0,
-		0.5,
-		0.01,
+		1.0,
+		0.05,
 		"Motion Threshold",
 	);
 	seg.open();
