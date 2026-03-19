@@ -5,6 +5,7 @@
  */
 
 import defaults from "../params.json";
+import customPresets from "./custom-presets.json";
 import { params } from "./params";
 
 const STORAGE_KEY = "rubato-presets";
@@ -259,15 +260,34 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 	};
 }
 
-/** Load user-saved presets from localStorage. */
+/** Load user-saved presets from localStorage, merged with custom-presets.json.
+ *  localStorage entries take priority over custom-presets.json entries. */
 export function getSavedPresets(): Record<string, CreativePreset> {
+	const custom = (customPresets ?? {}) as Record<string, CreativePreset>;
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return {};
-		return JSON.parse(raw) as Record<string, CreativePreset>;
+		const local = raw
+			? (JSON.parse(raw) as Record<string, CreativePreset>)
+			: {};
+		return { ...custom, ...local };
 	} catch {
-		return {};
+		return { ...custom };
 	}
+}
+
+/** Export all saved presets (localStorage + custom-presets.json merged) as a JSON string. */
+export function exportAllPresets(): string {
+	return JSON.stringify(getSavedPresets(), null, "\t");
+}
+
+/** Import presets from a JSON string into localStorage. Returns the count of presets imported. */
+export function importPresets(json: string): number {
+	const incoming = JSON.parse(json) as Record<string, CreativePreset>;
+	const entries = Object.entries(incoming);
+	for (const [name, preset] of entries) {
+		savePreset(name, { ...preset, name });
+	}
+	return entries.length;
 }
 
 /** Save a preset to localStorage. */

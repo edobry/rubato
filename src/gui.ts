@@ -21,10 +21,12 @@ import {
 	applyPreset,
 	type CreativePreset,
 	deletePreset,
+	exportAllPresets,
 	extractPreset,
 	getBuiltInPresets,
 	getLastPreset,
 	getSavedPresets,
+	importPresets,
 	savePreset,
 	setLastPreset,
 } from "./presets";
@@ -434,6 +436,44 @@ export function initGui(): void {
 			"remove",
 		)
 		.name("Delete Preset");
+
+	presetsFolder
+		.add(
+			{
+				exportAll() {
+					const json = exportAllPresets();
+					navigator.clipboard.writeText(json).then(
+						() => console.log("All presets copied to clipboard"),
+						() => console.warn("Clipboard write failed"),
+					);
+				},
+			},
+			"exportAll",
+		)
+		.name("Export All Presets");
+
+	presetsFolder
+		.add(
+			{
+				importAll() {
+					const json = prompt("Paste presets JSON:");
+					if (!json) return;
+					try {
+						const count = importPresets(json);
+						console.log(`Imported ${count} preset(s)`);
+						presetDropdown.options(allPresetNames());
+						presetDropdown.updateDisplay();
+						buildNavItems(gui!);
+						updateHighlight();
+					} catch (err) {
+						console.error("Failed to import presets:", err);
+						alert("Invalid JSON — import failed.");
+					}
+				},
+			},
+			"importAll",
+		)
+		.name("Import Presets");
 
 	presetsFolder.open();
 
