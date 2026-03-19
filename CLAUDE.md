@@ -27,7 +27,7 @@ npm run screenshot  # Headless screenshot → e2e/screenshot.png
 npm run interact    # Headed browser + Playwright Inspector for manual interaction
 ```
 
-Use `npm run screenshot` to visually verify changes, then read `e2e/screenshot.png` to see the result. In headless mode, there's no real camera — screenshots will show the camera-unavailable fallback until the fog shader is implemented (which renders without camera input).
+**After any visual change, you MUST run `npm run screenshot` and read `e2e/screenshot.png` to verify the result before reporting it done.** Playwright uses a fake camera feed (`--use-fake-device-for-media-stream`) so the full pipeline — camera, segmentation, overlay, GUI — is exercised in headless mode. If the dev server isn't running, start it first (`npm run dev &`, wait for ready, then screenshot). Do not rely on the user to verify what the tooling can verify.
 
 ## Stack
 
