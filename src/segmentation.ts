@@ -9,6 +9,7 @@ import { params, SEGMENTATION_MODELS } from "./params";
 
 let segmenter: ImageSegmenter | null = null;
 let prevMask: Float32Array | null = null;
+let prevResult: SegmentationResult | null = null;
 let currentModelKey: string | null = null;
 let currentDelegate: string | null = null;
 let vision: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>> | null =
@@ -72,6 +73,7 @@ async function loadModel(modelKey: string, delegate: string): Promise<void> {
 	currentModelKey = modelKey;
 	currentDelegate = delegate;
 	prevMask = null;
+	prevResult = null;
 	gpuFailCount = 0;
 }
 
@@ -83,15 +85,23 @@ export async function initSegmentation(): Promise<void> {
 	await loadModel(params.segmentation.model, params.segmentation.delegate);
 }
 
+/** Result of a single segmentation frame. */
+export interface SegmentationResult {
+	/** Thresholded confidence mask BEFORE temporal smoothing. */
+	raw: Float32Array;
+	/** Mask after temporal smoothing (suitable for rendering). */
+	smoothed: Float32Array;
+}
+
 /**
- * Run segmentation on a video frame and return a processed person mask.
- * Returns a Float32Array of 0–1 values (1 = person) at camera resolution.
- * The returned array is owned by this module — safe to hold across frames.
+ * Run segmentation on a video frame and return raw + smoothed person masks.
+ * Both arrays contain 0–1 values (1 = person) at camera resolution.
+ * The returned arrays are owned by this module — safe to hold across frames.
  */
 export function segmentFrame(
 	video: HTMLVideoElement,
 	timestampMs: number,
-): Float32Array | null {
+): SegmentationResult | null {
 	if (!segmenter) return null;
 
 	// Hot-swap model or delegate if changed via GUI
@@ -100,7 +110,7 @@ export function segmentFrame(
 		currentDelegate !== params.segmentation.delegate
 	) {
 		loadModel(params.segmentation.model, params.segmentation.delegate);
-		return prevMask;
+		return prevResult;
 	}
 
 	// Simulate slow hardware for autotune testing
@@ -143,34 +153,38 @@ export function segmentFrame(
 				}
 			}
 		}
-		return prevMask;
+		return prevResult;
 	}
 
 	gpuFailCount = 0; // Reset on success
 
-	const raw = confidenceMasks[0].getAsFloat32Array();
+	const rawData = confidenceMasks[0].getAsFloat32Array();
 	const pixelCount = video.videoWidth * video.videoHeight;
 
-	const currentMask = new Float32Array(pixelCount);
+	// Build the raw (thresholded but unsmoothed) mask
+	const rawMask = new Float32Array(pixelCount);
 	const threshold = params.segmentation.confidenceThreshold;
 
 	for (let i = 0; i < pixelCount; i++) {
-		currentMask[i] = raw[i] > threshold ? raw[i] : 0;
+		rawMask[i] = rawData[i] > threshold ? rawData[i] : 0;
 	}
 
+	// Build the smoothed mask from the raw mask
+	const smoothedMask = new Float32Array(rawMask);
 	const smooth = params.segmentation.temporalSmoothing;
 	if (smooth > 0 && prevMask && prevMask.length === pixelCount) {
 		for (let i = 0; i < pixelCount; i++) {
-			currentMask[i] = prevMask[i] * smooth + currentMask[i] * (1 - smooth);
+			smoothedMask[i] = prevMask[i] * smooth + smoothedMask[i] * (1 - smooth);
 		}
 	}
 
 	if (!prevMask || prevMask.length !== pixelCount) {
 		prevMask = new Float32Array(pixelCount);
 	}
-	prevMask.set(currentMask);
+	prevMask.set(smoothedMask);
 
-	return currentMask;
+	prevResult = { raw: rawMask, smoothed: smoothedMask };
+	return prevResult;
 }
 
 export function getSegmenterResolution(video: HTMLVideoElement): {

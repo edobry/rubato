@@ -60,6 +60,7 @@ export const params = {
 		confidenceThreshold: d.segmentation.confidenceThreshold,
 		temporalSmoothing: d.segmentation.temporalSmoothing,
 		frameSkip: d.segmentation.frameSkip,
+		motionThreshold: d.segmentation.motionThreshold,
 	}),
 	overlay: reactive("overlay", {
 		showOverlay: d.overlay.showOverlay,

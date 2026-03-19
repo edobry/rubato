@@ -93,8 +93,8 @@ async function main(): Promise<void> {
 			// Frame skipping: only run segmentation every Nth frame
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 			if (frameCount % skip === 0) {
-				const mask = segmentFrame(video, performance.now());
-				if (mask) lastMask = mask;
+				const result = segmentFrame(video, performance.now());
+				if (result) lastMask = result.smoothed;
 			}
 
 			if (lastMask) {

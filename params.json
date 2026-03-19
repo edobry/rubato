@@ -8,7 +8,8 @@
 		"delegate": "auto",
 		"confidenceThreshold": 0.5,
 		"temporalSmoothing": 0.4,
-		"frameSkip": 1
+		"frameSkip": 1,
+		"motionThreshold": 0.1
 	},
 	"overlay": {
 		"showOverlay": true,
