@@ -12,6 +12,7 @@
  */
 
 import GUI from "lil-gui";
+import { autoTuneState } from "./autotune";
 import { params } from "./params";
 
 let gui: GUI | null = null;
@@ -156,11 +157,41 @@ export function initGui(): void {
 	const overlay = gui.addFolder("Overlay");
 	overlay.add(params.overlay, "showOverlay").name("Show Overlay");
 	addParam(overlay, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
+	overlay.addColor(params.overlay, "color").name("Color");
+	overlay
+		.add(params.overlay, "colorMode", [
+			"solid",
+			"rainbow",
+			"gradient",
+			"contour",
+			"invert",
+			"aura",
+		])
+		.name("Color Mode");
 	overlay.open();
 
 	const tune = gui.addFolder("Auto-Tune");
 	tune.add(params.autoTune, "enabled").name("Enabled");
 	addParam(tune, params.autoTune, "targetFps", 15, 60, 5, "Target FPS");
+	const statusDisplay = { status: "", lastAction: "", adjustments: 0 };
+	const statusCtrl = tune.add(statusDisplay, "status").name("Status").disable();
+	const actionCtrl = tune
+		.add(statusDisplay, "lastAction")
+		.name("Last Action")
+		.disable();
+	const countCtrl = tune
+		.add(statusDisplay, "adjustments")
+		.name("Adjustments")
+		.disable();
+	// Update status display periodically
+	setInterval(() => {
+		statusDisplay.status = autoTuneState.status;
+		statusDisplay.lastAction = autoTuneState.lastAction || "—";
+		statusDisplay.adjustments = autoTuneState.adjustCount;
+		statusCtrl.updateDisplay();
+		actionCtrl.updateDisplay();
+		countCtrl.updateDisplay();
+	}, 500);
 	tune.open();
 
 	// Export button

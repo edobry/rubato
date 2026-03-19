@@ -28,8 +28,16 @@ export const params = {
 		frameSkip: 1,
 	},
 	overlay: {
-		opacity: 0.5,
 		showOverlay: true,
+		opacity: 0.5,
+		color: "#00ffff",
+		colorMode: "solid" as
+			| "solid"
+			| "rainbow"
+			| "gradient"
+			| "contour"
+			| "invert"
+			| "aura",
 	},
 	autoTune: {
 		enabled: false,

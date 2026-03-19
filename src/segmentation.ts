@@ -109,14 +109,22 @@ export function segmentFrame(
 	if (!confidenceMasks?.length) {
 		// Silent GPU failure detection: if we're in auto mode and getting
 		// no masks consistently, fall back to CPU
-		if (params.segmentation.delegate === "auto") {
+		if (
+			params.segmentation.delegate === "auto" ||
+			params.segmentation.delegate === "GPU"
+		) {
 			gpuFailCount++;
 			if (gpuFailCount >= GPU_FAIL_THRESHOLD) {
 				console.warn(
-					`No mask output for ${GPU_FAIL_THRESHOLD} frames, switching to CPU delegate`,
+					`No mask output for ${GPU_FAIL_THRESHOLD} frames — GPU not working, switching to CPU`,
 				);
 				params.segmentation.delegate = "CPU";
 				loadModel(params.segmentation.model, "CPU");
+				// Enable auto-tune to find optimal settings for this hardware
+				if (!params.autoTune.enabled) {
+					params.autoTune.enabled = true;
+					console.log("Auto-tune enabled to optimize for constrained hardware");
+				}
 			}
 		}
 		return prevMask;
