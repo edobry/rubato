@@ -12,14 +12,19 @@ import {
 // Exposed so GUI can trigger camera re-acquisition
 let video: HTMLVideoElement | null = null;
 let currentResolution = params.camera.resolution;
+let resolutionChanging = false;
 
-export async function changeResolution(resolution: string): Promise<void> {
+async function changeResolution(resolution: string): Promise<void> {
+	if (resolutionChanging) return;
+	resolutionChanging = true;
+	currentResolution = resolution; // Update immediately to prevent re-entry
 	try {
 		video = await initCamera(resolution);
-		currentResolution = resolution;
 		console.log(`Camera switched to ${resolution}`);
 	} catch (err) {
 		console.error("Failed to change resolution:", err);
+	} finally {
+		resolutionChanging = false;
 	}
 }
 
