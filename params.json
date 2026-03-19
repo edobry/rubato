@@ -12,6 +12,12 @@
 		"frameSkip": 1,
 		"motionThreshold": 0.1
 	},
+	"fog": {
+		"speed": 0.15,
+		"scale": 3.0,
+		"density": 1.2,
+		"brightness": 0.4
+	},
 	"motion": {
 		"deposition": 2.0,
 		"decay": 0.97

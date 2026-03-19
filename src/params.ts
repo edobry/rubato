@@ -63,6 +63,12 @@ export const params = {
 		frameSkip: d.segmentation.frameSkip,
 		motionThreshold: d.segmentation.motionThreshold,
 	}),
+	fog: reactive("fog", {
+		speed: d.fog.speed,
+		scale: d.fog.scale,
+		density: d.fog.density,
+		brightness: d.fog.brightness,
+	}),
 	motion: reactive("motion", {
 		// How strongly motion deposits into the trail buffer (0-5)
 		deposition: d.motion.deposition,

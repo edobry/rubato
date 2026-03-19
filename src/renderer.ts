@@ -75,9 +75,6 @@ export function drawFrame(
 	const { width, height } = ctx.canvas;
 	if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
-	// Clear in case fit mode leaves borders
-	ctx.clearRect(0, 0, width, height);
-
 	const crop = computeCrop(video.videoWidth, video.videoHeight, width, height);
 
 	// Mirror horizontally

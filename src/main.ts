@@ -1,5 +1,6 @@
 import { autoTuneTick } from "./autotune";
 import { initCamera } from "./camera";
+import { drawFog, initFog, resizeFog } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
 import { detectMotion } from "./motion";
@@ -31,9 +32,17 @@ async function changeResolution(resolution: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+	// Fog field — WebGL canvas behind the main 2D canvas
+	const fogCanvas = initFog();
+	document.body.appendChild(fogCanvas);
+	resizeFog();
+
 	const canvas = initCanvas();
 	resizeCanvas(canvas);
-	window.addEventListener("resize", () => resizeCanvas(canvas));
+	window.addEventListener("resize", () => {
+		resizeCanvas(canvas);
+		resizeFog();
+	});
 
 	// Dev GUI — toggle with G key
 	if (import.meta.env.VITE_DEV_GUI === "true") {
@@ -83,17 +92,20 @@ async function main(): Promise<void> {
 
 		autoTuneTick();
 
+		// Render fog field (behind everything via separate WebGL canvas)
+		drawFog();
+
 		// Check if resolution changed via GUI (or auto-tuner)
 		if (params.camera.resolution !== currentResolution) {
 			changeResolution(params.camera.resolution);
 		}
 
-		// Draw camera feed (or black background when feed is hidden)
+		// Clear the 2D canvas — transparent so fog shows through when feed is off
+		ctx.clearRect(0, 0, width, height);
+
+		// Draw camera feed if enabled
 		if (params.camera.showFeed) {
 			drawFrame(ctx, video);
-		} else {
-			ctx.fillStyle = "#000";
-			ctx.fillRect(0, 0, width, height);
 		}
 
 		// Run segmentation + motion detection
