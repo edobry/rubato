@@ -1,6 +1,6 @@
 import { initCamera } from "./camera";
 import { FpsCounter } from "./fps";
-import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
+import { computeCrop, drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
 	getSegmenterResolution,
 	initSegmentation,
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 
 /**
  * Draw the segmentation mask as a semi-transparent colored overlay.
- * Person pixels are tinted; background is left as-is.
+ * Applies the same crop as the camera feed so the mask aligns pixel-for-pixel.
  */
 function drawMaskOverlay(
 	ctx: CanvasRenderingContext2D,
@@ -92,16 +92,27 @@ function drawMaskOverlay(
 		data[idx + 3] = Math.floor(confidence * 128); // A — semi-transparent
 	}
 
-	// Draw mask at camera resolution to an offscreen canvas, then stretch to display
+	// Draw mask to offscreen canvas at camera resolution
 	const offscreen = new OffscreenCanvas(maskW, maskH);
 	const offCtx = offscreen.getContext("2d")!;
 	offCtx.putImageData(imageData, 0, 0);
 
-	// Mirror to match the camera feed
+	// Apply the same crop as the camera feed, then mirror
+	const crop = computeCrop(maskW, maskH, displayW, displayH);
 	ctx.save();
 	ctx.translate(displayW, 0);
 	ctx.scale(-1, 1);
-	ctx.drawImage(offscreen, 0, 0, displayW, displayH);
+	ctx.drawImage(
+		offscreen,
+		crop.sx,
+		crop.sy,
+		crop.sw,
+		crop.sh,
+		0,
+		0,
+		displayW,
+		displayH,
+	);
 	ctx.restore();
 }
 

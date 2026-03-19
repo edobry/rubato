@@ -19,7 +19,7 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
  * Compute source crop rectangle so camera feed fills the display
  * without letterboxing or stretching.
  */
-function computeCrop(
+export function computeCrop(
 	videoW: number,
 	videoH: number,
 	displayW: number,
