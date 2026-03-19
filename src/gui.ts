@@ -5,12 +5,14 @@
  *
  * Keyboard controls:
  *   G          — toggle panel visibility
- *   Up/Down    — select previous/next parameter
- *   Left/Right — decrease/increase selected parameter
- *   Shift+L/R  — larger step (10x)
+ *   Up/Down    — select previous/next control (all types)
+ *   Left/Right — adjust selected control (slider, dropdown, checkbox)
+ *   Shift+L/R  — larger step (10x for sliders)
+ *   Enter      — activate buttons
  *   E          — export params to clipboard
  */
 
+import type { Controller } from "lil-gui";
 import GUI from "lil-gui";
 import { onLogChange } from "./autotune";
 import { onParamChange, params } from "./params";
@@ -28,6 +30,9 @@ interface TunableParam {
 }
 
 const tunables: TunableParam[] = [];
+
+/** Flat list of ALL controllers for keyboard navigation. */
+let navControllers: Controller[] = [];
 let selectedIndex = 0;
 
 function addParam(
@@ -51,13 +56,94 @@ function addParam(
 	});
 }
 
+/** Detect control type from a lil-gui Controller instance. */
+function getControllerType(
+	c: Controller,
+): "number" | "option" | "boolean" | "function" | "color" | "string" {
+	// OptionController has $select
+	if ("$select" in c) return "option";
+	// FunctionController has $button
+	if ("$button" in c) return "function";
+	// BooleanController: has $input that is a checkbox
+	if (
+		"$input" in c &&
+		(c as unknown as { $input: HTMLInputElement }).$input?.type === "checkbox"
+	)
+		return "boolean";
+	// NumberController: has _step or _hasSlider
+	if ("_step" in c || "_hasSlider" in c) return "number";
+	// ColorController: has $display and _format
+	if ("_format" in c) return "color";
+	return "string";
+}
+
+/** Look up the TunableParam entry for a controller, if one exists. */
+function findTunable(c: Controller): TunableParam | undefined {
+	return tunables.find((t) => t.controller === c);
+}
+
 function updateHighlight(): void {
-	for (let i = 0; i < tunables.length; i++) {
-		const el = tunables[i].controller.domElement.closest(".lil-gui.controller");
+	for (let i = 0; i < navControllers.length; i++) {
+		const el = navControllers[i].domElement.closest(".lil-gui.controller");
 		if (el instanceof HTMLElement) {
 			el.style.outline = i === selectedIndex ? "2px solid #0ff" : "none";
 			el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
 		}
+	}
+}
+
+/** Handle Left/Right arrow for the currently selected controller. */
+function adjustSelected(direction: 1 | -1, shift: boolean): void {
+	const c = navControllers[selectedIndex];
+	if (!c) return;
+
+	const type = getControllerType(c);
+
+	switch (type) {
+		case "number": {
+			const tunable = findTunable(c);
+			if (tunable) {
+				// Use tunable's explicit step/min/max
+				const multiplier = shift ? 10 : 1;
+				const delta = tunable.step * multiplier * direction;
+				const newVal = Math.min(
+					tunable.max,
+					Math.max(tunable.min, tunable.object[tunable.key] + delta),
+				);
+				tunable.object[tunable.key] = Math.round(newVal * 1000) / 1000;
+			} else {
+				// Fallback for number controllers without tunable entry
+				const nc = c as unknown as {
+					_step: number;
+					_min: number;
+					_max: number;
+				};
+				const step = nc._step || 1;
+				const multiplier = shift ? 10 : 1;
+				const cur = c.getValue() as number;
+				let newVal = cur + step * multiplier * direction;
+				if (nc._min !== undefined) newVal = Math.max(nc._min, newVal);
+				if (nc._max !== undefined) newVal = Math.min(nc._max, newVal);
+				c.setValue(Math.round(newVal * 1000) / 1000);
+			}
+			c.updateDisplay();
+			break;
+		}
+		case "option": {
+			const oc = c as unknown as { _values: unknown[] };
+			const values = oc._values;
+			const cur = c.getValue();
+			const idx = values.indexOf(cur);
+			const next = (idx + direction + values.length) % values.length;
+			c.setValue(values[next]);
+			break;
+		}
+		case "boolean": {
+			// Toggle on either direction
+			c.setValue(!c.getValue());
+			break;
+		}
+		// function, color, string: no-op for arrow keys
 	}
 }
 
@@ -307,6 +393,10 @@ export function initGui(): void {
 	// Make panel draggable
 	makeDraggable(gui.domElement);
 
+	// Build flat navigation list from ALL controllers
+	navControllers = gui.controllersRecursive();
+	selectedIndex = 0;
+
 	// Initial highlight
 	updateHighlight();
 
@@ -327,29 +417,36 @@ export function initGui(): void {
 
 			case "ArrowUp":
 				e.preventDefault();
-				selectedIndex = (selectedIndex - 1 + tunables.length) % tunables.length;
+				selectedIndex =
+					(selectedIndex - 1 + navControllers.length) % navControllers.length;
 				updateHighlight();
 				break;
 
 			case "ArrowDown":
 				e.preventDefault();
-				selectedIndex = (selectedIndex + 1) % tunables.length;
+				selectedIndex = (selectedIndex + 1) % navControllers.length;
 				updateHighlight();
 				break;
 
-			case "ArrowLeft":
+			case "ArrowLeft": {
+				e.preventDefault();
+				adjustSelected(-1, e.shiftKey);
+				break;
+			}
+
 			case "ArrowRight": {
 				e.preventDefault();
-				const t = tunables[selectedIndex];
-				const multiplier = e.shiftKey ? 10 : 1;
-				const delta =
-					e.key === "ArrowRight" ? t.step * multiplier : -t.step * multiplier;
-				const newVal = Math.min(
-					t.max,
-					Math.max(t.min, t.object[t.key] + delta),
-				);
-				t.object[t.key] = Math.round(newVal * 1000) / 1000; // avoid float drift
-				t.controller.updateDisplay();
+				adjustSelected(1, e.shiftKey);
+				break;
+			}
+
+			case "Enter": {
+				e.preventDefault();
+				const c = navControllers[selectedIndex];
+				if (c && getControllerType(c) === "function") {
+					const fc = c as unknown as { $button: HTMLButtonElement };
+					fc.$button.click();
+				}
 				break;
 			}
 
