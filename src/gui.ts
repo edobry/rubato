@@ -277,6 +277,26 @@ export function initGui(): void {
 		.lil-gui .slider { height: 28px; }
 		.lil-gui .title { font-size: 15px !important; padding: 8px 12px; }
 		.lil-gui .controller .name { padding: 0 8px; }
+
+		/* Top-level folder titles: bold, larger, distinct background */
+		.lil-gui.root > .children > .lil-gui > .title {
+			font-size: 16px !important;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			background: #1a2a3a !important;
+			padding: 10px 12px;
+		}
+
+		/* Sub-folder titles: smaller, subtler, left accent border */
+		.lil-gui .lil-gui .lil-gui > .title {
+			font-size: 13px !important;
+			font-weight: 400;
+			color: #9ab !important;
+			background: transparent !important;
+			padding: 5px 12px 5px 10px;
+			border-left: 3px solid #3a6a8a;
+		}
 	`;
 	document.head.appendChild(style);
 
