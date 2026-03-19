@@ -1,5 +1,11 @@
 import { initCamera } from "./camera";
+import { FpsCounter } from "./fps";
 import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
+import {
+	getSegmenterResolution,
+	initSegmentation,
+	segmentFrame,
+} from "./segmentation";
 
 async function main(): Promise<void> {
 	const canvas = initCanvas();
@@ -12,12 +18,13 @@ async function main(): Promise<void> {
 		return;
 	}
 
+	const fps = new FpsCounter();
+
 	let video: HTMLVideoElement;
 	try {
 		video = await initCamera();
 	} catch (err) {
 		console.error("Camera unavailable:", err);
-		// Fallback: black screen with status message
 		ctx.fillStyle = "#000";
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		ctx.fillStyle = "#333";
@@ -27,12 +34,75 @@ async function main(): Promise<void> {
 		return;
 	}
 
+	// Initialize segmentation — non-blocking, render loop starts immediately
+	let segmentationReady = false;
+	initSegmentation()
+		.then(() => {
+			segmentationReady = true;
+			console.log("segmentation ready");
+		})
+		.catch((err) => {
+			console.error("Segmentation failed to load:", err);
+		});
+
 	function loop(): void {
+		const { width, height } = canvas;
+
+		// Draw camera feed
 		drawFrame(ctx!, video);
+
+		// Overlay segmentation mask if ready
+		if (segmentationReady) {
+			const mask = segmentFrame(video, performance.now());
+			if (mask) {
+				const { width: maskW, height: maskH } = getSegmenterResolution(video);
+				drawMaskOverlay(ctx!, mask, maskW, maskH, width, height);
+			}
+		}
+
+		fps.draw(ctx!);
 		requestAnimationFrame(loop);
 	}
 
 	requestAnimationFrame(loop);
+}
+
+/**
+ * Draw the segmentation mask as a semi-transparent colored overlay.
+ * Person pixels are tinted; background is left as-is.
+ */
+function drawMaskOverlay(
+	ctx: CanvasRenderingContext2D,
+	mask: Float32Array,
+	maskW: number,
+	maskH: number,
+	displayW: number,
+	displayH: number,
+): void {
+	const imageData = ctx.createImageData(maskW, maskH);
+	const data = imageData.data;
+
+	for (let i = 0; i < mask.length; i++) {
+		const confidence = mask[i];
+		const idx = i * 4;
+		// Tint person pixels cyan
+		data[idx] = 0; // R
+		data[idx + 1] = 255; // G
+		data[idx + 2] = 255; // B
+		data[idx + 3] = Math.floor(confidence * 128); // A — semi-transparent
+	}
+
+	// Draw mask at camera resolution to an offscreen canvas, then stretch to display
+	const offscreen = new OffscreenCanvas(maskW, maskH);
+	const offCtx = offscreen.getContext("2d")!;
+	offCtx.putImageData(imageData, 0, 0);
+
+	// Mirror to match the camera feed
+	ctx.save();
+	ctx.translate(displayW, 0);
+	ctx.scale(-1, 1);
+	ctx.drawImage(offscreen, 0, 0, displayW, displayH);
+	ctx.restore();
 }
 
 main();
