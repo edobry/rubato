@@ -280,62 +280,22 @@ export function initGui(): void {
 	`;
 	document.head.appendChild(style);
 
-	const cam = gui.addFolder("Camera");
-	cam.add(params.camera, "showFeed").name("Show Feed");
-	cam
-		.add(params.camera, "resolution", ["720p", "480p", "360p"])
-		.name("Resolution");
-	addParam(cam, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
-	cam.open();
+	// ── Creative section ─────────────────────────────────────────────
+	const creative = gui.addFolder("Creative");
 
-	const seg = gui.addFolder("Segmentation");
-	seg.add(params.segmentation, "model", ["quality", "fast"]).name("Model");
-	seg
-		.add(params.segmentation, "delegate", ["auto", "GPU", "CPU"])
-		.name("Delegate");
-	addParam(
-		seg,
-		params.segmentation,
-		"confidenceThreshold",
-		0,
-		1,
-		0.05,
-		"Confidence Threshold",
-	);
-	addParam(
-		seg,
-		params.segmentation,
-		"temporalSmoothing",
-		0,
-		0.95,
-		0.05,
-		"Temporal Smoothing",
-	);
-	addParam(seg, params.segmentation, "frameSkip", 1, 4, 1, "Frame Skip");
-	addParam(
-		seg,
-		params.segmentation,
-		"motionThreshold",
-		0,
-		1.0,
-		0.05,
-		"Motion Threshold",
-	);
-	seg.open();
-
-	const mot = gui.addFolder("Motion Trails");
-	addParam(mot, params.motion, "deposition", 0, 20, 0.5, "Deposition");
-	addParam(mot, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
-	mot.open();
-
-	const overlay = gui.addFolder("Overlay");
-	overlay.add(params.overlay, "showOverlay").name("Show Overlay");
-	overlay
+	const display = creative.addFolder("Display");
+	display.add(params.camera, "showFeed").name("Show Feed");
+	addParam(display, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
+	display.add(params.overlay, "showOverlay").name("Show Overlay");
+	display
 		.add(params.overlay, "visualize", ["mask", "motion", "trail", "both"])
 		.name("Visualize");
-	addParam(overlay, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
-	overlay.addColor(params.overlay, "color").name("Color");
-	overlay
+	display.open();
+
+	const overlayStyle = creative.addFolder("Overlay Style");
+	addParam(overlayStyle, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
+	overlayStyle.addColor(params.overlay, "color").name("Color");
+	overlayStyle
 		.add(params.overlay, "colorMode", [
 			"solid",
 			"rainbow",
@@ -345,9 +305,63 @@ export function initGui(): void {
 			"aura",
 		])
 		.name("Color Mode");
-	overlay.open();
+	overlayStyle.open();
 
-	const tune = gui.addFolder("Auto-Tune");
+	const trails = creative.addFolder("Trails");
+	addParam(trails, params.motion, "deposition", 0, 20, 0.5, "Deposition");
+	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
+	trails.open();
+
+	const detection = creative.addFolder("Detection");
+	addParam(
+		detection,
+		params.segmentation,
+		"confidenceThreshold",
+		0,
+		1,
+		0.05,
+		"Confidence Threshold",
+	);
+	addParam(
+		detection,
+		params.segmentation,
+		"temporalSmoothing",
+		0,
+		0.95,
+		0.05,
+		"Temporal Smoothing",
+	);
+	addParam(
+		detection,
+		params.segmentation,
+		"motionThreshold",
+		0,
+		1.0,
+		0.05,
+		"Motion Threshold",
+	);
+	detection.open();
+
+	creative.open();
+
+	// ── Performance section ──────────────────────────────────────────
+	const performance = gui.addFolder("Performance");
+
+	const cam = performance.addFolder("Camera");
+	cam
+		.add(params.camera, "resolution", ["720p", "480p", "360p"])
+		.name("Resolution");
+	cam.open();
+
+	const seg = performance.addFolder("Segmentation");
+	seg.add(params.segmentation, "model", ["quality", "fast"]).name("Model");
+	seg
+		.add(params.segmentation, "delegate", ["auto", "GPU", "CPU"])
+		.name("Delegate");
+	addParam(seg, params.segmentation, "frameSkip", 1, 4, 1, "Frame Skip");
+	seg.open();
+
+	const tune = performance.addFolder("Auto-Tune");
 	tune.add(params.autoTune, "enabled").name("Enabled");
 	addParam(tune, params.autoTune, "targetFps", 15, 60, 5, "Target FPS");
 	addParam(tune, params.autoTune, "simulatedLoad", 0, 100, 5, "Sim Load ms");
@@ -448,6 +462,7 @@ export function initGui(): void {
 	});
 
 	tune.open();
+	performance.open();
 
 	// Export button
 	gui
