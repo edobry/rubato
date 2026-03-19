@@ -74,11 +74,16 @@ When told to "work through the tasks" or similar:
 1. Fetch tasks from Notion. Pick the next "Not started" task (lowest Phase, then oldest).
 2. Set it to "In progress" in Notion.
 3. Do the work. Commit.
-4. Mark it "Done" in Notion. Fill in:
+4. Run the sanity checklist before declaring done:
+   - `npm run check` passes (lint + typecheck + build)
+   - Dev server is running on :5173 (check and restart if needed)
+   - For visual changes: `npm run screenshot`, then read `e2e/screenshot.png` to verify
+   - Everything the user needs to evaluate should be ready — they should not have to ask.
+5. Mark it "Done" in Notion. Fill in:
    - **Summary**: 1–3 sentences for a non-technical reader describing what changed from a user/viewer perspective. No jargon. Describe the observable result, not the implementation.
    - **Notes**: Technical details for dev reference.
-5. If the next task has "Feedback Checkpoint" checked, stop and tell me — Sarah needs to review. Otherwise, loop back to step 1.
-6. If no "Not started" tasks remain, tell me we're done.
+6. If the next task has "Feedback Checkpoint" checked, stop and tell me — Sarah needs to review. Otherwise, loop back to step 1.
+7. If no "Not started" tasks remain, tell me we're done.
 
 If you find work that isn't in the task list, flag it to me — don't create tasks yourself.
 
