@@ -5,10 +5,11 @@
  *
  * Keyboard controls:
  *   G          — toggle panel visibility
- *   Up/Down    — select previous/next control (all types)
+ *   Up/Down    — select previous/next control (skips collapsed sections)
  *   Left/Right — adjust selected control (slider, dropdown, checkbox)
+ *                on folder headings: Left = collapse, Right = expand
  *   Shift+L/R  — larger step (10x for sliders)
- *   Enter      — activate buttons
+ *   Enter      — activate buttons, toggle folder open/closed
  *   E          — export params to clipboard
  */
 
@@ -31,8 +32,13 @@ interface TunableParam {
 
 const tunables: TunableParam[] = [];
 
-/** Flat list of ALL controllers for keyboard navigation. */
-let navControllers: Controller[] = [];
+/** Navigation item: either a controller or a folder heading. */
+type NavItem =
+	| { type: "controller"; controller: Controller; element: HTMLElement }
+	| { type: "folder"; folder: GUI; element: HTMLElement };
+
+/** Flat list of navigable items (controllers + folder headings) in DOM order. */
+let navItems: NavItem[] = [];
 let selectedIndex = 0;
 
 function addParam(
@@ -83,23 +89,85 @@ function findTunable(c: Controller): TunableParam | undefined {
 }
 
 function updateHighlight(): void {
-	for (let i = 0; i < navControllers.length; i++) {
-		// The controller's domElement IS the row — apply highlight directly
-		const el = navControllers[i].domElement;
-		if (el instanceof HTMLElement) {
-			el.style.outline = i === selectedIndex ? "2px solid #0ff" : "none";
-			el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
-			el.style.backgroundColor =
-				i === selectedIndex ? "rgba(0, 255, 255, 0.08)" : "";
-		}
+	for (let i = 0; i < navItems.length; i++) {
+		const el = navItems[i].element;
+		el.style.outline = i === selectedIndex ? "2px solid #0ff" : "none";
+		el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
+		el.style.backgroundColor =
+			i === selectedIndex ? "rgba(0, 255, 255, 0.08)" : "";
 	}
 }
 
-/** Handle Left/Right arrow for the currently selected controller. */
-function adjustSelected(direction: 1 | -1, shift: boolean): void {
-	const c = navControllers[selectedIndex];
-	if (!c) return;
+/** Check if a nav item is currently visible (not inside a collapsed folder). */
+function isNavItemVisible(item: NavItem): boolean {
+	// For folder items, the title element lives directly inside the folder's
+	// own domElement, so we need to check *ancestor* folders, not the folder
+	// itself. Walk up the DOM looking for any element with the "closed" class.
+	// However, a folder's own title is always visible even when the folder is
+	// closed (because the title is how you re-open it). The children are hidden.
+	// So for a folder nav item, we check if any *ancestor* GUI is closed.
+	// For a controller nav item, we check if any ancestor GUI is closed.
+	let el: HTMLElement | null = item.element.parentElement;
+	while (el) {
+		if (el.classList.contains("closed")) return false;
+		el = el.parentElement;
+	}
+	return true;
+}
 
+/** Build the navItems array in DOM order from folders and controllers. */
+function buildNavItems(rootGui: GUI): void {
+	navItems = [];
+
+	// Collect all navigable elements with their DOM position
+	const entries: { element: HTMLElement; item: NavItem }[] = [];
+
+	// Add folder headings (the $title element)
+	for (const folder of rootGui.foldersRecursive()) {
+		const titleEl = (folder as unknown as { $title: HTMLElement }).$title;
+		if (titleEl) {
+			entries.push({
+				element: titleEl,
+				item: { type: "folder", folder, element: titleEl },
+			});
+		}
+	}
+
+	// Add controllers
+	for (const controller of rootGui.controllersRecursive()) {
+		const el = controller.domElement;
+		if (el instanceof HTMLElement) {
+			entries.push({
+				element: el,
+				item: { type: "controller", controller, element: el },
+			});
+		}
+	}
+
+	// Sort by document order using compareDocumentPosition
+	entries.sort((a, b) => {
+		const pos = a.element.compareDocumentPosition(b.element);
+		if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+		if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+		return 0;
+	});
+
+	navItems = entries.map((e) => e.item);
+}
+
+/** Handle Left/Right arrow for the currently selected item. */
+function adjustSelected(direction: 1 | -1, shift: boolean): void {
+	const item = navItems[selectedIndex];
+	if (!item) return;
+
+	// Folder items: Left = collapse, Right = expand
+	if (item.type === "folder") {
+		if (direction === -1) item.folder.close();
+		else item.folder.open();
+		return;
+	}
+
+	const c = item.controller;
 	const type = getControllerType(c);
 
 	switch (type) {
@@ -397,9 +465,18 @@ export function initGui(): void {
 	// Make panel draggable
 	makeDraggable(gui.domElement);
 
-	// Build flat navigation list from ALL controllers
-	navControllers = gui.controllersRecursive();
+	// Build flat navigation list from ALL controllers and folder headings
+	buildNavItems(gui);
 	selectedIndex = 0;
+
+	// Click-to-select: sync keyboard focus when user clicks a nav item
+	for (let i = 0; i < navItems.length; i++) {
+		const idx = i;
+		navItems[i].element.addEventListener("click", () => {
+			selectedIndex = idx;
+			updateHighlight();
+		});
+	}
 
 	// Initial highlight
 	updateHighlight();
@@ -419,18 +496,30 @@ export function initGui(): void {
 				if (gui) gui.show(gui._hidden);
 				break;
 
-			case "ArrowUp":
+			case "ArrowUp": {
 				e.preventDefault();
-				selectedIndex =
-					(selectedIndex - 1 + navControllers.length) % navControllers.length;
+				const startUp = selectedIndex;
+				for (let step = 0; step < navItems.length; step++) {
+					selectedIndex =
+						(selectedIndex - 1 + navItems.length) % navItems.length;
+					if (isNavItemVisible(navItems[selectedIndex])) break;
+					if (selectedIndex === startUp) break;
+				}
 				updateHighlight();
 				break;
+			}
 
-			case "ArrowDown":
+			case "ArrowDown": {
 				e.preventDefault();
-				selectedIndex = (selectedIndex + 1) % navControllers.length;
+				const startDown = selectedIndex;
+				for (let step = 0; step < navItems.length; step++) {
+					selectedIndex = (selectedIndex + 1) % navItems.length;
+					if (isNavItemVisible(navItems[selectedIndex])) break;
+					if (selectedIndex === startDown) break;
+				}
 				updateHighlight();
 				break;
+			}
 
 			case "ArrowLeft": {
 				e.preventDefault();
@@ -446,10 +535,18 @@ export function initGui(): void {
 
 			case "Enter": {
 				e.preventDefault();
-				const c = navControllers[selectedIndex];
-				if (c && getControllerType(c) === "function") {
-					const fc = c as unknown as { $button: HTMLButtonElement };
-					fc.$button.click();
+				const item = navItems[selectedIndex];
+				if (!item) break;
+				if (item.type === "folder") {
+					// Toggle folder open/closed
+					if (item.folder._closed) item.folder.open();
+					else item.folder.close();
+				} else {
+					const c = item.controller;
+					if (getControllerType(c) === "function") {
+						const fc = c as unknown as { $button: HTMLButtonElement };
+						fc.$button.click();
+					}
 				}
 				break;
 			}
