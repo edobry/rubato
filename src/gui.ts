@@ -175,7 +175,15 @@ export function initGui(): void {
 	const tune = gui.addFolder("Auto-Tune");
 	tune.add(params.autoTune, "enabled").name("Enabled");
 	addParam(tune, params.autoTune, "targetFps", 15, 60, 5, "Target FPS");
-	addParam(tune, params.autoTune, "maxFps", 0, 60, 5, "Max FPS (0=off)");
+	addParam(
+		tune,
+		params.autoTune,
+		"simulatedLoad",
+		0,
+		100,
+		5,
+		"Sim Load ms (0=off)",
+	);
 
 	// Scrolling log panel
 	const logEl = document.createElement("div");

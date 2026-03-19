@@ -103,6 +103,15 @@ export function segmentFrame(
 		return prevMask;
 	}
 
+	// Simulate slow hardware for autotune testing
+	const load = params.autoTune.simulatedLoad;
+	if (load > 0) {
+		const end = performance.now() + load;
+		while (performance.now() < end) {
+			// busy-wait to actually consume CPU time
+		}
+	}
+
 	let confidenceMasks:
 		| ReturnType<ImageSegmenter["segmentForVideo"]>["confidenceMasks"]
 		| null = null;

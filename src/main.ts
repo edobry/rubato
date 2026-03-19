@@ -73,23 +73,9 @@ async function main(): Promise<void> {
 
 	let frameCount = 0;
 	let lastMask: Float32Array | null = null;
-	let lastFrameTime = 0;
 
 	function loop(): void {
 		if (!video || !ctx) return;
-
-		// FPS cap for testing autotune on fast machines
-		const cap = params.autoTune.maxFps;
-		if (cap > 0) {
-			const now = performance.now();
-			const minInterval = 1000 / cap;
-			if (now - lastFrameTime < minInterval) {
-				requestAnimationFrame(loop);
-				return;
-			}
-			lastFrameTime = now;
-		}
-
 		const { width, height } = canvas;
 
 		autoTuneTick();

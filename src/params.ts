@@ -74,8 +74,8 @@ export const params = {
 	autoTune: reactive("autoTune", {
 		enabled: true,
 		targetFps: 30,
-		// Artificial FPS cap for testing autotune on fast machines (0 = no cap)
-		maxFps: 0,
+		// Artificial delay (ms) added to segmentation to simulate slow hardware (0 = off)
+		simulatedLoad: 0,
 	}),
 };
 
