@@ -100,6 +100,8 @@ let upgradeHeadroomSince = 0;
 let dropDetectedAt = 0;
 /** Whether the current config is considered stable. */
 let isStable = false;
+/** Whether we've already logged hitting the quality floor. */
+let floorLogged = false;
 
 // --- Public state for GUI display ---
 
@@ -267,6 +269,7 @@ function resetTimers(): void {
 	upgradeHeadroomSince = 0;
 	dropDetectedAt = 0;
 	isStable = false;
+	floorLogged = false;
 }
 
 function switchConfig(config: Config, direction: string): void {
@@ -310,10 +313,13 @@ export function autoTuneTick(): void {
 	recordFps(current, fps);
 	updateBestKnown(current, fps, target);
 
-	const belowTarget = fps < target;
+	// Use a tolerance band: accept FPS within 15% below target as "good enough"
+	// This prevents thrashing when movement causes temporary dips
+	const tolerance = target * 0.15;
+	const belowTarget = fps < target - tolerance;
 	const significantDrop = fps < target * (1 - DROP_THRESHOLD);
 	const wellAboveTarget = fps > target + UPGRADE_HEADROOM;
-	const inTargetBand = fps >= target && !wellAboveTarget;
+	const inTargetBand = fps >= target - tolerance && !wellAboveTarget;
 
 	// --- Stable state logic ---
 	if (isStable) {
@@ -391,8 +397,9 @@ export function autoTuneTick(): void {
 			autoTuneState.status = "degrading";
 		} else {
 			autoTuneState.status = "floor";
-			if (autoTuneState.lastAction !== "At minimum quality") {
-				log(`At minimum quality, ${fps} fps (target: ${target})`);
+			if (!floorLogged) {
+				log(`⚠ At minimum quality, ${fps} fps (target: ${target})`);
+				floorLogged = true;
 			}
 		}
 	} else if (wellAboveTarget) {
