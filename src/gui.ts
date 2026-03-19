@@ -1,6 +1,7 @@
 /**
  * Dev GUI panel (lil-gui).
  * Toggle visibility with 'G' key. Only included when VITE_DEV_GUI is set.
+ * Draggable by the title bar.
  *
  * Keyboard controls:
  *   G          — toggle panel visibility
@@ -57,6 +58,50 @@ function updateHighlight(): void {
 			el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
 		}
 	}
+}
+
+/** Make the GUI panel draggable by its title bar. */
+function makeDraggable(guiElement: HTMLElement): void {
+	const titleBar = guiElement.querySelector(".title") as HTMLElement | null;
+	if (!titleBar) return;
+
+	// Switch from fixed top-right to absolute positioning
+	guiElement.style.position = "fixed";
+	guiElement.style.top = "0px";
+	guiElement.style.right = "0px";
+	guiElement.style.left = "auto";
+	titleBar.style.cursor = "grab";
+
+	let dragging = false;
+	let offsetX = 0;
+	let offsetY = 0;
+
+	titleBar.addEventListener("mousedown", (e) => {
+		// Don't start drag if clicking the collapse arrow
+		if ((e.target as HTMLElement).closest(".lil-gui > .title") !== titleBar)
+			return;
+		dragging = true;
+		titleBar.style.cursor = "grabbing";
+		const rect = guiElement.getBoundingClientRect();
+		offsetX = e.clientX - rect.left;
+		offsetY = e.clientY - rect.top;
+		e.preventDefault();
+	});
+
+	window.addEventListener("mousemove", (e) => {
+		if (!dragging) return;
+		// Switch to left/top positioning once dragging starts
+		guiElement.style.right = "auto";
+		guiElement.style.left = `${e.clientX - offsetX}px`;
+		guiElement.style.top = `${e.clientY - offsetY}px`;
+	});
+
+	window.addEventListener("mouseup", () => {
+		if (dragging) {
+			dragging = false;
+			titleBar.style.cursor = "grab";
+		}
+	});
 }
 
 export function initGui(): void {
@@ -121,6 +166,9 @@ export function initGui(): void {
 			"exportJSON",
 		)
 		.name("Export JSON (E)");
+
+	// Make panel draggable
+	makeDraggable(gui.domElement);
 
 	// Initial highlight
 	updateHighlight();
