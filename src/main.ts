@@ -377,7 +377,7 @@ async function main(): Promise<void> {
 
 		// Check if resolution changed via GUI (or auto-tuner)
 		if (params.camera.resolution !== currentResolution) {
-			changeResolution(params.camera.resolution);
+			void changeResolution(params.camera.resolution);
 		}
 
 		const data = produceFrameData();
@@ -433,4 +433,4 @@ async function main(): Promise<void> {
 	requestAnimationFrame(loop);
 }
 
-main();
+void main();

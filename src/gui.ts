@@ -420,7 +420,7 @@ export async function initGui(): Promise<void> {
 					if (!name) return;
 					const preset = extractPreset(name);
 					savePreset(name, preset);
-					syncPresetToServer(name, preset);
+					void syncPresetToServer(name, preset);
 					// Refresh the dropdown options
 					presetDropdown.options(allPresetNames());
 					presetState.selected = `* ${name}`;
@@ -448,7 +448,7 @@ export async function initGui(): Promise<void> {
 					if (!sel.startsWith("* ")) return; // can't delete built-ins
 					const name = sel.slice(2);
 					deletePreset(name);
-					deletePresetFromServer(name);
+					void deletePresetFromServer(name);
 					presetState.selected = "default";
 					setLastPreset("default");
 					presetDropdown.options(allPresetNames());

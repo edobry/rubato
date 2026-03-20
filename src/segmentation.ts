@@ -117,7 +117,7 @@ export function segmentFrame(
 		currentModelKey !== params.segmentation.model ||
 		currentDelegate !== params.segmentation.delegate
 	) {
-		loadModel(params.segmentation.model, params.segmentation.delegate);
+		void loadModel(params.segmentation.model, params.segmentation.delegate);
 		return prevResult;
 	}
 
@@ -181,7 +181,7 @@ export function segmentFrame(
 				showStatus("GPU unavailable — switched to CPU", 3000);
 				localStorage.setItem("rubato-gpu-failed", "true");
 				params.segmentation.delegate = "CPU";
-				loadModel(params.segmentation.model, "CPU");
+				void loadModel(params.segmentation.model, "CPU");
 				if (!params.autoTune.enabled) {
 					params.autoTune.enabled = true;
 					console.log("Auto-tune enabled to optimize for constrained hardware");

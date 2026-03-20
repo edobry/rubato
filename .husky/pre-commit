@@ -1,9 +1,2 @@
 npx lint-staged
 npx tsc --noEmit
-
-# Check for floating promises (.then( without void/await prefix)
-if grep -rn '^\s*[a-zA-Z].*\.then(' src/ --include='*.ts' | grep -v 'void ' | grep -v 'await ' | grep -v 'return '; then
-  echo "ERROR: Found floating promises (unawaited .then() calls)."
-  echo "Either await the promise, or prefix with 'void' if intentionally fire-and-forget."
-  exit 1
-fi
