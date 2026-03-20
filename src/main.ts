@@ -1,4 +1,4 @@
-import { autoTuneTick, onLogChange } from "./autotune";
+import { autoTuneState, autoTuneTick, onLogChange } from "./autotune";
 import { initCamera } from "./camera";
 import {
 	compositeFrame,
@@ -15,6 +15,7 @@ import { drawMaskOverlay } from "./overlay";
 import { onParamChange, params, SEGMENTATION_MODELS } from "./params";
 import {
 	drawPerfOverlay,
+	getPerfSummary,
 	perfFrameEnd,
 	perfFrameStart,
 	perfMark,
@@ -417,6 +418,38 @@ async function main(): Promise<void> {
 	}
 
 	requestAnimationFrame(loop);
+
+	// Expose debug API for Playwright MCP / console access
+	// biome-ignore lint/suspicious/noExplicitAny: debug API on window
+	(window as any).__rubato = {
+		get fps() {
+			return autoTuneState.fps;
+		},
+		get perf() {
+			return getPerfSummary();
+		},
+		get autotune() {
+			return {
+				status: autoTuneState.status,
+				lastAction: autoTuneState.lastAction,
+				adjustments: autoTuneState.adjustCount,
+			};
+		},
+		get config() {
+			return {
+				pipeline: params.rendering.pipeline,
+				model: params.segmentation.model,
+				delegate: params.segmentation.delegate,
+				resolution: params.camera.resolution,
+				frameSkip: params.segmentation.frameSkip,
+				downsample: params.overlay.downsample,
+			};
+		},
+		get params() {
+			return JSON.parse(JSON.stringify(params));
+		},
+		pipeline,
+	};
 }
 
 void main();
