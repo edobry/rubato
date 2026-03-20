@@ -20,6 +20,8 @@ export const SEGMENTATION_MODELS: Record<string, string> = {
 
 type ParamChangeListener = (section: string, key: string) => void;
 const listeners: ParamChangeListener[] = [];
+let batchDepth = 0;
+let pendingNotifications: Array<[string, string]> = [];
 
 /** Subscribe to any param change. Returns an unsubscribe function. */
 export function onParamChange(fn: ParamChangeListener): () => void {
@@ -28,6 +30,36 @@ export function onParamChange(fn: ParamChangeListener): () => void {
 		const idx = listeners.indexOf(fn);
 		if (idx >= 0) listeners.splice(idx, 1);
 	};
+}
+
+/**
+ * Batch multiple param changes so listeners fire once after all changes.
+ * Prevents intermediate state visibility during preset application.
+ */
+export function batchParamUpdate(fn: () => void): void {
+	batchDepth++;
+	try {
+		fn();
+	} finally {
+		batchDepth--;
+		if (batchDepth === 0 && pendingNotifications.length > 0) {
+			// Deduplicate: keep only the last notification per section+key
+			const seen = new Set<string>();
+			const unique: Array<[string, string]> = [];
+			for (let i = pendingNotifications.length - 1; i >= 0; i--) {
+				const [s, k] = pendingNotifications[i]!;
+				const key = `${s}.${k}`;
+				if (!seen.has(key)) {
+					seen.add(key);
+					unique.unshift([s, k]);
+				}
+			}
+			pendingNotifications = [];
+			for (const [section, key] of unique) {
+				for (const fn of listeners) fn(section, key);
+			}
+		}
+	}
 }
 
 /** Wrap a plain object so that setting any property notifies listeners. */
@@ -40,7 +72,11 @@ function reactive<T extends Record<string, unknown>>(
 			const old = obj[prop as keyof T];
 			const result = Reflect.set(obj, prop, value);
 			if (old !== value) {
-				for (const fn of listeners) fn(section, prop as string);
+				if (batchDepth > 0) {
+					pendingNotifications.push([section, prop as string]);
+				} else {
+					for (const fn of listeners) fn(section, prop as string);
+				}
 			}
 			return result;
 		},

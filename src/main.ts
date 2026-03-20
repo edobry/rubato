@@ -253,7 +253,10 @@ async function main(): Promise<void> {
 		const isReady =
 			pipelineState.status === "ready" || pipelineState.status === "processing";
 
-		if (video && isReady && params.overlay.showOverlay) {
+		// Always produce mask data when pipeline is ready — the compositor may
+		// need it for fog interaction even when the overlay is hidden.
+		// Rendering decides what to display; data production is unconditional.
+		if (video && isReady) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
 			if (frameCount % skip === 0) {

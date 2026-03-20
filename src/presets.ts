@@ -8,7 +8,7 @@
 
 import defaults from "../params.json";
 import customPresets from "./custom-presets.json";
-import { params } from "./params";
+import { batchParamUpdate, params } from "./params";
 
 const STORAGE_KEY = "rubato-presets";
 const LAST_PRESET_KEY = "rubato-last-preset";
@@ -84,38 +84,43 @@ export function extractPreset(name: string): CreativePreset {
 	};
 }
 
-/** Apply a preset by writing its values back into the reactive params. */
+/** Apply a preset by writing its values back into the reactive params.
+ *  All writes are batched so listeners fire once after all changes,
+ *  preventing intermediate-state bugs. */
 export function applyPreset(preset: CreativePreset): void {
-	// Overlay
-	params.overlay.showOverlay = preset.overlay.showOverlay;
-	params.overlay.visualize = preset.overlay
-		.visualize as typeof params.overlay.visualize;
-	params.overlay.opacity = preset.overlay.opacity;
-	params.overlay.color = preset.overlay.color;
-	params.overlay.colorMode = preset.overlay
-		.colorMode as typeof params.overlay.colorMode;
-	params.overlay.blur = preset.overlay.blur ?? 0;
+	batchParamUpdate(() => {
+		// Overlay
+		params.overlay.showOverlay = preset.overlay.showOverlay;
+		params.overlay.visualize = preset.overlay
+			.visualize as typeof params.overlay.visualize;
+		params.overlay.opacity = preset.overlay.opacity;
+		params.overlay.color = preset.overlay.color;
+		params.overlay.colorMode = preset.overlay
+			.colorMode as typeof params.overlay.colorMode;
+		params.overlay.blur = preset.overlay.blur ?? 0;
 
-	// Motion
-	params.motion.deposition = preset.motion.deposition;
-	params.motion.decay = preset.motion.decay;
+		// Motion
+		params.motion.deposition = preset.motion.deposition;
+		params.motion.decay = preset.motion.decay;
 
-	// Segmentation
-	params.segmentation.confidenceThreshold =
-		preset.segmentation.confidenceThreshold;
-	params.segmentation.temporalSmoothing = preset.segmentation.temporalSmoothing;
-	params.segmentation.motionThreshold = preset.segmentation.motionThreshold;
+		// Segmentation
+		params.segmentation.confidenceThreshold =
+			preset.segmentation.confidenceThreshold;
+		params.segmentation.temporalSmoothing =
+			preset.segmentation.temporalSmoothing;
+		params.segmentation.motionThreshold = preset.segmentation.motionThreshold;
 
-	// Camera
-	params.camera.showFeed = preset.camera.showFeed;
-	params.camera.fillAmount = preset.camera.fillAmount;
+		// Camera
+		params.camera.showFeed = preset.camera.showFeed;
+		params.camera.fillAmount = preset.camera.fillAmount;
 
-	// Fog
-	params.fog.speed = preset.fog.speed;
-	params.fog.scale = preset.fog.scale;
-	params.fog.density = preset.fog.density;
-	params.fog.brightness = preset.fog.brightness;
-	params.fog.color = preset.fog.color ?? "#ffffff";
+		// Fog
+		params.fog.speed = preset.fog.speed;
+		params.fog.scale = preset.fog.scale;
+		params.fog.density = preset.fog.density;
+		params.fog.brightness = preset.fog.brightness;
+		params.fog.color = preset.fog.color ?? "#ffffff";
+	}); // end batchParamUpdate
 }
 
 const d = defaults;
