@@ -18,7 +18,7 @@ import { params } from "./params";
 const SAMPLE_WINDOW = 60;
 const RESOLUTION_LADDER = ["720p", "480p", "360p"];
 const MODEL_LADDER = ["quality", "fast"];
-const MAX_FRAME_SKIP = 6;
+const MAX_FRAME_SKIP = 15;
 const MIN_SAMPLES_FOR_TRUST = 3;
 
 // --- Configuration space ---
@@ -35,12 +35,17 @@ interface ConfigRecord {
 	averageFps: number;
 }
 
-/** Build the ordered list of configs from highest quality (index 0) to lowest. */
+/**
+ * Build the ordered list of configs from highest quality (index 0) to lowest.
+ * Degradation order: resolution first, then model, frame skip last.
+ * This means we exhaust resolution+model combos before bumping frame skip,
+ * since frame skip has the most visual impact (mask latency).
+ */
 function buildConfigLadder(): Config[] {
 	const configs: Config[] = [];
-	for (const resolution of RESOLUTION_LADDER) {
+	for (let frameSkip = 1; frameSkip <= MAX_FRAME_SKIP; frameSkip++) {
 		for (const model of MODEL_LADDER) {
-			for (let frameSkip = 1; frameSkip <= MAX_FRAME_SKIP; frameSkip++) {
+			for (const resolution of RESOLUTION_LADDER) {
 				configs.push({ frameSkip, model, resolution });
 			}
 		}
