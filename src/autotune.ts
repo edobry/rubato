@@ -15,9 +15,10 @@ import { params } from "./params";
 
 // --- Constants ---
 
-const SAMPLE_WINDOW = 60;
+const SAMPLE_WINDOW = 30; // Reduced from 60 for faster initial convergence
 const RESOLUTION_LADDER = ["720p", "480p", "360p"];
 const MODEL_LADDER = ["quality", "fast"];
+const DOWNSAMPLE_LADDER = [1, 2, 4];
 const MAX_FRAME_SKIP = 15;
 const MIN_SAMPLES_FOR_TRUST = 3;
 
@@ -27,6 +28,7 @@ interface Config {
 	frameSkip: number;
 	model: string;
 	resolution: string;
+	downsample: number;
 }
 
 interface ConfigRecord {
@@ -37,16 +39,17 @@ interface ConfigRecord {
 
 /**
  * Build the ordered list of configs from highest quality (index 0) to lowest.
- * Degradation order: resolution first, then model, frame skip last.
- * This means we exhaust resolution+model combos before bumping frame skip,
- * since frame skip has the most visual impact (mask latency).
+ * Degradation order: resolution → model → downsample → frame skip (last resort).
+ * Frame skip has the most visual impact (mask latency) so it's bumped last.
  */
 function buildConfigLadder(): Config[] {
 	const configs: Config[] = [];
 	for (let frameSkip = 1; frameSkip <= MAX_FRAME_SKIP; frameSkip++) {
-		for (const model of MODEL_LADDER) {
-			for (const resolution of RESOLUTION_LADDER) {
-				configs.push({ frameSkip, model, resolution });
+		for (const downsample of DOWNSAMPLE_LADDER) {
+			for (const model of MODEL_LADDER) {
+				for (const resolution of RESOLUTION_LADDER) {
+					configs.push({ frameSkip, model, resolution, downsample });
+				}
 			}
 		}
 	}
@@ -56,14 +59,15 @@ function buildConfigLadder(): Config[] {
 const CONFIG_LADDER = buildConfigLadder();
 
 function configKey(c: Config): string {
-	return `${c.resolution}/${c.model}/skip${c.frameSkip}`;
+	return `${c.resolution}/${c.model}/ds${c.downsample}/skip${c.frameSkip}`;
 }
 
 function configsEqual(a: Config, b: Config): boolean {
 	return (
 		a.frameSkip === b.frameSkip &&
 		a.model === b.model &&
-		a.resolution === b.resolution
+		a.resolution === b.resolution &&
+		a.downsample === b.downsample
 	);
 }
 
@@ -152,6 +156,7 @@ function getCurrentConfig(): Config {
 		frameSkip: params.segmentation.frameSkip,
 		model: params.segmentation.model,
 		resolution: params.camera.resolution,
+		downsample: params.overlay.downsample,
 	};
 }
 
@@ -159,6 +164,7 @@ function applyConfig(c: Config): void {
 	params.segmentation.frameSkip = c.frameSkip;
 	params.segmentation.model = c.model;
 	params.camera.resolution = c.resolution;
+	params.overlay.downsample = c.downsample;
 }
 
 function recordFps(config: Config, fps: number): void {
