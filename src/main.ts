@@ -14,7 +14,6 @@ import { drawMaskOverlay } from "./overlay";
 import { params } from "./params";
 import {
 	drawPerfOverlay,
-	getPerfSummary,
 	perfFrameEnd,
 	perfFrameStart,
 	perfMark,
@@ -77,14 +76,16 @@ async function main(): Promise<void> {
 	}
 	resizeFog();
 
-	// Legacy 2D canvas (default)
-	// DOM FPS overlay for unified mode
-	let fpsOverlay: HTMLDivElement | null = null;
+	// HUD canvas — transparent overlay for FPS graph, perf, tuning indicator.
+	// Visible in both modes, always on top.
+	let hudCanvas: HTMLCanvasElement | null = null;
+	let hudCtx: CanvasRenderingContext2D | null = null;
 	if (useUnified) {
-		fpsOverlay = document.createElement("div");
-		fpsOverlay.style.cssText =
-			"position:fixed;top:8px;left:8px;z-index:10000;font:bold 16px monospace;color:#0f0;background:rgba(0,0,0,0.6);padding:4px 10px;pointer-events:none";
-		document.body.appendChild(fpsOverlay);
+		hudCanvas = document.createElement("canvas");
+		hudCanvas.style.cssText =
+			"position:fixed;inset:0;width:100%;height:100%;z-index:9999;pointer-events:none";
+		document.body.appendChild(hudCanvas);
+		hudCtx = hudCanvas.getContext("2d");
 	}
 
 	// Legacy 2D canvas — hidden in unified mode
@@ -95,7 +96,15 @@ async function main(): Promise<void> {
 		resizeCanvas(canvas);
 		resizeFog();
 		if (compositorCanvas) resizeCompositor();
+		if (hudCanvas) {
+			hudCanvas.width = window.innerWidth;
+			hudCanvas.height = window.innerHeight;
+		}
 	});
+	if (hudCanvas) {
+		hudCanvas.width = window.innerWidth;
+		hudCanvas.height = window.innerHeight;
+	}
 
 	// Dev GUI — toggle with G key
 	if (import.meta.env.VITE_DEV_GUI === "true") {
@@ -265,12 +274,11 @@ async function main(): Promise<void> {
 			perfMark("composite", "#ff8844");
 			perfFrameEnd();
 
-			// DOM FPS overlay with perf breakdown
-			const fpsVal = fps.tick();
-			if (fpsOverlay) {
-				fpsOverlay.textContent = `${fpsVal} fps | ${getPerfSummary()}`;
-				fpsOverlay.style.color =
-					fpsVal >= 24 ? "#0f0" : fpsVal >= 15 ? "#ff0" : "#f00";
+			// Draw FPS graph + perf overlay on the HUD canvas
+			if (hudCtx && hudCanvas) {
+				hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+				fps.draw(hudCtx);
+				drawPerfOverlay(hudCtx);
 			}
 		} else {
 			// Legacy Canvas 2D path
