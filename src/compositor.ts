@@ -125,6 +125,25 @@ export function initCompositor(): HTMLCanvasElement | null {
 	gl.uniform1i(getUniform("u_mask"), 2);
 	gl.uniform1i(getUniform("u_trail"), 3);
 
+	// WebGL context loss recovery for unattended gallery operation
+	canvas.addEventListener("webglcontextlost", (e) => {
+		e.preventDefault();
+		console.warn("[compositor] WebGL context lost, awaiting restore...");
+	});
+	canvas.addEventListener("webglcontextrestored", () => {
+		console.log("[compositor] WebGL context restored, reinitializing...");
+		// Re-run init to rebuild shaders, buffers, and textures
+		const restored = initCompositor();
+		if (restored) {
+			resizeCompositor();
+			console.log("[compositor] Reinitialized after context restore");
+		} else {
+			console.error(
+				"[compositor] Failed to reinitialize after context restore",
+			);
+		}
+	});
+
 	return canvas;
 }
 

@@ -7,6 +7,8 @@
 		"dev": "VITE_DEV_GUI=true vite --host",
 		"dev:debug": "VITE_DEV_GUI=true vite --host & sleep 2 && '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --remote-debugging-port=9222 --user-data-dir=/tmp/rubato-chrome-debug --auto-open-devtools-for-tabs https://localhost:5173",
 		"build": "tsc --noEmit && vite build",
+		"prod": "vite build",
+		"kiosk": "npm run prod && npx serve dist & sleep 2 && '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --kiosk --start-fullscreen --disable-infobars --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --use-fake-ui-for-media-stream http://localhost:3000",
 		"preview": "vite preview",
 		"lint": "biome check .",
 		"format": "biome check --write .",

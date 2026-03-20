@@ -91,6 +91,20 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 
 	startTime = performance.now() / 1000;
 
+	// WebGL context loss recovery (only for own canvas; shared GL is handled by compositor)
+	if (!externalGl) {
+		canvas.addEventListener("webglcontextlost", (e) => {
+			e.preventDefault();
+			console.warn("[fog] WebGL context lost, awaiting restore...");
+		});
+		canvas.addEventListener("webglcontextrestored", () => {
+			console.log("[fog] WebGL context restored, reinitializing...");
+			initFog();
+			resizeFog();
+			console.log("[fog] Reinitialized after context restore");
+		});
+	}
+
 	return canvas;
 }
 
