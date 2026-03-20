@@ -82,6 +82,7 @@ export default defineConfig({
 		plugins: () => [glsl()],
 	},
 	server: {
+		host: true, // Bind to 0.0.0.0 for LAN access
 		headers: {
 			// Prevent browser from caching dev server responses
 			"Cache-Control": "no-store",

@@ -550,6 +550,9 @@ window.addEventListener("error", (event) => {
 });
 
 window.addEventListener("unhandledrejection", (event) => {
+	// Ignore Vite HMR WebSocket connection failures (common on LAN access)
+	const reason = String(event.reason);
+	if (reason.includes("WebSocket") || reason.includes("vite")) return;
 	scheduleRecoveryReload("promise rejection", event.reason);
 });
 
