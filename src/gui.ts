@@ -530,6 +530,8 @@ export async function initGui(): Promise<void> {
 	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
 	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
 	fog.addColor(params.fog, "color").name("Color");
+	addParam(fog, params.fog, "maskInteraction", 0, 2, 0.1, "Mask → Fog");
+	addParam(fog, params.fog, "trailInteraction", 0, 5, 0.1, "Trail → Fog");
 	fog.open();
 
 	const detection = creative.addFolder("Detection");

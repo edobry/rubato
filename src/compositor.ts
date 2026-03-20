@@ -172,8 +172,8 @@ export function compositeFrame(
 	const [r, g, b] = hexToRgbNorm(params.overlay.color);
 	gl.uniform3f(getUniform("u_overlayColor"), r, g, b);
 	gl.uniform1f(getUniform("u_time"), performance.now() / 1000);
-	gl.uniform1f(getUniform("u_fogMaskStrength"), 0.8); // TODO: make tunable
-	gl.uniform1f(getUniform("u_fogTrailStrength"), 1.5); // TODO: make tunable
+	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
+	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
 
 	// Draw
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

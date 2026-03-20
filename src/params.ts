@@ -71,6 +71,8 @@ export const params = {
 		color: d.fog.color,
 		octaves: d.fog.octaves,
 		renderScale: d.fog.renderScale,
+		maskInteraction: d.fog.maskInteraction,
+		trailInteraction: d.fog.trailInteraction,
 	}),
 	motion: reactive("motion", {
 		// How strongly motion deposits into the trail buffer (0-5)

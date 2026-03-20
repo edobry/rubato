@@ -19,7 +19,9 @@
 		"brightness": 0.4,
 		"color": "#ffffff",
 		"octaves": 5,
-		"renderScale": 1.0
+		"renderScale": 1.0,
+		"maskInteraction": 0.8,
+		"trailInteraction": 2.0
 	},
 	"motion": {
 		"deposition": 2.0,
