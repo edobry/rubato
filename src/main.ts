@@ -77,6 +77,13 @@ async function main(): Promise<void> {
 		);
 	}
 
+	// Enforce performance floors on constrained devices (even after preset load)
+	if (device.isConstrained) {
+		if (params.fog.octaves > 3) params.fog.octaves = 2;
+		if (params.fog.renderScale > 0.5) params.fog.renderScale = 0.5;
+		if (params.overlay.downsample < 2) params.overlay.downsample = 2;
+	}
+
 	// Pipeline mode is set at page load. Switching requires reload.
 	// Falls back to legacy if compositor init fails (e.g. weak GPU).
 	let useUnified = params.rendering.pipeline === "unified";
