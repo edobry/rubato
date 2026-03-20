@@ -40,7 +40,7 @@ export function detectMotion(
 	// Compute raw motion diff
 	if (prevRawMask && prevRawMask.length === pixelCount) {
 		for (let i = 0; i < pixelCount; i++) {
-			const diff = Math.abs(currentRaw[i] - prevRawMask[i]);
+			const diff = Math.abs(currentRaw[i]! - prevRawMask[i]!);
 			motionMap[i] = diff > threshold ? diff : 0;
 		}
 	}
@@ -53,11 +53,11 @@ export function detectMotion(
 	// Accumulate motion into trail buffer + apply decay
 	for (let i = 0; i < pixelCount; i++) {
 		// Deposit: add motion energy, clamped to 1
-		trailBuffer[i] = Math.min(1, trailBuffer[i] + motionMap[i] * deposition);
+		trailBuffer[i] = Math.min(1, trailBuffer[i]! + motionMap[i]! * deposition);
 		// Decay: multiply toward zero
-		trailBuffer[i] *= decay;
+		trailBuffer[i] = trailBuffer[i]! * decay;
 		// Clean up near-zero values
-		if (trailBuffer[i] < 0.005) trailBuffer[i] = 0;
+		if (trailBuffer[i]! < 0.005) trailBuffer[i] = 0;
 	}
 
 	// Store current frame

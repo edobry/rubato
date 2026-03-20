@@ -108,7 +108,7 @@ function findTunable(c: Controller): TunableParam | undefined {
 
 function updateHighlight(): void {
 	for (let i = 0; i < navItems.length; i++) {
-		const el = navItems[i].element;
+		const el = navItems[i]!.element;
 		el.style.outline = i === selectedIndex ? "2px solid #0ff" : "none";
 		el.style.outlineOffset = i === selectedIndex ? "-2px" : "0";
 		el.style.backgroundColor =
@@ -137,7 +137,7 @@ function isNavItemVisible(item: NavItem): boolean {
 function registerClickHandlers(): void {
 	for (let i = 0; i < navItems.length; i++) {
 		const idx = i;
-		navItems[i].element.addEventListener("click", () => {
+		navItems[i]!.element.addEventListener("click", () => {
 			selectedIndex = idx;
 			updateHighlight();
 		});
@@ -216,7 +216,7 @@ function adjustSelected(direction: 1 | -1, shift: boolean): void {
 				const delta = tunable.step * multiplier * direction;
 				const newVal = Math.min(
 					tunable.max,
-					Math.max(tunable.min, tunable.object[tunable.key] + delta),
+					Math.max(tunable.min, (tunable.object[tunable.key] ?? 0) + delta),
 				);
 				tunable.object[tunable.key] = Math.round(newVal * 1000) / 1000;
 			} else {
@@ -371,12 +371,12 @@ export async function initGui(): Promise<void> {
 	/** Look up a preset by display name. */
 	function resolvePreset(displayName: string): CreativePreset | null {
 		const builtIns = getBuiltInPresets();
-		if (displayName in builtIns) return builtIns[displayName];
+		if (displayName in builtIns) return builtIns[displayName]!;
 		// User presets are prefixed with "* "
 		if (displayName.startsWith("* ")) {
 			const name = displayName.slice(2);
 			const saved = getSavedPresets();
-			if (name in saved) return saved[name];
+			if (name in saved) return saved[name]!;
 		}
 		return null;
 	}
@@ -864,7 +864,7 @@ export async function initGui(): Promise<void> {
 				for (let step = 0; step < navItems.length; step++) {
 					selectedIndex =
 						(selectedIndex - 1 + navItems.length) % navItems.length;
-					if (isNavItemVisible(navItems[selectedIndex])) break;
+					if (isNavItemVisible(navItems[selectedIndex]!)) break;
 					if (selectedIndex === startUp) break;
 				}
 				updateHighlight();
@@ -876,7 +876,7 @@ export async function initGui(): Promise<void> {
 				const startDown = selectedIndex;
 				for (let step = 0; step < navItems.length; step++) {
 					selectedIndex = (selectedIndex + 1) % navItems.length;
-					if (isNavItemVisible(navItems[selectedIndex])) break;
+					if (isNavItemVisible(navItems[selectedIndex]!)) break;
 					if (selectedIndex === startDown) break;
 				}
 				updateHighlight();

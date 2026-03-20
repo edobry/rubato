@@ -136,7 +136,7 @@ function notifyLogListeners(): void {
 
 function currentFps(): number {
 	if (frameTimes.length < 2) return 0;
-	const elapsed = frameTimes[frameTimes.length - 1] - frameTimes[0];
+	const elapsed = frameTimes[frameTimes.length - 1]! - frameTimes[0]!;
 	if (elapsed === 0) return 0;
 	return Math.round(((frameTimes.length - 1) / elapsed) * 1000);
 }
@@ -200,7 +200,7 @@ function updateBestKnown(config: Config, fps: number, target: number): void {
 function findDegradeTarget(current: Config, target: number): Config | null {
 	const currentIdx = configIndex(current);
 	for (let i = currentIdx + 1; i < CONFIG_LADDER.length; i++) {
-		const candidate = CONFIG_LADDER[i];
+		const candidate = CONFIG_LADDER[i]!;
 		const key = configKey(candidate);
 		const record = configHistory.get(key);
 		// Skip configs we already know are too slow (unless we have very few samples)
@@ -215,7 +215,7 @@ function findDegradeTarget(current: Config, target: number): Config | null {
 	}
 	// Everything below is known bad or we're at the bottom — use the last config
 	return currentIdx < CONFIG_LADDER.length - 1
-		? CONFIG_LADDER[CONFIG_LADDER.length - 1]
+		? (CONFIG_LADDER[CONFIG_LADDER.length - 1] ?? null)
 		: null;
 }
 
@@ -258,7 +258,7 @@ function findUpgradeTarget(
 
 	// Walk from the aggressive target upward, skip known-bad configs
 	for (let i = targetIdx; i < currentIdx; i++) {
-		const candidate = CONFIG_LADDER[i];
+		const candidate = CONFIG_LADDER[i]!;
 		const key = configKey(candidate);
 		const record = configHistory.get(key);
 		if (

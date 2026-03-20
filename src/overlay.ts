@@ -104,7 +104,7 @@ export function drawMaskOverlay(
 			const srcRow = ry * ds * maskW;
 			const dstRow = ry * renderW;
 			for (let rx = 0; rx < renderW; rx++) {
-				const c = mask[srcRow + rx * ds];
+				const c = mask[srcRow + rx * ds]!;
 				if (c === 0) continue;
 				const idx = (dstRow + rx) << 2;
 				data[idx] = sr;
@@ -118,7 +118,7 @@ export function drawMaskOverlay(
 			const srcRow = ry * ds * maskW;
 			const dstRow = ry * renderW;
 			for (let rx = 0; rx < renderW; rx++) {
-				const c = mask[srcRow + rx * ds];
+				const c = mask[srcRow + rx * ds]!;
 				if (c === 0) continue;
 				const idx = (dstRow + rx) << 2;
 				data[idx] = 255;
@@ -135,9 +135,9 @@ export function drawMaskOverlay(
 				const x = rx * ds;
 				const y = ry * ds;
 				const i = srcRow + x;
-				const c = mask[i];
-				const right = x < maskW - 1 ? mask[i + 1] : c;
-				const below = y < maskH - 1 ? mask[i + maskW] : c;
+				const c = mask[i]!;
+				const right = x < maskW - 1 ? mask[i + 1]! : c;
+				const below = y < maskH - 1 ? mask[i + maskW]! : c;
 				const dr = c - right;
 				const db = c - below;
 				const edge = (dr > 0 ? dr : -dr) + (db > 0 ? db : -db);
@@ -156,7 +156,7 @@ export function drawMaskOverlay(
 			for (let rx = 0; rx < renderW; rx++) {
 				const x = rx * ds;
 				const y = ry * ds;
-				const confidence = mask[y * maskW + x];
+				const confidence = mask[y * maskW + x]!;
 				const idx = (ry * renderW + rx) << 2;
 
 				if (mode === "aura") {
@@ -220,10 +220,10 @@ export function drawMaskOverlay(
 							const nx = x + dx;
 							if (nx < 0 || nx >= renderW) continue;
 							const si = (ny * renderW + nx) * 4;
-							rSum += src[si];
-							gSum += src[si + 1];
-							bSum += src[si + 2];
-							aSum += src[si + 3];
+							rSum += src[si]!;
+							gSum += src[si + 1]!;
+							bSum += src[si + 2]!;
+							aSum += src[si + 3]!;
 							count++;
 						}
 					}

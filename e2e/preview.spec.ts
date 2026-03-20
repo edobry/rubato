@@ -14,7 +14,7 @@ const BASE_URL = "https://localhost:5173";
 async function canvasHasContent(
 	page: import("@playwright/test").Page,
 ): Promise<boolean> {
-	return page.evaluate(() => {
+	return await page.evaluate(() => {
 		const canvas = document.querySelector("canvas");
 		if (!canvas) return false;
 		const ctx = canvas.getContext("2d");

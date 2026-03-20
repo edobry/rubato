@@ -41,7 +41,7 @@ function getUniform(name: string): WebGLUniformLocation | null {
 	if (!(name in uniforms)) {
 		uniforms[name] = gl!.getUniformLocation(program!, name);
 	}
-	return uniforms[name];
+	return uniforms[name] ?? null;
 }
 
 /**

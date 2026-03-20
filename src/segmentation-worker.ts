@@ -102,7 +102,7 @@ function handleFrame(
 		return;
 	}
 
-	const rawData = confidenceMasks[0].getAsFloat32Array();
+	const rawData = confidenceMasks[0]!.getAsFloat32Array();
 	const pixelCount = width * height;
 
 	// Create a new Float32Array with thresholding applied.
@@ -110,7 +110,7 @@ function handleFrame(
 	// to the main thread, and the MediaPipe-internal buffer must stay intact.
 	const mask = new Float32Array(pixelCount);
 	for (let i = 0; i < pixelCount; i++) {
-		mask[i] = rawData[i] > threshold ? rawData[i] : 0;
+		mask[i] = rawData[i]! > threshold ? rawData[i]! : 0;
 	}
 
 	const inferenceMs = performance.now() - t0;

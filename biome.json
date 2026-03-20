@@ -16,6 +16,10 @@
 			},
 			"nursery": {
 				"noFloatingPromises": "error"
+			},
+			"suspicious": {
+				"noImplicitAnyLet": "error",
+				"useAwait": "warn"
 			}
 		}
 	},

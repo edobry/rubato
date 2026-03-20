@@ -144,7 +144,7 @@ export function segmentFrame(
 	let rawData: Float32Array | null = null;
 	const hasMasks = confidenceMasks && confidenceMasks.length > 0;
 	if (hasMasks) {
-		rawData = confidenceMasks![0].getAsFloat32Array();
+		rawData = confidenceMasks![0]!.getAsFloat32Array();
 	}
 
 	// Silent GPU failure detection: only check during probe period (first 30 frames)
@@ -156,7 +156,7 @@ export function segmentFrame(
 		// During probe: check if mask is all zeros (GPU garbage)
 		let hasNonZero = false;
 		for (let i = 0; i < rawData.length; i += 100) {
-			if (rawData[i] > 0.01) {
+			if (rawData[i]! > 0.01) {
 				hasNonZero = true;
 				break;
 			}
@@ -205,7 +205,7 @@ export function segmentFrame(
 	const threshold = params.segmentation.confidenceThreshold;
 
 	for (let i = 0; i < pixelCount; i++) {
-		rawMask[i] = maskData[i] > threshold ? maskData[i] : 0;
+		rawMask[i] = maskData[i]! > threshold ? maskData[i]! : 0;
 	}
 
 	// Build the smoothed mask from the raw mask
@@ -213,7 +213,7 @@ export function segmentFrame(
 	const smooth = params.segmentation.temporalSmoothing;
 	if (smooth > 0 && prevMask && prevMask.length === pixelCount) {
 		for (let i = 0; i < pixelCount; i++) {
-			smoothedMask[i] = prevMask[i] * smooth + smoothedMask[i] * (1 - smooth);
+			smoothedMask[i] = prevMask[i]! * smooth + smoothedMask[i]! * (1 - smooth);
 		}
 	}
 

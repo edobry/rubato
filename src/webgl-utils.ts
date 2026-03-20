@@ -101,7 +101,7 @@ export function uploadFloatTexture(
 		uploadBuf = new Uint8Array(size);
 	}
 	for (let i = 0; i < data.length; i++) {
-		const v = Math.round(Math.min(1, Math.max(0, data[i])) * 255);
+		const v = Math.round(Math.min(1, Math.max(0, data[i]!)) * 255);
 		const j = i * 4;
 		uploadBuf[j] = v;
 		uploadBuf[j + 1] = v;

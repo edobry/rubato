@@ -178,8 +178,8 @@ async function main(): Promise<void> {
 	let useWorker = false;
 	showStatus("Loading segmentation model...");
 
-	const modelUrl =
-		SEGMENTATION_MODELS[params.segmentation.model] ?? SEGMENTATION_MODELS.fast;
+	const modelUrl = (SEGMENTATION_MODELS[params.segmentation.model] ??
+		SEGMENTATION_MODELS.fast)!;
 	const delegate =
 		localStorage.getItem("rubato-gpu-failed") === "true"
 			? "CPU"
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
 	// Show autotune actions as brief status notifications
 	onLogChange((log) => {
 		if (log.length > 0) {
-			const latest = log[log.length - 1];
+			const latest = log[log.length - 1]!;
 			// Strip the timestamp prefix (e.g. "12:34:56 PM ...")
 			const msg = latest.replace(/^\S+\s+(AM|PM)?\s*/, "");
 			showStatus(`autotune: ${msg}`, 3000);
@@ -256,8 +256,8 @@ async function main(): Promise<void> {
 				resetMotion();
 
 				if (useWorker) {
-					const newModelUrl =
-						SEGMENTATION_MODELS[newModel] ?? SEGMENTATION_MODELS.fast;
+					const newModelUrl = (SEGMENTATION_MODELS[newModel] ??
+						SEGMENTATION_MODELS.fast)!;
 					const resolvedDelegate =
 						localStorage.getItem("rubato-gpu-failed") === "true"
 							? "CPU"

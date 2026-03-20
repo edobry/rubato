@@ -23,7 +23,7 @@ export class FpsCounter {
 		this.times.push(now);
 		if (this.times.length > SAMPLE_WINDOW) this.times.shift();
 		if (this.times.length < 2) return 0;
-		const elapsed = now - this.times[0];
+		const elapsed = now - this.times[0]!;
 		const fps = Math.round(((this.times.length - 1) / elapsed) * 1000);
 
 		this.history.push(fps);
@@ -93,7 +93,8 @@ export class FpsCounter {
 			const offset = GRAPH_HISTORY - this.history.length;
 			for (let i = 0; i < this.history.length; i++) {
 				const x = gx + (offset + i) * step;
-				const y = gy + GRAPH_HEIGHT - (this.history[i] / maxFps) * GRAPH_HEIGHT;
+				const y =
+					gy + GRAPH_HEIGHT - (this.history[i]! / maxFps) * GRAPH_HEIGHT;
 				if (i === 0) ctx.moveTo(x, y);
 				else ctx.lineTo(x, y);
 			}
