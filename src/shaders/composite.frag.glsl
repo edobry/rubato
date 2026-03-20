@@ -33,44 +33,34 @@ vec2 getCameraUV() {
 }
 
 void main() {
-    // Sample all layers
-    vec4 fogColor = texture2D(u_fog, v_uv);
+    // Sample fog
+    vec3 fog = texture2D(u_fog, v_uv).rgb;
+
+    // Sample camera-space textures
     vec2 camUV = getCameraUV();
-    vec4 cameraColor = texture2D(u_camera, camUV);
+    vec3 camera = texture2D(u_camera, camUV).rgb;
     float mask = texture2D(u_mask, camUV).r;
     float trail = texture2D(u_trail, camUV).r;
 
-    // Start with fog as the base
-    vec3 color = fogColor.rgb;
+    // Base layer: fog
+    vec3 color = fog;
 
-    // Fog interaction: silhouette parts the fog
-    color *= 1.0 - mask * u_fogMaskStrength;
+    // Fog interaction: silhouette carves through fog
+    float fogSuppression = mask * u_fogMaskStrength;
+    color *= (1.0 - fogSuppression);
 
-    // Fog interaction: trails modulate fog brightness
-    color *= 1.0 + trail * u_fogTrailStrength;
+    // Fog interaction: trails brighten/modulate fog
+    color += fog * trail * u_fogTrailStrength;
 
-    // Blend camera feed where person is (if enabled)
+    // Layer camera feed where person is detected (if enabled)
     if (u_showFeed > 0.5) {
-        // Camera shows everywhere, fog shows through mask gaps
-        color = mix(cameraColor.rgb, color, 1.0 - mask * u_showOverlay);
-        // Actually: show camera everywhere, then fog interaction on top
-        color = cameraColor.rgb;
-        // Re-apply fog interaction on top of camera
-        vec3 fogInteraction = fogColor.rgb;
-        fogInteraction *= 1.0 - mask * u_fogMaskStrength;
-        fogInteraction *= 1.0 + trail * u_fogTrailStrength;
-        // Blend: where there's no person, show camera. Where there is, modulate.
-        color = mix(color, fogInteraction, (1.0 - mask) * 0.5);
+        color = mix(color, camera, mask * 0.8);
     }
 
-    // Overlay: tint person regions with overlay color
+    // Overlay tint on person
     if (u_showOverlay > 0.5) {
-        vec3 overlayTint = u_overlayColor * mask;
-        color = mix(color, overlayTint, mask * u_opacity);
-
-        // Trail overlay
-        vec3 trailTint = u_overlayColor * trail;
-        color = mix(color, trailTint, trail * u_opacity * 0.7);
+        float overlayAlpha = max(mask, trail * 0.7) * u_opacity;
+        color = mix(color, u_overlayColor, overlayAlpha);
     }
 
     gl_FragColor = vec4(color, 1.0);

@@ -54,11 +54,11 @@ async function main(): Promise<void> {
 		resizeCompositor();
 	}
 
-	// Fog field — uses compositor's GL context when unified, own canvas when legacy
-	const compositorGl = getCompositorGl();
+	// Fog field — shares compositor's GL context in unified mode, own canvas in legacy
+	const useUnified = params.rendering.pipeline === "unified";
+	const compositorGl = useUnified ? getCompositorGl() : null;
 	const fogCanvas = compositorGl ? initFog(compositorGl) : initFog();
 	if (!compositorGl) {
-		// Legacy mode: fog has its own canvas behind everything
 		document.body.appendChild(fogCanvas);
 	}
 	resizeFog();
