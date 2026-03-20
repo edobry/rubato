@@ -174,6 +174,12 @@ export function compositeFrame(
 	gl.uniform1f(getUniform("u_time"), performance.now() / 1000);
 	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
 	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
+	gl.uniform1f(getUniform("u_blur"), params.overlay.blur);
+	gl.uniform2f(
+		getUniform("u_maskTexelSize"),
+		maskW > 0 ? 1.0 / maskW : 0,
+		maskH > 0 ? 1.0 / maskH : 0,
+	);
 
 	// Draw
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

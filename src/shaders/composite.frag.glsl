@@ -20,9 +20,27 @@ uniform float u_opacity;
 uniform vec3 u_overlayColor;
 uniform float u_time;
 
+// Mask blur
+uniform float u_blur;            // blur radius (0-5)
+uniform vec2 u_maskTexelSize;    // 1.0/maskWidth, 1.0/maskHeight
+
 // Fog interaction
 uniform float u_fogMaskStrength;   // how much silhouette parts the fog (0-1)
 uniform float u_fogTrailStrength;  // how much trails modulate fog brightness
+
+// Box-blur helper: samples a texture in a 5x5 kernel around uv
+float blurSample(sampler2D tex, vec2 uv, vec2 offset) {
+    float sum = 0.0;
+    float count = 0.0;
+    for (int y = -2; y <= 2; y++) {
+        for (int x = -2; x <= 2; x++) {
+            vec2 sampleUV = uv + vec2(float(x), float(y)) * offset;
+            sum += texture2D(tex, sampleUV).r;
+            count += 1.0;
+        }
+    }
+    return sum / count;
+}
 
 vec2 getCameraUV(vec2 baseUV) {
     vec2 uv = u_cropOffset + baseUV * u_cropScale;
@@ -42,8 +60,16 @@ void main() {
     // Sample camera-space textures (Y-flipped for video/mask coordinate space)
     vec2 camUV = getCameraUV(flippedUV);
     vec3 camera = texture2D(u_camera, camUV).rgb;
-    float mask = texture2D(u_mask, camUV).r;
-    float trail = texture2D(u_trail, camUV).r;
+    float mask;
+    float trail;
+    if (u_blur > 0.5) {
+        vec2 offset = u_blur * u_maskTexelSize;
+        mask = blurSample(u_mask, camUV, offset);
+        trail = blurSample(u_trail, camUV, offset);
+    } else {
+        mask = texture2D(u_mask, camUV).r;
+        trail = texture2D(u_trail, camUV).r;
+    }
 
     // Base layer: fog
     vec3 color = fog;
