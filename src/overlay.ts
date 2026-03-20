@@ -95,76 +95,108 @@ export function drawMaskOverlay(
 	// Advance rainbow
 	rainbowHue = (rainbowHue + 0.5) % 360;
 
-	for (let ry = 0; ry < renderH; ry++) {
-		for (let rx = 0; rx < renderW; rx++) {
-			// Map back to full-res mask coordinates
-			const x = rx * ds;
-			const y = ry * ds;
-			const i = y * maskW + x;
-			const confidence = mask[i] ?? 0;
-			const outIdx = (ry * renderW + rx) * 4;
-			const idx = outIdx;
+	// Precompute opacity factor to avoid per-pixel multiply
+	const opacityFactor = 255 * opacity;
 
-			if (mode === "contour") {
-				// Edge detection: show only where mask changes sharply
-				const right = x < maskW - 1 ? mask[i + 1] : confidence;
-				const below = y < maskH - 1 ? mask[i + maskW] : confidence;
-				const edge =
-					Math.abs(confidence - right) + Math.abs(confidence - below);
-				if (edge < 0.05) continue;
+	// Fast path for "solid" mode — most common, avoids all branching
+	if (mode === "solid") {
+		for (let ry = 0; ry < renderH; ry++) {
+			const srcRow = ry * ds * maskW;
+			const dstRow = ry * renderW;
+			for (let rx = 0; rx < renderW; rx++) {
+				const c = mask[srcRow + rx * ds];
+				if (c === 0) continue;
+				const idx = (dstRow + rx) << 2;
 				data[idx] = sr;
 				data[idx + 1] = sg;
 				data[idx + 2] = sb;
-				data[idx + 3] = Math.floor(Math.min(edge * 5, 1) * 255 * opacity);
-				continue;
+				data[idx + 3] = (c * opacityFactor) | 0;
 			}
-
-			if (mode === "aura") {
-				// Radiating glow — render even outside the mask, based on distance-like falloff
-				// Use confidence directly as a soft distance proxy
-				const glow = confidence > 0 ? confidence : 0;
-				if (glow === 0) continue;
-				// Pulsing brightness
-				const pulse = 0.7 + 0.3 * Math.sin(rainbowHue * 0.05 + y * 0.02);
-				const [r, g, b] = hslToRgb(
-					(rainbowHue + y * 0.3) % 360,
-					0.8,
-					0.3 + 0.3 * pulse,
-				);
-				data[idx] = r;
-				data[idx + 1] = g;
-				data[idx + 2] = b;
-				data[idx + 3] = Math.floor(glow * 200 * opacity * pulse);
-				continue;
-			}
-
-			if (confidence === 0) continue;
-			const alpha = Math.floor(confidence * 255 * opacity);
-
-			if (mode === "solid") {
-				data[idx] = sr;
-				data[idx + 1] = sg;
-				data[idx + 2] = sb;
-			} else if (mode === "rainbow") {
-				const hue = (rainbowHue + x * 0.5 + y * 0.3) % 360;
-				const [r, g, b] = hslToRgb(hue, 1, 0.5);
-				data[idx] = r;
-				data[idx + 1] = g;
-				data[idx + 2] = b;
-			} else if (mode === "gradient") {
-				const normY = y / maskH;
-				const compHue = (rainbowHue + normY * 180) % 360;
-				const [r, g, b] = hslToRgb(compHue, 0.8, 0.5);
-				data[idx] = r;
-				data[idx + 1] = g;
-				data[idx + 2] = b;
-			} else if (mode === "invert") {
-				// Will be composited as an inversion layer
+		}
+	} else if (mode === "invert") {
+		for (let ry = 0; ry < renderH; ry++) {
+			const srcRow = ry * ds * maskW;
+			const dstRow = ry * renderW;
+			for (let rx = 0; rx < renderW; rx++) {
+				const c = mask[srcRow + rx * ds];
+				if (c === 0) continue;
+				const idx = (dstRow + rx) << 2;
 				data[idx] = 255;
 				data[idx + 1] = 255;
 				data[idx + 2] = 255;
+				data[idx + 3] = (c * opacityFactor) | 0;
 			}
-			data[idx + 3] = alpha;
+		}
+	} else if (mode === "contour") {
+		for (let ry = 0; ry < renderH; ry++) {
+			const srcRow = ry * ds * maskW;
+			const dstRow = ry * renderW;
+			for (let rx = 0; rx < renderW; rx++) {
+				const x = rx * ds;
+				const y = ry * ds;
+				const i = srcRow + x;
+				const c = mask[i];
+				const right = x < maskW - 1 ? mask[i + 1] : c;
+				const below = y < maskH - 1 ? mask[i + maskW] : c;
+				const dr = c - right;
+				const db = c - below;
+				const edge = (dr > 0 ? dr : -dr) + (db > 0 ? db : -db);
+				if (edge < 0.05) continue;
+				const idx = (dstRow + rx) << 2;
+				data[idx] = sr;
+				data[idx + 1] = sg;
+				data[idx + 2] = sb;
+				const ea = edge * 5;
+				data[idx + 3] = ((ea > 1 ? 1 : ea) * opacityFactor) | 0;
+			}
+		}
+	} else {
+		// Rainbow, gradient, aura — per-pixel color computation
+		for (let ry = 0; ry < renderH; ry++) {
+			for (let rx = 0; rx < renderW; rx++) {
+				const x = rx * ds;
+				const y = ry * ds;
+				const confidence = mask[y * maskW + x];
+				const idx = (ry * renderW + rx) << 2;
+
+				if (mode === "aura") {
+					if (confidence <= 0) continue;
+					const pulse = 0.7 + 0.3 * Math.sin(rainbowHue * 0.05 + y * 0.02);
+					const [r, g, b] = hslToRgb(
+						(rainbowHue + y * 0.3) % 360,
+						0.8,
+						0.3 + 0.3 * pulse,
+					);
+					data[idx] = r;
+					data[idx + 1] = g;
+					data[idx + 2] = b;
+					data[idx + 3] = (confidence * 200 * opacity * pulse) | 0;
+					continue;
+				}
+
+				if (confidence === 0) continue;
+
+				if (mode === "rainbow") {
+					const [r, g, b] = hslToRgb(
+						(rainbowHue + x * 0.5 + y * 0.3) % 360,
+						1,
+						0.5,
+					);
+					data[idx] = r;
+					data[idx + 1] = g;
+					data[idx + 2] = b;
+				} else if (mode === "gradient") {
+					const [r, g, b] = hslToRgb(
+						(rainbowHue + (y / maskH) * 180) % 360,
+						0.8,
+						0.5,
+					);
+					data[idx] = r;
+					data[idx + 1] = g;
+					data[idx + 2] = b;
+				}
+				data[idx + 3] = (confidence * opacityFactor) | 0;
+			}
 		}
 	}
 
