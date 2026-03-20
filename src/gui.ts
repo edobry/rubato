@@ -585,14 +585,6 @@ export async function initGui(): Promise<void> {
 
 	// ── Performance section ──────────────────────────────────────────
 	const performance = gui.addFolder("Performance");
-	performance
-		.add(params.rendering, "pipeline", ["legacy", "unified"])
-		.name("Pipeline (reload)")
-		.onChange((value: string) => {
-			localStorage.setItem("rubato-pipeline", value);
-			window.location.reload();
-		});
-
 	const cam = performance.addFolder("Camera");
 	cam
 		.add(params.camera, "resolution", ["720p", "480p", "360p"])
@@ -756,7 +748,7 @@ export async function initGui(): Promise<void> {
 
 					// Pipeline & segmentation
 					lines.push("-- Pipeline --");
-					lines.push(`Mode: ${params.rendering.pipeline}`);
+					lines.push("Mode: unified");
 					lines.push(`Seg model: ${params.segmentation.model}`);
 					lines.push(`Seg delegate: ${params.segmentation.delegate}`);
 					lines.push(`Resolution: ${params.camera.resolution}`);
@@ -791,11 +783,7 @@ export async function initGui(): Promise<void> {
 
 					// localStorage values
 					lines.push("-- localStorage --");
-					for (const key of [
-						"rubato-gpu-failed",
-						"rubato-pipeline",
-						"rubato-last-preset",
-					]) {
+					for (const key of ["rubato-gpu-failed", "rubato-last-preset"]) {
 						lines.push(`${key}: ${localStorage.getItem(key) ?? "(not set)"}`);
 					}
 

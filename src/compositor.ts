@@ -3,8 +3,7 @@
  * Blends fog, camera feed, segmentation mask, and trail buffer
  * in a single shader pass with per-pixel control.
  *
- * This module is opt-in via params.rendering.pipeline = "unified".
- * The legacy Canvas 2D path remains the default until this is proven.
+ * This is the sole rendering pipeline for the application.
  */
 
 import { params } from "./params";

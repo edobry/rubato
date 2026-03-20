@@ -30,7 +30,6 @@ import {
 	resetMotion,
 	updateGpuTrail,
 } from "./motion";
-import { drawMaskOverlay } from "./overlay";
 import { onParamChange, params, SEGMENTATION_MODELS } from "./params";
 import {
 	drawPerfOverlay,
@@ -39,7 +38,6 @@ import {
 	perfFrameStart,
 	perfMark,
 } from "./perf";
-import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
 	createSegmentationPipeline,
 	resolveModelConfig,
@@ -94,73 +92,49 @@ async function main(): Promise<void> {
 		params.fog.octaves = 2;
 		params.fog.renderScale = 0.5;
 		params.overlay.downsample = 2;
-		params.rendering.pipeline = "legacy";
 		localStorage.setItem("rubato-device-configured", "true");
-		localStorage.setItem("rubato-pipeline", "legacy");
 		showStatus(
 			`${device.platform} detected — optimized defaults applied`,
 			3000,
 		);
 	}
 
-	// Pipeline mode is set at page load. Switching requires reload.
-	// Falls back to legacy if compositor init fails (e.g. weak GPU).
-	let useUnified = params.rendering.pipeline === "unified";
-	let compositorCanvas: HTMLCanvasElement | null = null;
-	if (useUnified) {
-		compositorCanvas = initCompositor();
-		if (compositorCanvas) {
-			document.body.appendChild(compositorCanvas);
-			resizeCompositor();
-		} else {
-			console.warn("Compositor init failed, falling back to legacy pipeline");
-			useUnified = false;
-			localStorage.setItem("rubato-pipeline", "legacy");
-		}
+	// Initialize the WebGL compositor
+	const maybeCanvas = initCompositor();
+	if (!maybeCanvas) {
+		console.error("Compositor init failed — cannot render");
+		showStatus("WebGL compositor failed to initialize", 5000);
+		return;
 	}
+	const compositorCanvas: HTMLCanvasElement = maybeCanvas;
+	document.body.appendChild(compositorCanvas);
+	resizeCompositor();
 
-	// GPU trail — shares compositor GL in unified mode
-	const compositorGl = useUnified ? getCompositorGl() : null;
+	// GPU trail — shares compositor GL context
+	const compositorGl = getCompositorGl();
 	if (compositorGl) {
 		initGpuTrail(compositorGl);
 	}
 
-	// Fog field — shares compositor GL in unified mode, own canvas in legacy
-	const fogCanvas = compositorGl ? initFog(compositorGl) : initFog();
-	if (!compositorGl) {
-		document.body.appendChild(fogCanvas);
-	}
+	// Fog field — shares compositor GL context
+	initFog(compositorGl!);
 	resizeFog();
 
 	// HUD canvas — transparent overlay for FPS graph, perf, tuning indicator.
-	// Visible in both modes, always on top.
-	let hudCanvas: HTMLCanvasElement | null = null;
-	let hudCtx: CanvasRenderingContext2D | null = null;
-	if (useUnified) {
-		hudCanvas = document.createElement("canvas");
-		hudCanvas.style.cssText =
-			"position:fixed;inset:0;width:100%;height:100%;z-index:9999;pointer-events:none";
-		document.body.appendChild(hudCanvas);
-		hudCtx = hudCanvas.getContext("2d");
-	}
+	const hudCanvas = document.createElement("canvas");
+	hudCanvas.style.cssText =
+		"position:fixed;inset:0;width:100%;height:100%;z-index:9999;pointer-events:none";
+	document.body.appendChild(hudCanvas);
+	const hudCtx = hudCanvas.getContext("2d");
 
-	// Legacy 2D canvas — hidden in unified mode
-	const canvas = initCanvas();
-	if (useUnified) canvas.style.display = "none";
-	resizeCanvas(canvas);
 	window.addEventListener("resize", () => {
-		resizeCanvas(canvas);
 		resizeFog();
-		if (compositorCanvas) resizeCompositor();
-		if (hudCanvas) {
-			hudCanvas.width = window.innerWidth;
-			hudCanvas.height = window.innerHeight;
-		}
-	});
-	if (hudCanvas) {
+		resizeCompositor();
 		hudCanvas.width = window.innerWidth;
 		hudCanvas.height = window.innerHeight;
-	}
+	});
+	hudCanvas.width = window.innerWidth;
+	hudCanvas.height = window.innerHeight;
 
 	// Dev GUI — toggle with G key (loads presets which may override params)
 	if (import.meta.env.VITE_DEV_GUI === "true") {
@@ -173,12 +147,6 @@ async function main(): Promise<void> {
 		if (params.overlay.downsample < 2) params.overlay.downsample = 2;
 	}
 
-	const ctx = canvas.getContext("2d");
-	if (!ctx) {
-		console.error("Failed to get 2D context");
-		return;
-	}
-
 	const fps = new FpsCounter();
 
 	showStatus("Initializing camera...");
@@ -187,12 +155,8 @@ async function main(): Promise<void> {
 		showStatus("Camera ready");
 	} catch (err) {
 		console.error("Camera unavailable:", err);
-		ctx.fillStyle = "#000";
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-		ctx.fillStyle = "#333";
-		ctx.font = "16px monospace";
-		ctx.textAlign = "center";
-		ctx.fillText("camera unavailable", canvas.width / 2, canvas.height / 2);
+		// Compositor will show fog-only mode; drawFog() is the fallback
+		drawFog();
 		return;
 	}
 
@@ -289,8 +253,8 @@ async function main(): Promise<void> {
 		// Skip segmentation only when mask data is genuinely unused (perf savings on Pi).
 		const needsMask =
 			params.overlay.showOverlay ||
-			(useUnified &&
-				(params.fog.maskInteraction > 0 || params.fog.trailInteraction > 0));
+			params.fog.maskInteraction > 0 ||
+			params.fog.trailInteraction > 0;
 		if (video && isReady && needsMask) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
@@ -343,77 +307,8 @@ async function main(): Promise<void> {
 		return currentFrame;
 	}
 
-	function renderFrame(
-		ctx: CanvasRenderingContext2D,
-		video: HTMLVideoElement,
-		canvas: HTMLCanvasElement,
-		data: FrameState,
-		fps: FpsCounter,
-	): void {
-		const { width, height } = canvas;
-
-		// Update fog crop to match camera's visible region
-		if (video.videoWidth > 0 && video.videoHeight > 0) {
-			const bounds = computeDisplayBounds(
-				{ width: video.videoWidth, height: video.videoHeight },
-				{ width, height },
-				params.camera.fillAmount,
-			);
-			// Convert display-pixel bounds to normalized 0-1 UV space
-			setFogCrop(
-				[bounds.x / width, bounds.y / height],
-				[bounds.w / width, bounds.h / height],
-			);
-		} else {
-			// No video yet — no cropping
-			setFogCrop([0, 0], [0, 0]);
-		}
-
-		// Render fog field
-		drawFog();
-		perfMark("fog", "#4488ff");
-
-		// Clear the 2D canvas
-		ctx.clearRect(0, 0, width, height);
-
-		// Draw camera feed if enabled
-		if (params.camera.showFeed) {
-			drawFrame(ctx, video);
-		}
-		perfMark("camera", "#44ff44");
-
-		// Draw overlays
-		const pipelineState = pipeline.getState();
-		const isReady =
-			pipelineState.status === "ready" || pipelineState.status === "processing";
-
-		if (isReady && params.overlay.showOverlay) {
-			const { maskW, maskH } = data;
-			const viz = params.overlay.visualize;
-
-			if (viz === "both" && data.mask && data.trail) {
-				// Combine mask + trail into one array to avoid double blur passes
-				const combined = new Float32Array(data.mask.length);
-				for (let i = 0; i < combined.length; i++) {
-					combined[i] = Math.min(1, data.mask[i]! + data.trail[i]! * 0.7);
-				}
-				drawMaskOverlay(ctx, combined, maskW, maskH, width, height);
-			} else if (viz === "mask" && data.mask) {
-				drawMaskOverlay(ctx, data.mask, maskW, maskH, width, height);
-			} else if (viz === "motion" && data.motion) {
-				drawMaskOverlay(ctx, data.motion, maskW, maskH, width, height);
-			} else if (viz === "trail" && data.trail) {
-				drawMaskOverlay(ctx, data.trail, maskW, maskH, width, height);
-			}
-		}
-		perfMark("overlay", "#ff8844");
-
-		fps.draw(ctx);
-		drawPerfOverlay(ctx);
-	}
-
 	function loop(): void {
-		if (!video || !ctx) return;
+		if (!video) return;
 
 		perfFrameStart();
 		autoTuneTick();
@@ -426,76 +321,56 @@ async function main(): Promise<void> {
 		const data = produceFrameData();
 		perfMark("segmentation", "#ff4444");
 
-		if (useUnified && compositorCanvas) {
-			// Update fog crop to match camera's visible region
-			if (video.videoWidth > 0 && video.videoHeight > 0) {
-				const bounds = computeDisplayBounds(
-					{ width: video.videoWidth, height: video.videoHeight },
-					{
-						width: compositorCanvas.width,
-						height: compositorCanvas.height,
-					},
-					params.camera.fillAmount,
-				);
-				setFogCrop(
-					[
-						bounds.x / compositorCanvas.width,
-						bounds.y / compositorCanvas.height,
-					],
-					[
-						bounds.w / compositorCanvas.width,
-						bounds.h / compositorCanvas.height,
-					],
-				);
-			} else {
-				setFogCrop([0, 0], [0, 0]);
-			}
-
-			// Unified WebGL path: compositor blends fog + camera + mask + trail
-			const fogTex = renderFogToTexture();
-			// Select which data to pass based on the visualize dropdown,
-			// mirroring the legacy path's per-mode overlay logic.
-			const viz = params.overlay.visualize;
-			let compMask: Float32Array | null = null;
-			let compTrail: Float32Array | WebGLTexture | null = null;
-			switch (viz) {
-				case "mask":
-					compMask = data.mask;
-					break;
-				case "motion":
-					compMask = data.motion;
-					break;
-				case "trail":
-					// Use GPU texture if available, fall back to CPU Float32Array
-					compTrail = data.trailTex ?? data.trail;
-					break;
-				case "both":
-					compMask = data.mask;
-					compTrail = data.trailTex ?? data.trail;
-					break;
-			}
-			compositeFrame(
-				video,
-				fogTex,
-				compMask,
-				compTrail,
-				data.maskW,
-				data.maskH,
+		// Update fog crop to match camera's visible region
+		if (video.videoWidth > 0 && video.videoHeight > 0) {
+			const bounds = computeDisplayBounds(
+				{ width: video.videoWidth, height: video.videoHeight },
+				{
+					width: compositorCanvas.width,
+					height: compositorCanvas.height,
+				},
+				params.camera.fillAmount,
 			);
-
-			perfMark("composite", "#ff8844");
-			perfFrameEnd();
-
-			// Draw FPS graph + perf overlay on the HUD canvas
-			if (hudCtx && hudCanvas) {
-				hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
-				fps.draw(hudCtx);
-				drawPerfOverlay(hudCtx);
-			}
+			setFogCrop(
+				[bounds.x / compositorCanvas.width, bounds.y / compositorCanvas.height],
+				[bounds.w / compositorCanvas.width, bounds.h / compositorCanvas.height],
+			);
 		} else {
-			// Legacy Canvas 2D path
-			renderFrame(ctx, video, canvas, data, fps);
-			perfFrameEnd();
+			setFogCrop([0, 0], [0, 0]);
+		}
+
+		// Unified WebGL path: compositor blends fog + camera + mask + trail
+		const fogTex = renderFogToTexture();
+		// Select which data to pass based on the visualize dropdown
+		const viz = params.overlay.visualize;
+		let compMask: Float32Array | null = null;
+		let compTrail: Float32Array | WebGLTexture | null = null;
+		switch (viz) {
+			case "mask":
+				compMask = data.mask;
+				break;
+			case "motion":
+				compMask = data.motion;
+				break;
+			case "trail":
+				// Use GPU texture if available, fall back to CPU Float32Array
+				compTrail = data.trailTex ?? data.trail;
+				break;
+			case "both":
+				compMask = data.mask;
+				compTrail = data.trailTex ?? data.trail;
+				break;
+		}
+		compositeFrame(video, fogTex, compMask, compTrail, data.maskW, data.maskH);
+
+		perfMark("composite", "#ff8844");
+		perfFrameEnd();
+
+		// Draw FPS graph + perf overlay on the HUD canvas
+		if (hudCtx) {
+			hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+			fps.draw(hudCtx);
+			drawPerfOverlay(hudCtx);
 		}
 
 		frameCount++;
@@ -522,7 +397,6 @@ async function main(): Promise<void> {
 		},
 		get config() {
 			return {
-				pipeline: params.rendering.pipeline,
 				model: params.segmentation.model,
 				delegate: params.segmentation.delegate,
 				resolution: params.camera.resolution,
