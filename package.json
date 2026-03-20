@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "VITE_DEV_GUI=true vite --host",
-		"dev:debug": "VITE_DEV_GUI=true vite --host & sleep 2 && open -na 'Google Chrome' --args --remote-debugging-port=9222 --auto-open-devtools-for-tabs https://localhost:5173",
+		"dev:debug": "VITE_DEV_GUI=true vite --host & sleep 2 && '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --remote-debugging-port=9222 --user-data-dir=/tmp/rubato-chrome-debug --auto-open-devtools-for-tabs https://localhost:5173",
 		"build": "tsc --noEmit && vite build",
 		"preview": "vite preview",
 		"lint": "biome check .",
