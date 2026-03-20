@@ -88,6 +88,11 @@ export function initCompositor(): HTMLCanvasElement | null {
 	return canvas;
 }
 
+/** Get the compositor's WebGL context for shared use (e.g. fog rendering). */
+export function getCompositorGl(): WebGLRenderingContext | null {
+	return gl;
+}
+
 export function resizeCompositor(): void {
 	if (!canvas || !gl) return;
 	canvas.width = window.innerWidth;

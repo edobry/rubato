@@ -1,6 +1,11 @@
 import { autoTuneTick } from "./autotune";
 import { initCamera } from "./camera";
-import { compositeFrame, initCompositor, resizeCompositor } from "./compositor";
+import {
+	compositeFrame,
+	getCompositorGl,
+	initCompositor,
+	resizeCompositor,
+} from "./compositor";
 import { drawFog, initFog, renderFogToTexture, resizeFog } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
@@ -40,11 +45,6 @@ interface FrameData {
 }
 
 async function main(): Promise<void> {
-	// Fog field — WebGL canvas behind the main 2D canvas
-	const fogCanvas = initFog();
-	document.body.appendChild(fogCanvas);
-	resizeFog();
-
 	// Unified WebGL compositor (opt-in)
 	const compositorCanvas = initCompositor();
 	if (compositorCanvas) {
@@ -53,6 +53,15 @@ async function main(): Promise<void> {
 		document.body.appendChild(compositorCanvas);
 		resizeCompositor();
 	}
+
+	// Fog field — uses compositor's GL context when unified, own canvas when legacy
+	const compositorGl = getCompositorGl();
+	const fogCanvas = compositorGl ? initFog(compositorGl) : initFog();
+	if (!compositorGl) {
+		// Legacy mode: fog has its own canvas behind everything
+		document.body.appendChild(fogCanvas);
+	}
+	resizeFog();
 
 	// Legacy 2D canvas (default)
 	const canvas = initCanvas();
