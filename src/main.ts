@@ -558,7 +558,8 @@ function isViteError(error: unknown): boolean {
 		msg.includes("WebSocket") ||
 		msg.includes("vite") ||
 		msg.includes("HMR") ||
-		msg.includes("hmr")
+		msg.includes("hmr") ||
+		msg.includes("reading 'send'")
 	)
 		return true;
 	// Check error stack for Vite client scripts

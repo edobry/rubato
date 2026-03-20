@@ -82,9 +82,13 @@ export default defineConfig({
 		plugins: () => [glsl()],
 	},
 	server: {
-		host: true, // Bind to 0.0.0.0 for LAN access
+		host: true,
+		hmr: {
+			// Let the client connect to whatever hostname it used for the page.
+			// Without this, HMR tries localhost which fails on LAN clients.
+			host: "0.0.0.0",
+		},
 		headers: {
-			// Prevent browser from caching dev server responses
 			"Cache-Control": "no-store",
 		},
 	},
