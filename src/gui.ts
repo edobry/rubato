@@ -568,7 +568,11 @@ export async function initGui(): Promise<void> {
 	const performance = gui.addFolder("Performance");
 	performance
 		.add(params.rendering, "pipeline", ["legacy", "unified"])
-		.name("Pipeline");
+		.name("Pipeline (reload)")
+		.onChange((value: string) => {
+			localStorage.setItem("rubato-pipeline", value);
+			window.location.reload();
+		});
 
 	const cam = performance.addFolder("Camera");
 	cam

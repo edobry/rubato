@@ -97,7 +97,8 @@ export const params = {
 		blur: d.overlay.blur,
 	}),
 	rendering: reactive("rendering", {
-		pipeline: d.rendering.pipeline as "legacy" | "unified",
+		pipeline: (localStorage.getItem("rubato-pipeline") ??
+			d.rendering.pipeline) as "legacy" | "unified",
 	}),
 	autoTune: reactive("autoTune", {
 		enabled: d.autoTune.enabled,

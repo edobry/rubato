@@ -45,17 +45,20 @@ interface FrameData {
 }
 
 async function main(): Promise<void> {
-	// Unified WebGL compositor (opt-in)
-	const compositorCanvas = initCompositor();
-	if (compositorCanvas) {
-		compositorCanvas.style.display =
-			params.rendering.pipeline === "unified" ? "block" : "none";
-		document.body.appendChild(compositorCanvas);
-		resizeCompositor();
+	// Pipeline mode is set at page load. Switching requires reload.
+	const useUnified = params.rendering.pipeline === "unified";
+
+	// Compositor — only initialized in unified mode
+	let compositorCanvas: HTMLCanvasElement | null = null;
+	if (useUnified) {
+		compositorCanvas = initCompositor();
+		if (compositorCanvas) {
+			document.body.appendChild(compositorCanvas);
+			resizeCompositor();
+		}
 	}
 
-	// Fog field — shares compositor's GL context in unified mode, own canvas in legacy
-	const useUnified = params.rendering.pipeline === "unified";
+	// Fog field — shares compositor GL in unified mode, own canvas in legacy
 	const compositorGl = useUnified ? getCompositorGl() : null;
 	const fogCanvas = compositorGl ? initFog(compositorGl) : initFog();
 	if (!compositorGl) {
@@ -64,7 +67,9 @@ async function main(): Promise<void> {
 	resizeFog();
 
 	// Legacy 2D canvas (default)
+	// Legacy 2D canvas — hidden in unified mode
 	const canvas = initCanvas();
+	if (useUnified) canvas.style.display = "none";
 	resizeCanvas(canvas);
 	window.addEventListener("resize", () => {
 		resizeCanvas(canvas);
@@ -183,11 +188,8 @@ async function main(): Promise<void> {
 
 		const data = produceFrameData();
 
-		if (params.rendering.pipeline === "unified" && compositorCanvas) {
+		if (useUnified && compositorCanvas) {
 			// Unified WebGL path: compositor blends fog + camera + mask + trail
-			compositorCanvas.style.display = "block";
-			canvas.style.display = "none";
-			fogCanvas.style.display = "none";
 
 			const fogTex = renderFogToTexture();
 			const { width: maskW, height: maskH } = video.videoWidth
@@ -199,10 +201,6 @@ async function main(): Promise<void> {
 			// For now, draw on the legacy canvas which is hidden
 		} else {
 			// Legacy Canvas 2D path
-			if (compositorCanvas) compositorCanvas.style.display = "none";
-			canvas.style.display = "block";
-			fogCanvas.style.display = "block";
-
 			renderFrame(ctx, video, canvas, data, fps);
 		}
 
