@@ -126,10 +126,19 @@ void main() {
 
     // Sample camera-space textures (Y-flipped for video/mask coordinate space)
     vec2 camUV = getCameraUV(flippedUV);
-    vec3 camera = texture2D(u_camera, camUV).rgb;
+
+    // When fillAmount < 1.0 (zoomed out), some screen pixels map outside the
+    // camera texture's 0-1 range. CLAMP_TO_EDGE repeats edge pixels, causing
+    // visible vertical line artifacts. Zero out everything outside valid range.
+    bool inBounds = camUV.x >= 0.0 && camUV.x <= 1.0 && camUV.y >= 0.0 && camUV.y <= 1.0;
+
+    vec3 camera = inBounds ? texture2D(u_camera, camUV).rgb : vec3(0.0);
     float mask;
     float trail;
-    if (u_blur > 0.5) {
+    if (!inBounds) {
+        mask = 0.0;
+        trail = 0.0;
+    } else if (u_blur > 0.5) {
         mask = gaussianBlur(u_mask, camUV, u_maskTexelSize, u_blur);
         trail = gaussianBlur(u_trail, camUV, u_maskTexelSize, u_blur);
         // Smooth edges to eliminate stepped aliasing artifacts
