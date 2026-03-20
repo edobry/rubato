@@ -81,6 +81,12 @@ export default defineConfig({
 		format: "es",
 		plugins: () => [glsl()],
 	},
+	server: {
+		headers: {
+			// Prevent browser from caching dev server responses
+			"Cache-Control": "no-store",
+		},
+	},
 	plugins: [
 		basicSsl(),
 		glsl(),
