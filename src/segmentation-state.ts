@@ -7,6 +7,7 @@
  */
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
+import { detectDevice } from "./device";
 import { params, SEGMENTATION_MODELS } from "./params";
 import { hideStatus, showStatus } from "./status";
 import type {
@@ -289,11 +290,9 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	private initWorker(modelUrl: string, delegate: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			try {
-				// Classic worker (not module) — MediaPipe's WASM loader is
-				// incompatible with module workers (overrides self.import).
-				// Vite bundles everything into a single script for classic workers.
 				this.worker = new Worker(
 					new URL("./segmentation-worker.ts", import.meta.url),
+					{ type: "module" },
 				);
 			} catch (err) {
 				console.warn("Failed to create segmentation worker:", err);
@@ -464,9 +463,13 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		}
 
 		if (maskFailed) {
+			// Only probe for GPU failure on constrained devices (Pi etc).
+			// On desktop GPUs, all-zero masks just mean no person in frame.
+			const device = detectDevice();
 			if (
-				params.segmentation.delegate === "auto" ||
-				params.segmentation.delegate === "GPU"
+				device.isConstrained &&
+				(params.segmentation.delegate === "auto" ||
+					params.segmentation.delegate === "GPU")
 			) {
 				this.gpuFailCount++;
 				if (this.gpuFailCount > 0 && this.gpuFailCount < GPU_FAIL_THRESHOLD) {
@@ -479,6 +482,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 					showStatus("GPU unavailable — switched to CPU", 3000);
 					localStorage.setItem("rubato-gpu-failed", "true");
 					params.segmentation.delegate = "CPU";
+					this.state = { status: "reinitializing", mode: "sync" };
 					void this.initSync(this.currentModelUrl!, "CPU");
 					if (!params.autoTune.enabled) {
 						params.autoTune.enabled = true;
