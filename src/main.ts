@@ -21,18 +21,9 @@ import {
 } from "./perf";
 import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
-	getSegmenterResolution,
-	initSegmentation,
-	segmentFrame,
-} from "./segmentation";
-import {
-	clearLatestResult,
-	getLatestResult,
-	initSegmentationAsync,
-	isWorkerAvailable,
-	reinitWorker,
-	sendFrame,
-} from "./segmentation-async";
+	createSegmentationPipeline,
+	resolveModelConfig,
+} from "./segmentation-state";
 import { showStatus } from "./status";
 
 // Exposed so GUI can trigger camera re-acquisition
@@ -176,43 +167,11 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	// Initialize segmentation — try Web Worker first, fall back to synchronous
-	let segmentationReady = false;
-	let useWorker = false;
+	// Initialize segmentation pipeline (tries worker, falls back to sync)
+	const pipeline = createSegmentationPipeline();
 	showStatus("Loading segmentation model...");
-
-	const modelUrl = (SEGMENTATION_MODELS[params.segmentation.model] ??
-		SEGMENTATION_MODELS.fast)!;
-	const delegate =
-		localStorage.getItem("rubato-gpu-failed") === "true"
-			? "CPU"
-			: params.segmentation.delegate;
-
-	// Try async worker
-	try {
-		await initSegmentationAsync(modelUrl, delegate);
-		useWorker = true;
-		segmentationReady = true;
-		console.log("segmentation ready (Web Worker)");
-		showStatus("Segmentation ready (worker) — stand in front of camera", 3000);
-	} catch {
-		console.warn(
-			"Worker init failed, falling back to synchronous segmentation",
-		);
-	}
-
-	// Fall back to synchronous if worker failed
-	if (!useWorker) {
-		try {
-			await initSegmentation();
-			segmentationReady = true;
-			console.log("segmentation ready (sync)");
-			showStatus("Segmentation ready — stand in front of camera", 3000);
-		} catch (err) {
-			console.error("Segmentation failed to load:", err);
-			showStatus("Segmentation failed to load", 5000);
-		}
-	}
+	const { modelUrl, delegate } = resolveModelConfig();
+	await pipeline.init(modelUrl, delegate);
 
 	// Show autotune actions as brief status notifications
 	onLogChange((log) => {
@@ -224,8 +183,7 @@ async function main(): Promise<void> {
 		}
 	});
 
-	// Track the model/delegate the worker was initialized with so we can
-	// detect changes (e.g. via preset switch or GUI) and re-initialize.
+	// Track the model/delegate so we can detect changes via GUI/presets
 	let workerModel = params.segmentation.model;
 	let workerDelegate = delegate;
 
@@ -239,7 +197,7 @@ async function main(): Promise<void> {
 	};
 
 	// Clear cached frame state when visualization mode changes, and
-	// re-initialize the worker when the segmentation model or delegate changes.
+	// re-initialize the pipeline when the segmentation model or delegate changes.
 	onParamChange((section, key) => {
 		if (
 			section === "overlay" &&
@@ -253,7 +211,7 @@ async function main(): Promise<void> {
 				maskH: 0,
 				generation: currentFrame.generation + 1,
 			};
-			clearLatestResult();
+			pipeline.reset();
 			resetMotion();
 			console.log(`[rubato] cleared cached mask data (${key} changed)`);
 		}
@@ -263,7 +221,7 @@ async function main(): Promise<void> {
 			const newDelegate = params.segmentation.delegate;
 			if (newModel !== workerModel || newDelegate !== workerDelegate) {
 				console.log(
-					`[rubato] segmentation config changed (${workerModel}/${workerDelegate} -> ${newModel}/${newDelegate}), re-initializing worker`,
+					`[rubato] segmentation config changed (${workerModel}/${workerDelegate} -> ${newModel}/${newDelegate}), re-initializing`,
 				);
 				workerModel = newModel;
 				workerDelegate = newDelegate;
@@ -277,24 +235,13 @@ async function main(): Promise<void> {
 				};
 				resetMotion();
 
-				if (useWorker) {
-					const newModelUrl = (SEGMENTATION_MODELS[newModel] ??
-						SEGMENTATION_MODELS.fast)!;
-					const resolvedDelegate =
-						localStorage.getItem("rubato-gpu-failed") === "true"
-							? "CPU"
-							: newDelegate;
-					void (async () => {
-						try {
-							await reinitWorker(newModelUrl, resolvedDelegate);
-							console.log("[rubato] worker re-initialized successfully");
-							showStatus("Segmentation model reloaded", 2000);
-						} catch (err) {
-							console.error("[rubato] worker re-init failed:", err);
-							showStatus("Segmentation model reload failed", 3000);
-						}
-					})();
-				}
+				const newModelUrl = (SEGMENTATION_MODELS[newModel] ??
+					SEGMENTATION_MODELS.fast)!;
+				const resolvedDelegate =
+					localStorage.getItem("rubato-gpu-failed") === "true"
+						? "CPU"
+						: newDelegate;
+				void pipeline.reinit(newModelUrl, resolvedDelegate);
 			}
 		}
 	});
@@ -302,61 +249,39 @@ async function main(): Promise<void> {
 	let frameCount = 0;
 
 	function produceFrameData(): FrameState {
-		if (video && segmentationReady && params.overlay.showOverlay) {
+		const pipelineState = pipeline.getState();
+		const isReady =
+			pipelineState.status === "ready" || pipelineState.status === "processing";
+
+		if (video && isReady && params.overlay.showOverlay) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
-			if (useWorker && isWorkerAvailable()) {
-				// Async path: send frame to worker (intentionally fire-and-forget)
-				if (frameCount % skip === 0) {
-					void sendFrame(video, params.segmentation.confidenceThreshold);
+			if (frameCount % skip === 0) {
+				pipeline.sendFrame(video, params.segmentation.confidenceThreshold);
+			}
+
+			// Check for new results
+			const result = pipeline.getLatestResult();
+			if (result && result.mask !== currentFrame.mask) {
+				let motion: Float32Array | null = currentFrame.motion;
+				let trail: Float32Array | null = currentFrame.trail;
+				if (params.overlay.visualize !== "mask") {
+					const motionResult = detectMotion(
+						result.mask,
+						result.width,
+						result.height,
+					);
+					motion = motionResult.motion;
+					trail = motionResult.trail;
 				}
-				// Check for new results from worker
-				const workerResult = getLatestResult();
-				if (workerResult && workerResult.mask !== currentFrame.mask) {
-					let motion: Float32Array | null = currentFrame.motion;
-					let trail: Float32Array | null = currentFrame.trail;
-					// Run motion detection on main thread with the new mask
-					if (params.overlay.visualize !== "mask") {
-						const motionResult = detectMotion(
-							workerResult.mask,
-							workerResult.width,
-							workerResult.height,
-						);
-						motion = motionResult.motion;
-						trail = motionResult.trail;
-					}
-					currentFrame = {
-						mask: workerResult.mask,
-						motion,
-						trail,
-						maskW: workerResult.width,
-						maskH: workerResult.height,
-						generation: currentFrame.generation + 1,
-					};
-				}
-			} else {
-				// Sync path: blocks render loop (fallback)
-				if (frameCount % skip === 0) {
-					const result = segmentFrame(video, performance.now());
-					if (result) {
-						const { width: mw, height: mh } = getSegmenterResolution(video);
-						let motion: Float32Array | null = currentFrame.motion;
-						let trail: Float32Array | null = currentFrame.trail;
-						if (params.overlay.visualize !== "mask") {
-							const motionResult = detectMotion(result.raw, mw, mh);
-							motion = motionResult.motion;
-							trail = motionResult.trail;
-						}
-						currentFrame = {
-							mask: result.smoothed,
-							motion,
-							trail,
-							maskW: mw,
-							maskH: mh,
-							generation: currentFrame.generation + 1,
-						};
-					}
-				}
+				currentFrame = {
+					mask: result.mask,
+					motion,
+					trail,
+					maskW: result.width,
+					maskH: result.height,
+					generation: currentFrame.generation + 1,
+				};
 			}
 		}
 
@@ -386,7 +311,11 @@ async function main(): Promise<void> {
 		perfMark("camera", "#44ff44");
 
 		// Draw overlays
-		if (segmentationReady && params.overlay.showOverlay) {
+		const pipelineState = pipeline.getState();
+		const isReady =
+			pipelineState.status === "ready" || pipelineState.status === "processing";
+
+		if (isReady && params.overlay.showOverlay) {
 			const { maskW, maskH } = data;
 			const viz = params.overlay.visualize;
 
