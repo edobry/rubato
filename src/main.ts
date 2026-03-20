@@ -253,10 +253,13 @@ async function main(): Promise<void> {
 		const isReady =
 			pipelineState.status === "ready" || pipelineState.status === "processing";
 
-		// Always produce mask data when pipeline is ready — the compositor may
-		// need it for fog interaction even when the overlay is hidden.
-		// Rendering decides what to display; data production is unconditional.
-		if (video && isReady) {
+		// Produce mask data when needed: overlay visible OR fog interaction active.
+		// Skip segmentation only when mask data is genuinely unused (perf savings on Pi).
+		const needsMask =
+			params.overlay.showOverlay ||
+			(useUnified &&
+				(params.fog.maskInteraction > 0 || params.fog.trailInteraction > 0));
+		if (video && isReady && needsMask) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
 			if (frameCount % skip === 0) {
