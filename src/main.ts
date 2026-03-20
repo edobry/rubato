@@ -19,7 +19,12 @@ import {
 	perfFrameStart,
 	perfMark,
 } from "./perf";
-import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
+import {
+	applyEdgeFeather,
+	drawFrame,
+	initCanvas,
+	resizeCanvas,
+} from "./renderer";
 import {
 	createSegmentationPipeline,
 	resolveModelConfig,
@@ -336,6 +341,11 @@ async function main(): Promise<void> {
 			}
 		}
 		perfMark("overlay", "#ff8844");
+
+		// Soft-fade camera/overlay edges into the fog when not fully "Fill"
+		if (video.videoWidth > 0 && video.videoHeight > 0) {
+			applyEdgeFeather(ctx, video.videoWidth, video.videoHeight);
+		}
 
 		fps.draw(ctx);
 		drawPerfOverlay(ctx);

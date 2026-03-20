@@ -73,6 +73,43 @@ export function computeMaskCrop(
 }
 
 /**
+ * Compute the display-space rectangle where the camera content actually appears.
+ *
+ * When fillAmount < 1 and the camera and display aspect ratios differ,
+ * the mask-space crop can extend beyond the actual video frame. The browser's
+ * drawImage clips the source to valid bounds, so the camera content occupies
+ * only a portion of the display. This function returns that portion.
+ *
+ * Returns {x, y, w, h} in display pixels. When the camera fills the whole
+ * display, this returns {x:0, y:0, w:displayW, h:displayH}.
+ */
+export function computeDisplayBounds(
+	mask: Dimensions,
+	display: Dimensions,
+	fillAmount: number,
+): DisplayRect {
+	const crop = computeMaskCrop(mask, display, fillAmount);
+
+	// Clamp the crop to the valid mask region
+	const clampedX = Math.max(0, crop.x);
+	const clampedY = Math.max(0, crop.y);
+	const clampedRight = Math.min(mask.width, crop.x + crop.w);
+	const clampedBottom = Math.min(mask.height, crop.y + crop.h);
+
+	// Map clamped source bounds to display space
+	// drawImage maps [crop.x .. crop.x+crop.w] -> [0 .. displayW]
+	const scaleX = display.width / crop.w;
+	const scaleY = display.height / crop.h;
+
+	const dx = (clampedX - crop.x) * scaleX;
+	const dy = (clampedY - crop.y) * scaleY;
+	const dw = (clampedRight - clampedX) * scaleX;
+	const dh = (clampedBottom - clampedY) * scaleY;
+
+	return { x: dx, y: dy, w: dw, h: dh };
+}
+
+/**
  * Convert a mask-space rect to render-space (downsampled) rect.
  * Snaps to integer pixel boundaries to prevent sub-pixel jitter.
  */
