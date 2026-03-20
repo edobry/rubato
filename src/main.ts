@@ -350,13 +350,18 @@ async function main(): Promise<void> {
 			const { maskW, maskH } = data;
 			const viz = params.overlay.visualize;
 
-			if ((viz === "mask" || viz === "both") && data.mask) {
+			if (viz === "both" && data.mask && data.trail) {
+				// Combine mask + trail into one array to avoid double blur passes
+				const combined = new Float32Array(data.mask.length);
+				for (let i = 0; i < combined.length; i++) {
+					combined[i] = Math.min(1, data.mask[i]! + data.trail[i]! * 0.7);
+				}
+				drawMaskOverlay(ctx, combined, maskW, maskH, width, height);
+			} else if (viz === "mask" && data.mask) {
 				drawMaskOverlay(ctx, data.mask, maskW, maskH, width, height);
-			}
-			if (viz === "motion" && data.motion) {
+			} else if (viz === "motion" && data.motion) {
 				drawMaskOverlay(ctx, data.motion, maskW, maskH, width, height);
-			}
-			if ((viz === "trail" || viz === "both") && data.trail) {
+			} else if (viz === "trail" && data.trail) {
 				drawMaskOverlay(ctx, data.trail, maskW, maskH, width, height);
 			}
 		}
