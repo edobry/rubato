@@ -17,7 +17,14 @@ import {
 } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
-import { detectMotion, resetMotion } from "./motion";
+import {
+	detectMotion,
+	detectMotionMap,
+	initGpuTrail,
+	isGpuTrailActive,
+	resetMotion,
+	updateGpuTrail,
+} from "./motion";
 import { drawMaskOverlay } from "./overlay";
 import { onParamChange, params, SEGMENTATION_MODELS } from "./params";
 import {
@@ -57,6 +64,7 @@ interface FrameState {
 	readonly mask: Float32Array | null;
 	readonly motion: Float32Array | null;
 	readonly trail: Float32Array | null;
+	readonly trailTex: WebGLTexture | null;
 	readonly maskW: number;
 	readonly maskH: number;
 	readonly generation: number;
@@ -103,8 +111,13 @@ async function main(): Promise<void> {
 		}
 	}
 
-	// Fog field — shares compositor GL in unified mode, own canvas in legacy
+	// GPU trail — shares compositor GL in unified mode
 	const compositorGl = useUnified ? getCompositorGl() : null;
+	if (compositorGl) {
+		initGpuTrail(compositorGl);
+	}
+
+	// Fog field — shares compositor GL in unified mode, own canvas in legacy
 	const fogCanvas = compositorGl ? initFog(compositorGl) : initFog();
 	if (!compositorGl) {
 		document.body.appendChild(fogCanvas);
@@ -199,6 +212,7 @@ async function main(): Promise<void> {
 		mask: null,
 		motion: null,
 		trail: null,
+		trailTex: null,
 		maskW: 0,
 		maskH: 0,
 		generation: 0,
@@ -215,6 +229,7 @@ async function main(): Promise<void> {
 				mask: null,
 				motion: null,
 				trail: null,
+				trailTex: null,
 				maskW: 0,
 				maskH: 0,
 				generation: currentFrame.generation + 1,
@@ -237,6 +252,7 @@ async function main(): Promise<void> {
 					mask: null,
 					motion: null,
 					trail: null,
+					trailTex: null,
 					maskW: 0,
 					maskH: 0,
 					generation: currentFrame.generation + 1,
@@ -279,19 +295,36 @@ async function main(): Promise<void> {
 			if (result && result.mask !== currentFrame.mask) {
 				let motion: Float32Array | null = currentFrame.motion;
 				let trail: Float32Array | null = currentFrame.trail;
+				let trailTex: WebGLTexture | null = currentFrame.trailTex;
 				if (params.overlay.visualize !== "mask") {
-					const motionResult = detectMotion(
-						result.mask,
-						result.width,
-						result.height,
-					);
-					motion = motionResult.motion;
-					trail = motionResult.trail;
+					if (isGpuTrailActive()) {
+						// GPU trail path: compute motion diff on CPU, accumulate on GPU
+						const motionMap = detectMotionMap(
+							result.mask,
+							result.width,
+							result.height,
+						);
+						motion = motionMap;
+						trailTex =
+							updateGpuTrail(motionMap, result.width, result.height) ??
+							trailTex;
+						trail = null; // not used in GPU path
+					} else {
+						// Legacy CPU trail path
+						const motionResult = detectMotion(
+							result.mask,
+							result.width,
+							result.height,
+						);
+						motion = motionResult.motion;
+						trail = motionResult.trail;
+					}
 				}
 				currentFrame = {
 					mask: result.mask,
 					motion,
 					trail,
+					trailTex,
 					maskW: result.width,
 					maskH: result.height,
 					generation: currentFrame.generation + 1,
@@ -416,7 +449,7 @@ async function main(): Promise<void> {
 			// mirroring the legacy path's per-mode overlay logic.
 			const viz = params.overlay.visualize;
 			let compMask: Float32Array | null = null;
-			let compTrail: Float32Array | null = null;
+			let compTrail: Float32Array | WebGLTexture | null = null;
 			switch (viz) {
 				case "mask":
 					compMask = data.mask;
@@ -425,11 +458,12 @@ async function main(): Promise<void> {
 					compMask = data.motion;
 					break;
 				case "trail":
-					compTrail = data.trail;
+					// Use GPU texture if available, fall back to CPU Float32Array
+					compTrail = data.trailTex ?? data.trail;
 					break;
 				case "both":
 					compMask = data.mask;
-					compTrail = data.trail;
+					compTrail = data.trailTex ?? data.trail;
 					break;
 			}
 			compositeFrame(

@@ -143,24 +143,27 @@ export function resizeCompositor(): void {
 /**
  * Render a composited frame.
  * Call this instead of the legacy Canvas 2D renderFrame().
+ *
+ * The `trail` parameter accepts either a Float32Array (uploaded as texture,
+ * legacy path) or a WebGLTexture (bound directly, GPU trail path).
  */
 export function compositeFrame(
 	video: HTMLVideoElement,
 	fogTex: WebGLTexture | null,
 	mask: Float32Array | null,
-	trail: Float32Array | null,
+	trail: Float32Array | WebGLTexture | null,
 	maskW: number,
 	maskH: number,
 ): void {
 	if (!gl || !program || !canvas || !quadBuffer) return;
 
-	// Unbind any FBO left from fog render pass — render to screen
+	// Unbind any FBO left from fog/trail render pass — render to screen
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, canvas.width, canvas.height);
 
 	gl.useProgram(program);
 
-	// Rebind our vertex buffer (fog render pass uses its own)
+	// Rebind our vertex buffer (fog/trail render passes use their own)
 	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
 	gl.enableVertexAttribArray(aPosLocation);
 	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
@@ -183,9 +186,12 @@ export function compositeFrame(
 		gl.bindTexture(gl.TEXTURE_2D, maskTexture!);
 	}
 
-	// Upload trail as luminance texture
+	// Bind trail: either a GPU texture (WebGLTexture) or CPU data (Float32Array)
 	gl.activeTexture(gl.TEXTURE3);
-	if (trail && maskW > 0 && maskH > 0) {
+	if (trail instanceof WebGLTexture) {
+		// GPU trail — already on the same GL context, just bind it
+		gl.bindTexture(gl.TEXTURE_2D, trail);
+	} else if (trail && maskW > 0 && maskH > 0) {
 		uploadFloatTexture(gl, trailTexture!, trail, maskW, maskH);
 	} else {
 		gl.bindTexture(gl.TEXTURE_2D, trailTexture!);
