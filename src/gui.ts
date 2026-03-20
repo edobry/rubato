@@ -510,7 +510,6 @@ export async function initGui(): Promise<void> {
 	const display = creative.addFolder("Display");
 	display.add(params.camera, "showFeed").name("Show Feed");
 	addParam(display, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
-	addParam(display, params.camera, "edgeFeather", 0, 200, 1, "Edge Feather");
 	display.add(params.overlay, "showOverlay").name("Show Overlay");
 	display
 		.add(params.overlay, "visualize", ["mask", "motion", "trail", "both"])

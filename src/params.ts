@@ -90,7 +90,6 @@ export const params = {
 		showFeed: d.camera.showFeed,
 		resolution: d.camera.resolution,
 		fillAmount: d.camera.fillAmount,
-		edgeFeather: d.camera.edgeFeather,
 	}),
 	segmentation: reactive("segmentation", {
 		model: d.segmentation.model,

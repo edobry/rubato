@@ -3,7 +3,7 @@
  * Draws camera frames to a full-screen canvas, cropping to match display aspect ratio.
  */
 
-import { computeDisplayBounds, computeMaskCrop, maskToUV } from "./coords";
+import { computeMaskCrop, maskToUV } from "./coords";
 import { params } from "./params";
 
 export function initCanvas(): HTMLCanvasElement {
@@ -63,95 +63,5 @@ export function drawFrame(
 	ctx.translate(width, 0);
 	ctx.scale(-1, 1);
 	ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, width, height);
-	ctx.restore();
-}
-
-/**
- * Apply a soft feathered edge where the camera content meets the fog.
- *
- * When fillAmount < 1 and aspect ratios differ, the camera occupies a subset
- * of the display. Without feathering there is a hard edge between the camera/
- * overlay content and the fog behind it. This draws gradient "erasers" on
- * each exposed edge using destination-out compositing, so the 2D canvas
- * content fades to transparent and the underlying fog shows through smoothly.
- *
- * Call this AFTER all camera + overlay drawing on the 2D canvas.
- */
-export function applyEdgeFeather(
-	ctx: CanvasRenderingContext2D,
-	videoW: number,
-	videoH: number,
-): void {
-	const feather = params.camera.edgeFeather;
-	if (feather <= 0) return;
-
-	const { width, height } = ctx.canvas;
-
-	const bounds = computeDisplayBounds(
-		{ width: videoW, height: videoH },
-		{ width, height },
-		params.camera.fillAmount,
-	);
-
-	// Tolerance: if bounds nearly fill the display, skip feathering
-	const eps = 1;
-	const hasTopBar = bounds.y > eps;
-	const hasBottomBar = bounds.y + bounds.h < height - eps;
-	const hasLeftBar = bounds.x > eps;
-	const hasRightBar = bounds.x + bounds.w < width - eps;
-
-	if (!hasTopBar && !hasBottomBar && !hasLeftBar && !hasRightBar) return;
-
-	ctx.save();
-	ctx.globalCompositeOperation = "destination-out";
-
-	// Top edge fade
-	if (hasTopBar) {
-		const grad = ctx.createLinearGradient(0, bounds.y, 0, bounds.y + feather);
-		grad.addColorStop(0, "rgba(0,0,0,1)");
-		grad.addColorStop(1, "rgba(0,0,0,0)");
-		ctx.fillStyle = grad;
-		ctx.fillRect(0, 0, width, bounds.y + feather);
-	}
-
-	// Bottom edge fade
-	if (hasBottomBar) {
-		const bottomEdge = bounds.y + bounds.h;
-		const grad = ctx.createLinearGradient(
-			0,
-			bottomEdge - feather,
-			0,
-			bottomEdge,
-		);
-		grad.addColorStop(0, "rgba(0,0,0,0)");
-		grad.addColorStop(1, "rgba(0,0,0,1)");
-		ctx.fillStyle = grad;
-		ctx.fillRect(
-			0,
-			bottomEdge - feather,
-			width,
-			feather + (height - bottomEdge),
-		);
-	}
-
-	// Left edge fade
-	if (hasLeftBar) {
-		const grad = ctx.createLinearGradient(bounds.x, 0, bounds.x + feather, 0);
-		grad.addColorStop(0, "rgba(0,0,0,1)");
-		grad.addColorStop(1, "rgba(0,0,0,0)");
-		ctx.fillStyle = grad;
-		ctx.fillRect(0, 0, bounds.x + feather, height);
-	}
-
-	// Right edge fade
-	if (hasRightBar) {
-		const rightEdge = bounds.x + bounds.w;
-		const grad = ctx.createLinearGradient(rightEdge - feather, 0, rightEdge, 0);
-		grad.addColorStop(0, "rgba(0,0,0,0)");
-		grad.addColorStop(1, "rgba(0,0,0,1)");
-		ctx.fillStyle = grad;
-		ctx.fillRect(rightEdge - feather, 0, feather + (width - rightEdge), height);
-	}
-
 	ctx.restore();
 }

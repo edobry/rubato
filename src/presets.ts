@@ -39,7 +39,6 @@ export interface CreativePreset {
 	camera: {
 		showFeed: boolean;
 		fillAmount: number;
-		edgeFeather?: number;
 	};
 	fog: {
 		speed: number;
@@ -74,7 +73,6 @@ export function extractPreset(name: string): CreativePreset {
 		camera: {
 			showFeed: params.camera.showFeed,
 			fillAmount: params.camera.fillAmount,
-			edgeFeather: params.camera.edgeFeather,
 		},
 		fog: {
 			speed: params.fog.speed,
@@ -115,7 +113,6 @@ export function applyPreset(preset: CreativePreset): void {
 		// Camera
 		params.camera.showFeed = preset.camera.showFeed;
 		params.camera.fillAmount = preset.camera.fillAmount;
-		params.camera.edgeFeather = preset.camera.edgeFeather ?? 40;
 
 		// Fog
 		params.fog.speed = preset.fog.speed;

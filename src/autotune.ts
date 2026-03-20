@@ -298,10 +298,13 @@ function switchConfig(
 	const current = getCurrentConfig();
 	const oldKey = configKey(current);
 
-	// Detect expensive changes that need longer settle time
+	// Detect expensive changes that need longer settle time.
+	// Resolution, model, AND downsample changes all cause temporary FPS
+	// spikes/drops during transition that would mislead the tuner.
 	const modelChanged = newConfig.model !== current.model;
 	const resolutionChanged = newConfig.resolution !== current.resolution;
-	const isExpensive = modelChanged || resolutionChanged;
+	const downsampleChanged = newConfig.downsample !== current.downsample;
+	const isExpensive = modelChanged || resolutionChanged || downsampleChanged;
 
 	applyConfig(newConfig);
 

@@ -2,8 +2,7 @@
 	"camera": {
 		"showFeed": true,
 		"resolution": "720p",
-		"fillAmount": 1.0,
-		"edgeFeather": 40
+		"fillAmount": 1.0
 	},
 	"segmentation": {
 		"model": "quality",

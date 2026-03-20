@@ -22,6 +22,8 @@ let uDensity: WebGLUniformLocation | null = null;
 let uBrightness: WebGLUniformLocation | null = null;
 let uColor: WebGLUniformLocation | null = null;
 let uOctaves: WebGLUniformLocation | null = null;
+let uCropOffset: WebGLUniformLocation | null = null;
+let uCropScale: WebGLUniformLocation | null = null;
 
 // FBO path for renderFogToTexture
 let fboTexture: WebGLTexture | null = null;
@@ -83,6 +85,8 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 	uBrightness = gl.getUniformLocation(program, "u_brightness");
 	uColor = gl.getUniformLocation(program, "u_color");
 	uOctaves = gl.getUniformLocation(program, "u_octaves");
+	uCropOffset = gl.getUniformLocation(program, "u_cropOffset");
+	uCropScale = gl.getUniformLocation(program, "u_cropScale");
 
 	startTime = performance.now() / 1000;
 
@@ -106,6 +110,23 @@ function hexToRgbNorm(hex: string): [number, number, number] {
 	return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
+// Cached crop bounds for the fog shader (set externally via setFogCrop)
+let cropOffset: [number, number] = [0, 0];
+let cropScale: [number, number] = [0, 0]; // 0,0 = no cropping (identity)
+
+/**
+ * Set the crop region for the fog field, matching the camera's visible area.
+ * offset and scale are in normalized 0-1 UV space.
+ * When scale is (0,0), cropping is disabled (fog fills the full screen).
+ */
+export function setFogCrop(
+	offset: [number, number],
+	scale: [number, number],
+): void {
+	cropOffset = offset;
+	cropScale = scale;
+}
+
 function setFogUniforms(): void {
 	if (!gl || !program) return;
 	const time = performance.now() / 1000 - startTime;
@@ -118,6 +139,8 @@ function setFogUniforms(): void {
 	const [r, g, b] = hexToRgbNorm(params.fog.color);
 	gl.uniform3f(uColor, r, g, b);
 	gl.uniform1f(uOctaves, params.fog.octaves);
+	gl.uniform2f(uCropOffset, cropOffset[0], cropOffset[1]);
+	gl.uniform2f(uCropScale, cropScale[0], cropScale[1]);
 }
 
 /** Render one frame of the fog field directly to screen. */

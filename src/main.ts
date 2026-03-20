@@ -6,8 +6,15 @@ import {
 	initCompositor,
 	resizeCompositor,
 } from "./compositor";
+import { computeDisplayBounds } from "./coords";
 import { detectDevice } from "./device";
-import { drawFog, initFog, renderFogToTexture, resizeFog } from "./fog";
+import {
+	drawFog,
+	initFog,
+	renderFogToTexture,
+	resizeFog,
+	setFogCrop,
+} from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
 import { detectMotion, resetMotion } from "./motion";
@@ -20,12 +27,7 @@ import {
 	perfFrameStart,
 	perfMark,
 } from "./perf";
-import {
-	applyEdgeFeather,
-	drawFrame,
-	initCanvas,
-	resizeCanvas,
-} from "./renderer";
+import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
 	createSegmentationPipeline,
 	resolveModelConfig,
@@ -309,6 +311,23 @@ async function main(): Promise<void> {
 	): void {
 		const { width, height } = canvas;
 
+		// Update fog crop to match camera's visible region
+		if (video.videoWidth > 0 && video.videoHeight > 0) {
+			const bounds = computeDisplayBounds(
+				{ width: video.videoWidth, height: video.videoHeight },
+				{ width, height },
+				params.camera.fillAmount,
+			);
+			// Convert display-pixel bounds to normalized 0-1 UV space
+			setFogCrop(
+				[bounds.x / width, bounds.y / height],
+				[bounds.w / width, bounds.h / height],
+			);
+		} else {
+			// No video yet — no cropping
+			setFogCrop([0, 0], [0, 0]);
+		}
+
 		// Render fog field
 		drawFog();
 		perfMark("fog", "#4488ff");
@@ -343,11 +362,6 @@ async function main(): Promise<void> {
 		}
 		perfMark("overlay", "#ff8844");
 
-		// Soft-fade camera/overlay edges into the fog when not fully "Fill"
-		if (video.videoWidth > 0 && video.videoHeight > 0) {
-			applyEdgeFeather(ctx, video.videoWidth, video.videoHeight);
-		}
-
 		fps.draw(ctx);
 		drawPerfOverlay(ctx);
 	}
@@ -367,6 +381,30 @@ async function main(): Promise<void> {
 		perfMark("segmentation", "#ff4444");
 
 		if (useUnified && compositorCanvas) {
+			// Update fog crop to match camera's visible region
+			if (video.videoWidth > 0 && video.videoHeight > 0) {
+				const bounds = computeDisplayBounds(
+					{ width: video.videoWidth, height: video.videoHeight },
+					{
+						width: compositorCanvas.width,
+						height: compositorCanvas.height,
+					},
+					params.camera.fillAmount,
+				);
+				setFogCrop(
+					[
+						bounds.x / compositorCanvas.width,
+						bounds.y / compositorCanvas.height,
+					],
+					[
+						bounds.w / compositorCanvas.width,
+						bounds.h / compositorCanvas.height,
+					],
+				);
+			} else {
+				setFogCrop([0, 0], [0, 0]);
+			}
+
 			// Unified WebGL path: compositor blends fog + camera + mask + trail
 			const fogTex = renderFogToTexture();
 			// Select which data to pass based on the visualize dropdown,

@@ -10,6 +10,8 @@ uniform float u_brightness;
 uniform vec3 u_color;
 uniform float u_octaves;    // 2-5, controls detail vs performance
 uniform float u_resolution; // render scale (1.0 = full, 0.5 = half)
+uniform vec2 u_cropOffset;  // top-left of visible region in 0-1 UV space
+uniform vec2 u_cropScale;   // size of visible region in 0-1 UV space
 
 // Simplex noise functions (Ashima Arts / Ian McEwan)
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -76,6 +78,18 @@ float fbm(vec2 p) {
 }
 
 void main() {
+    // Crop fog to the camera's visible region (black outside)
+    if (u_cropScale.x > 0.0 && u_cropScale.y > 0.0) {
+        bool inRegion = v_uv.x >= u_cropOffset.x &&
+                        v_uv.x <= u_cropOffset.x + u_cropScale.x &&
+                        v_uv.y >= u_cropOffset.y &&
+                        v_uv.y <= u_cropOffset.y + u_cropScale.y;
+        if (!inRegion) {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+        }
+    }
+
     vec2 uv = v_uv * u_scale;
     float t = u_time * u_speed;
 
