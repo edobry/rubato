@@ -19,6 +19,8 @@ let latestResult: {
 	height: number;
 } | null = null;
 let lastInferenceMs = 0;
+let generation = 0; // Incremented on clear — stale results from old generation are discarded
+let sendGeneration = 0; // Generation when the current in-flight frame was sent
 
 /**
  * Spawn the segmentation Web Worker and send the init message.
@@ -88,6 +90,8 @@ export function initSegmentationAsync(
 
 function handleResult(msg: WorkerResultMessage): void {
 	busy = false;
+	// Discard results from before the last clear (stale generation)
+	if (sendGeneration !== generation) return;
 	lastInferenceMs = msg.inferenceMs;
 	latestResult = {
 		mask: msg.mask,
@@ -117,6 +121,7 @@ export async function sendFrame(
 	}
 
 	busy = true;
+	sendGeneration = generation;
 
 	const frameMsg: WorkerInMessage = {
 		type: "frame",
@@ -149,6 +154,8 @@ export function getInferenceTime(): number {
 /** Clear cached results so stale data isn't reused after a preset switch. */
 export function clearLatestResult(): void {
 	latestResult = null;
+	busy = false;
+	generation++; // Stale results from before this point will be discarded
 }
 
 /**
