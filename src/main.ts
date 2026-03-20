@@ -200,16 +200,15 @@ async function main(): Promise<void> {
 
 	// Fall back to synchronous if worker failed
 	if (!useWorker) {
-		initSegmentation()
-			.then(() => {
-				segmentationReady = true;
-				console.log("segmentation ready (sync)");
-				showStatus("Segmentation ready — stand in front of camera", 3000);
-			})
-			.catch((err) => {
-				console.error("Segmentation failed to load:", err);
-				showStatus("Segmentation failed to load", 5000);
-			});
+		try {
+			await initSegmentation();
+			segmentationReady = true;
+			console.log("segmentation ready (sync)");
+			showStatus("Segmentation ready — stand in front of camera", 3000);
+		} catch (err) {
+			console.error("Segmentation failed to load:", err);
+			showStatus("Segmentation failed to load", 5000);
+		}
 	}
 
 	// Show autotune actions as brief status notifications
@@ -263,16 +262,16 @@ async function main(): Promise<void> {
 						localStorage.getItem("rubato-gpu-failed") === "true"
 							? "CPU"
 							: newDelegate;
-					reinitWorker(newModelUrl, resolvedDelegate).then(
-						() => {
+					void (async () => {
+						try {
+							await reinitWorker(newModelUrl, resolvedDelegate);
 							console.log("[rubato] worker re-initialized successfully");
 							showStatus("Segmentation model reloaded", 2000);
-						},
-						(err) => {
+						} catch (err) {
 							console.error("[rubato] worker re-init failed:", err);
 							showStatus("Segmentation model reload failed", 3000);
-						},
-					);
+						}
+					})();
 				}
 			}
 		}
@@ -288,9 +287,9 @@ async function main(): Promise<void> {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
 			if (useWorker && isWorkerAvailable()) {
-				// Async path: send frame to worker (non-blocking, skips if busy)
+				// Async path: send frame to worker (intentionally fire-and-forget)
 				if (frameCount % skip === 0) {
-					sendFrame(video, params.segmentation.confidenceThreshold);
+					void sendFrame(video, params.segmentation.confidenceThreshold);
 				}
 				// Check for new results from worker
 				const workerResult = getLatestResult();

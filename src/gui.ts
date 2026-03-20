@@ -469,7 +469,7 @@ export async function initGui(): Promise<void> {
 			{
 				exportAll() {
 					const json = exportAllPresets();
-					navigator.clipboard.writeText(json).then(
+					void navigator.clipboard.writeText(json).then(
 						() => console.log("All presets copied to clipboard"),
 						() => console.warn("Clipboard write failed"),
 					);
@@ -702,7 +702,7 @@ export async function initGui(): Promise<void> {
 			{
 				copyLog() {
 					const text = logEl.textContent || "";
-					navigator.clipboard.writeText(text).then(
+					void navigator.clipboard.writeText(text).then(
 						() => console.log("Autotune log copied to clipboard"),
 						() => console.warn("Clipboard write failed"),
 					);
@@ -795,7 +795,7 @@ export async function initGui(): Promise<void> {
 					}
 
 					const text = lines.join("\n");
-					navigator.clipboard.writeText(text).then(
+					void navigator.clipboard.writeText(text).then(
 						() => console.log("Debug info copied to clipboard"),
 						() => console.warn("Clipboard write failed"),
 					);
@@ -812,7 +812,9 @@ export async function initGui(): Promise<void> {
 		.add(
 			{
 				exportJSON() {
-					navigator.clipboard.writeText(JSON.stringify(params, null, "\t"));
+					void navigator.clipboard.writeText(
+						JSON.stringify(params, null, "\t"),
+					);
 					console.log("Params copied to clipboard");
 				},
 			},
@@ -913,7 +915,7 @@ export async function initGui(): Promise<void> {
 
 			case "e":
 			case "E":
-				navigator.clipboard.writeText(JSON.stringify(params, null, "\t"));
+				void navigator.clipboard.writeText(JSON.stringify(params, null, "\t"));
 				console.log("Params copied to clipboard");
 				break;
 		}
