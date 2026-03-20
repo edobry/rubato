@@ -4,6 +4,8 @@
  * Displays as a small bar chart next to the FPS counter.
  */
 
+import { getStatusLog } from "./status";
+
 const HISTORY = 60; // frames to average over
 
 interface StageRecord {
@@ -79,6 +81,20 @@ export function drawPerfOverlay(ctx: CanvasRenderingContext2D): void {
 		ctx.fillStyle = "#ccc";
 		ctx.fillText(`${stage.name}: ${stage.avg.toFixed(1)}ms`, x + 14, ly);
 		ly += 14;
+	}
+
+	// Status log — recent init/runtime messages
+	const statusLog = getStatusLog();
+	if (statusLog.length > 0) {
+		ly += 4;
+		ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+		ctx.fillRect(x, ly, barW, statusLog.length * 12 + 4);
+		ctx.fillStyle = "#8cf";
+		ctx.font = "9px monospace";
+		for (const msg of statusLog) {
+			ly += 12;
+			ctx.fillText(msg, x + 4, ly - 10);
+		}
 	}
 
 	ctx.restore();

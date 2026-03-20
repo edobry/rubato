@@ -1,82 +1,35 @@
 /**
- * Status overlay — shows initialization progress and runtime notifications.
- * Positioned bottom-center, semi-transparent dark background, white text.
+ * Status log — maintains a scrolling log of init/runtime messages.
+ * Drawn by the perf overlay in the stats area rather than as transient toasts.
  */
 
-let overlay: HTMLDivElement | null = null;
-let hideTimer: ReturnType<typeof setTimeout> | null = null;
-let pulseAnimation: Animation | null = null;
-
-function ensureOverlay(): HTMLDivElement {
-	if (overlay) return overlay;
-
-	overlay = document.createElement("div");
-	overlay.style.cssText = [
-		"position: fixed",
-		"bottom: 32px",
-		"left: 50%",
-		"transform: translateX(-50%)",
-		"z-index: 10001",
-		"font: 14px/1.4 monospace",
-		"color: #fff",
-		"background: rgba(0, 0, 0, 0.7)",
-		"padding: 8px 20px",
-		"border-radius: 6px",
-		"pointer-events: none",
-		"transition: opacity 0.4s ease",
-		"opacity: 0",
-		"white-space: nowrap",
-	].join(";");
-	document.body.appendChild(overlay);
-
-	return overlay;
-}
+const MAX_LOG = 8;
+const log: { time: number; message: string }[] = [];
 
 /**
- * Show a status message in the bottom-center overlay.
+ * Add a status message to the log.
  * @param message - text to display
- * @param duration - ms before auto-hide (0 = persistent until next call or hideStatus)
- * @param pulse - if true, apply a subtle pulsing animation
+ * @param _duration - ignored (kept for API compat)
+ * @param _pulse - ignored (kept for API compat)
  */
-export function showStatus(message: string, duration = 0, pulse = false): void {
-	const el = ensureOverlay();
-
-	if (hideTimer) {
-		clearTimeout(hideTimer);
-		hideTimer = null;
-	}
-	if (pulseAnimation) {
-		pulseAnimation.cancel();
-		pulseAnimation = null;
-	}
-
-	el.textContent = message;
-	el.style.opacity = "1";
-
-	if (pulse) {
-		pulseAnimation = el.animate(
-			[{ opacity: 1 }, { opacity: 0.5 }, { opacity: 1 }],
-			{ duration: 1500, iterations: Infinity },
-		);
-	}
-
-	if (duration > 0) {
-		hideTimer = setTimeout(() => hideStatus(), duration);
-	}
+export function showStatus(
+	message: string,
+	_duration = 0,
+	_pulse = false,
+): void {
+	log.push({ time: performance.now(), message });
+	if (log.length > MAX_LOG) log.shift();
+	console.log(`[status] ${message}`);
 }
 
-/** Hide the status overlay with a fade-out. */
+/** No-op — log entries persist until scrolled out. */
 export function hideStatus(): void {
-	if (!overlay) return;
+	// intentionally empty
+}
 
-	if (hideTimer) {
-		clearTimeout(hideTimer);
-		hideTimer = null;
-	}
-	if (pulseAnimation) {
-		pulseAnimation.cancel();
-		pulseAnimation = null;
-	}
-
-	overlay.style.opacity = "0";
+/** Get the status log for rendering in the stats overlay. */
+export function getStatusLog(): string[] {
+	const now = performance.now();
+	// Fade entries older than 10 seconds
+	return log.filter((e) => now - e.time < 10000).map((e) => e.message);
 }
