@@ -146,6 +146,30 @@ export function getInferenceTime(): number {
 	return lastInferenceMs;
 }
 
+/** Clear cached results so stale data isn't reused after a preset switch. */
+export function clearLatestResult(): void {
+	latestResult = null;
+}
+
+/**
+ * Re-initialize the worker with a new model/delegate.
+ * Terminates the existing worker and spawns a fresh one.
+ */
+export async function reinitWorker(
+	modelUrl: string,
+	delegate: string,
+): Promise<void> {
+	if (worker) {
+		worker.terminate();
+		worker = null;
+	}
+	workerAvailable = false;
+	busy = false;
+	latestResult = null;
+	lastInferenceMs = 0;
+	await initSegmentationAsync(modelUrl, delegate);
+}
+
 /** True if the Web Worker was successfully created and is ready. */
 export function isWorkerAvailable(): boolean {
 	return workerAvailable;

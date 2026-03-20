@@ -10,9 +10,9 @@ import { detectDevice } from "./device";
 import { drawFog, initFog, renderFogToTexture, resizeFog } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
-import { detectMotion } from "./motion";
+import { detectMotion, resetMotion } from "./motion";
 import { drawMaskOverlay } from "./overlay";
-import { params, SEGMENTATION_MODELS } from "./params";
+import { onParamChange, params, SEGMENTATION_MODELS } from "./params";
 import {
 	drawPerfOverlay,
 	perfFrameEnd,
@@ -26,9 +26,11 @@ import {
 	segmentFrame,
 } from "./segmentation";
 import {
+	clearLatestResult,
 	getLatestResult,
 	initSegmentationAsync,
 	isWorkerAvailable,
+	reinitWorker,
 	sendFrame,
 } from "./segmentation-async";
 import { showStatus } from "./status";
@@ -217,6 +219,62 @@ async function main(): Promise<void> {
 			// Strip the timestamp prefix (e.g. "12:34:56 PM ...")
 			const msg = latest.replace(/^\S+\s+(AM|PM)?\s*/, "");
 			showStatus(`autotune: ${msg}`, 3000);
+		}
+	});
+
+	// Track the model/delegate the worker was initialized with so we can
+	// detect changes (e.g. via preset switch or GUI) and re-initialize.
+	let workerModel = params.segmentation.model;
+	let workerDelegate = delegate;
+
+	// Clear cached mask/motion/trail when visualization mode changes, and
+	// re-initialize the worker when the segmentation model or delegate changes.
+	onParamChange((section, key) => {
+		if (
+			section === "overlay" &&
+			(key === "visualize" || key === "showOverlay")
+		) {
+			lastMask = null;
+			lastMotion = null;
+			lastTrail = null;
+			clearLatestResult();
+			resetMotion();
+			console.log(`[rubato] cleared cached mask data (${key} changed)`);
+		}
+
+		if (section === "segmentation" && (key === "model" || key === "delegate")) {
+			const newModel = params.segmentation.model;
+			const newDelegate = params.segmentation.delegate;
+			if (newModel !== workerModel || newDelegate !== workerDelegate) {
+				console.log(
+					`[rubato] segmentation config changed (${workerModel}/${workerDelegate} -> ${newModel}/${newDelegate}), re-initializing worker`,
+				);
+				workerModel = newModel;
+				workerDelegate = newDelegate;
+				lastMask = null;
+				lastMotion = null;
+				lastTrail = null;
+				resetMotion();
+
+				if (useWorker) {
+					const newModelUrl =
+						SEGMENTATION_MODELS[newModel] ?? SEGMENTATION_MODELS.fast;
+					const resolvedDelegate =
+						localStorage.getItem("rubato-gpu-failed") === "true"
+							? "CPU"
+							: newDelegate;
+					reinitWorker(newModelUrl, resolvedDelegate).then(
+						() => {
+							console.log("[rubato] worker re-initialized successfully");
+							showStatus("Segmentation model reloaded", 2000);
+						},
+						(err) => {
+							console.error("[rubato] worker re-init failed:", err);
+							showStatus("Segmentation model reload failed", 3000);
+						},
+					);
+				}
+			}
 		}
 	});
 

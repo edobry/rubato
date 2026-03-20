@@ -13,6 +13,12 @@ import { params } from "./params";
 let prevRawMask: Float32Array | null = null;
 let trailBuffer: Float32Array | null = null;
 
+/** Reset motion detection state. Call when switching presets or visualization modes. */
+export function resetMotion(): void {
+	prevRawMask = null;
+	trailBuffer = null;
+}
+
 /**
  * Detect motion and accumulate trails.
  *
