@@ -192,6 +192,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	 */
 	sendFrame(video: HTMLVideoElement, threshold: number): void {
 		if (this.state.status !== "ready" && this.state.status !== "processing") {
+			console.warn(`[pipeline] sendFrame rejected: state=${this.state.status}`);
 			return;
 		}
 
@@ -412,7 +413,10 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	}
 
 	private sendFrameSync(video: HTMLVideoElement, threshold: number): void {
-		if (!this.segmenter) return;
+		if (!this.segmenter) {
+			console.warn("[pipeline] sendFrameSync: no segmenter available!");
+			return;
+		}
 
 		this.state = { status: "processing", mode: "sync" };
 
