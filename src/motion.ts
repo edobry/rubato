@@ -32,6 +32,20 @@ export function detectMotion(
 	height: number,
 ): { motion: Float32Array; trail: Float32Array } {
 	const pixelCount = width * height;
+
+	// Guard: if the mask resolution doesn't match the expected dimensions
+	// (e.g. camera resolution changed mid-frame), skip this frame to avoid
+	// out-of-bounds access on the typed arrays.
+	if (currentRaw.length !== pixelCount) {
+		if (trailBuffer && trailBuffer.length === pixelCount) {
+			return { motion: new Float32Array(pixelCount), trail: trailBuffer };
+		}
+		return {
+			motion: new Float32Array(pixelCount),
+			trail: new Float32Array(pixelCount),
+		};
+	}
+
 	const motionMap = new Float32Array(pixelCount);
 	const threshold = params.segmentation.motionThreshold;
 	const deposition = params.motion.deposition;
