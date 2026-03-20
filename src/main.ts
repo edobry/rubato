@@ -54,10 +54,13 @@ async function changeResolution(resolution: string): Promise<void> {
 	}
 }
 
-interface FrameData {
-	mask: Float32Array | null;
-	motion: Float32Array | null;
-	trail: Float32Array | null;
+interface FrameState {
+	readonly mask: Float32Array | null;
+	readonly motion: Float32Array | null;
+	readonly trail: Float32Array | null;
+	readonly maskW: number;
+	readonly maskH: number;
+	readonly generation: number;
 }
 
 async function main(): Promise<void> {
@@ -226,16 +229,30 @@ async function main(): Promise<void> {
 	let workerModel = params.segmentation.model;
 	let workerDelegate = delegate;
 
-	// Clear cached mask/motion/trail when visualization mode changes, and
+	let currentFrame: FrameState = {
+		mask: null,
+		motion: null,
+		trail: null,
+		maskW: 0,
+		maskH: 0,
+		generation: 0,
+	};
+
+	// Clear cached frame state when visualization mode changes, and
 	// re-initialize the worker when the segmentation model or delegate changes.
 	onParamChange((section, key) => {
 		if (
 			section === "overlay" &&
 			(key === "visualize" || key === "showOverlay")
 		) {
-			lastMask = null;
-			lastMotion = null;
-			lastTrail = null;
+			currentFrame = {
+				mask: null,
+				motion: null,
+				trail: null,
+				maskW: 0,
+				maskH: 0,
+				generation: currentFrame.generation + 1,
+			};
 			clearLatestResult();
 			resetMotion();
 			console.log(`[rubato] cleared cached mask data (${key} changed)`);
@@ -250,9 +267,14 @@ async function main(): Promise<void> {
 				);
 				workerModel = newModel;
 				workerDelegate = newDelegate;
-				lastMask = null;
-				lastMotion = null;
-				lastTrail = null;
+				currentFrame = {
+					mask: null,
+					motion: null,
+					trail: null,
+					maskW: 0,
+					maskH: 0,
+					generation: currentFrame.generation + 1,
+				};
 				resetMotion();
 
 				if (useWorker) {
@@ -278,11 +300,8 @@ async function main(): Promise<void> {
 	});
 
 	let frameCount = 0;
-	let lastMask: Float32Array | null = null;
-	let lastMotion: Float32Array | null = null;
-	let lastTrail: Float32Array | null = null;
 
-	function produceFrameData(): FrameData {
+	function produceFrameData(): FrameState {
 		if (video && segmentationReady && params.overlay.showOverlay) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
@@ -293,8 +312,9 @@ async function main(): Promise<void> {
 				}
 				// Check for new results from worker
 				const workerResult = getLatestResult();
-				if (workerResult && workerResult.mask !== lastMask) {
-					lastMask = workerResult.mask;
+				if (workerResult && workerResult.mask !== currentFrame.mask) {
+					let motion: Float32Array | null = currentFrame.motion;
+					let trail: Float32Array | null = currentFrame.trail;
 					// Run motion detection on main thread with the new mask
 					if (params.overlay.visualize !== "mask") {
 						const motionResult = detectMotion(
@@ -302,35 +322,52 @@ async function main(): Promise<void> {
 							workerResult.width,
 							workerResult.height,
 						);
-						lastMotion = motionResult.motion;
-						lastTrail = motionResult.trail;
+						motion = motionResult.motion;
+						trail = motionResult.trail;
 					}
+					currentFrame = {
+						mask: workerResult.mask,
+						motion,
+						trail,
+						maskW: workerResult.width,
+						maskH: workerResult.height,
+						generation: currentFrame.generation + 1,
+					};
 				}
 			} else {
 				// Sync path: blocks render loop (fallback)
 				if (frameCount % skip === 0) {
 					const result = segmentFrame(video, performance.now());
 					if (result) {
-						lastMask = result.smoothed;
+						const { width: mw, height: mh } = getSegmenterResolution(video);
+						let motion: Float32Array | null = currentFrame.motion;
+						let trail: Float32Array | null = currentFrame.trail;
 						if (params.overlay.visualize !== "mask") {
-							const { width: mw, height: mh } = getSegmenterResolution(video);
 							const motionResult = detectMotion(result.raw, mw, mh);
-							lastMotion = motionResult.motion;
-							lastTrail = motionResult.trail;
+							motion = motionResult.motion;
+							trail = motionResult.trail;
 						}
+						currentFrame = {
+							mask: result.smoothed,
+							motion,
+							trail,
+							maskW: mw,
+							maskH: mh,
+							generation: currentFrame.generation + 1,
+						};
 					}
 				}
 			}
 		}
 
-		return { mask: lastMask, motion: lastMotion, trail: lastTrail };
+		return currentFrame;
 	}
 
 	function renderFrame(
 		ctx: CanvasRenderingContext2D,
 		video: HTMLVideoElement,
 		canvas: HTMLCanvasElement,
-		data: FrameData,
+		data: FrameState,
 		fps: FpsCounter,
 	): void {
 		const { width, height } = canvas;
@@ -350,7 +387,7 @@ async function main(): Promise<void> {
 
 		// Draw overlays
 		if (segmentationReady && params.overlay.showOverlay) {
-			const { width: maskW, height: maskH } = getSegmenterResolution(video);
+			const { maskW, maskH } = data;
 			const viz = params.overlay.visualize;
 
 			if ((viz === "mask" || viz === "both") && data.mask) {
@@ -386,9 +423,6 @@ async function main(): Promise<void> {
 		if (useUnified && compositorCanvas) {
 			// Unified WebGL path: compositor blends fog + camera + mask + trail
 			const fogTex = renderFogToTexture();
-			const { width: maskW, height: maskH } = video.videoWidth
-				? getSegmenterResolution(video)
-				: { width: 0, height: 0 };
 			// Select which data to pass based on the visualize dropdown,
 			// mirroring the legacy path's per-mode overlay logic.
 			const viz = params.overlay.visualize;
@@ -409,7 +443,14 @@ async function main(): Promise<void> {
 					compTrail = data.trail;
 					break;
 			}
-			compositeFrame(video, fogTex, compMask, compTrail, maskW, maskH);
+			compositeFrame(
+				video,
+				fogTex,
+				compMask,
+				compTrail,
+				data.maskW,
+				data.maskH,
+			);
 
 			perfMark("composite", "#ff8844");
 			perfFrameEnd();
