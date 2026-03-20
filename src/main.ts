@@ -12,7 +12,7 @@ import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
 import { detectMotion } from "./motion";
 import { drawMaskOverlay } from "./overlay";
-import { params } from "./params";
+import { params, SEGMENTATION_MODELS } from "./params";
 import {
 	drawPerfOverlay,
 	perfFrameEnd,
@@ -25,6 +25,12 @@ import {
 	initSegmentation,
 	segmentFrame,
 } from "./segmentation";
+import {
+	getLatestResult,
+	initSegmentationAsync,
+	isWorkerAvailable,
+	sendFrame,
+} from "./segmentation-async";
 import { showStatus } from "./status";
 
 // Exposed so GUI can trigger camera re-acquisition
@@ -165,19 +171,44 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	// Initialize segmentation — non-blocking, render loop starts immediately
+	// Initialize segmentation — try Web Worker first, fall back to synchronous
 	let segmentationReady = false;
+	let useWorker = false;
 	showStatus("Loading segmentation model...");
-	initSegmentation()
-		.then(() => {
-			segmentationReady = true;
-			console.log("segmentation ready");
-			showStatus("Segmentation ready — stand in front of camera", 3000);
-		})
-		.catch((err) => {
-			console.error("Segmentation failed to load:", err);
-			showStatus("Segmentation failed to load", 5000);
-		});
+
+	const modelUrl =
+		SEGMENTATION_MODELS[params.segmentation.model] ?? SEGMENTATION_MODELS.fast;
+	const delegate =
+		localStorage.getItem("rubato-gpu-failed") === "true"
+			? "CPU"
+			: params.segmentation.delegate;
+
+	// Try async worker
+	try {
+		await initSegmentationAsync(modelUrl, delegate);
+		useWorker = true;
+		segmentationReady = true;
+		console.log("segmentation ready (Web Worker)");
+		showStatus("Segmentation ready (worker) — stand in front of camera", 3000);
+	} catch {
+		console.warn(
+			"Worker init failed, falling back to synchronous segmentation",
+		);
+	}
+
+	// Fall back to synchronous if worker failed
+	if (!useWorker) {
+		initSegmentation()
+			.then(() => {
+				segmentationReady = true;
+				console.log("segmentation ready (sync)");
+				showStatus("Segmentation ready — stand in front of camera", 3000);
+			})
+			.catch((err) => {
+				console.error("Segmentation failed to load:", err);
+				showStatus("Segmentation failed to load", 5000);
+			});
+	}
 
 	// Show autotune actions as brief status notifications
 	onLogChange((log) => {
@@ -197,18 +228,39 @@ async function main(): Promise<void> {
 	function produceFrameData(): FrameData {
 		if (video && segmentationReady && params.overlay.showOverlay) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
-			if (frameCount % skip === 0) {
-				const result = segmentFrame(video, performance.now());
-				if (result) {
-					lastMask = result.smoothed;
 
-					// Skip motion detection when visualizing mask only —
-					// trails and motion data are not used in that mode.
+			if (useWorker && isWorkerAvailable()) {
+				// Async path: send frame to worker (non-blocking, skips if busy)
+				if (frameCount % skip === 0) {
+					sendFrame(video, params.segmentation.confidenceThreshold);
+				}
+				// Check for new results from worker
+				const workerResult = getLatestResult();
+				if (workerResult && workerResult.mask !== lastMask) {
+					lastMask = workerResult.mask;
+					// Run motion detection on main thread with the new mask
 					if (params.overlay.visualize !== "mask") {
-						const { width: mw, height: mh } = getSegmenterResolution(video);
-						const motionResult = detectMotion(result.raw, mw, mh);
+						const motionResult = detectMotion(
+							workerResult.mask,
+							workerResult.width,
+							workerResult.height,
+						);
 						lastMotion = motionResult.motion;
 						lastTrail = motionResult.trail;
+					}
+				}
+			} else {
+				// Sync path: blocks render loop (fallback)
+				if (frameCount % skip === 0) {
+					const result = segmentFrame(video, performance.now());
+					if (result) {
+						lastMask = result.smoothed;
+						if (params.overlay.visualize !== "mask") {
+							const { width: mw, height: mh } = getSegmenterResolution(video);
+							const motionResult = detectMotion(result.raw, mw, mh);
+							lastMotion = motionResult.motion;
+							lastTrail = motionResult.trail;
+						}
 					}
 				}
 			}
