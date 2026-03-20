@@ -28,18 +28,21 @@ uniform vec2 u_maskTexelSize;    // 1.0/maskWidth, 1.0/maskHeight
 uniform float u_fogMaskStrength;   // how much silhouette parts the fog (0-1)
 uniform float u_fogTrailStrength;  // how much trails modulate fog brightness
 
-// Box-blur helper: samples a texture in a 5x5 kernel around uv
-float blurSample(sampler2D tex, vec2 uv, vec2 offset) {
+// Gaussian blur helper: samples a texture in a 5x5 kernel with Gaussian weights
+// Uses exp(-dist^2 / (2*radius^2)) weighting for smooth falloff instead of box blur
+float gaussianBlur(sampler2D tex, vec2 uv, vec2 texelSize, float radius) {
     float sum = 0.0;
-    float count = 0.0;
+    float weightSum = 0.0;
     for (int y = -2; y <= 2; y++) {
         for (int x = -2; x <= 2; x++) {
-            vec2 sampleUV = uv + vec2(float(x), float(y)) * offset;
-            sum += texture2D(tex, sampleUV).r;
-            count += 1.0;
+            float dist = sqrt(float(x * x + y * y));
+            float weight = exp(-dist * dist / (2.0 * radius * radius));
+            vec2 offset = vec2(float(x), float(y)) * texelSize * radius;
+            sum += texture2D(tex, uv + offset).r * weight;
+            weightSum += weight;
         }
     }
-    return sum / count;
+    return sum / weightSum;
 }
 
 vec2 getCameraUV(vec2 baseUV) {
@@ -63,9 +66,10 @@ void main() {
     float mask;
     float trail;
     if (u_blur > 0.5) {
-        vec2 offset = u_blur * u_maskTexelSize;
-        mask = blurSample(u_mask, camUV, offset);
-        trail = blurSample(u_trail, camUV, offset);
+        mask = gaussianBlur(u_mask, camUV, u_maskTexelSize, u_blur);
+        trail = gaussianBlur(u_trail, camUV, u_maskTexelSize, u_blur);
+        // Smooth edges to eliminate stepped aliasing artifacts
+        mask = smoothstep(0.1, 0.5, mask);
     } else {
         mask = texture2D(u_mask, camUV).r;
         trail = texture2D(u_trail, camUV).r;
