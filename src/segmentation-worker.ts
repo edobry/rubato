@@ -3,10 +3,12 @@
  *
  * Offloads ImageSegmenter inference from the main thread so that
  * compositing and rendering can proceed without jank.
- *
- * Usage from main thread:
- *   new Worker(new URL('./segmentation-worker.ts', import.meta.url), { type: 'module' })
  */
+
+// Polyfill: MediaPipe's WASM loader references self.import() which doesn't
+// exist as a global property in workers. Bridge it to the ES dynamic import().
+// biome-ignore lint/suspicious/noExplicitAny: polyfill on global scope
+(self as any).import ??= (url: string) => import(/* @vite-ignore */ url);
 
 import type { ImageSegmenter as ImageSegmenterType } from "@mediapipe/tasks-vision";
 import type {
