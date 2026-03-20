@@ -80,11 +80,12 @@ export function createFramebuffer(
  * falls back to packing floats into RGBA8 (each float encoded across 4 bytes).
  */
 /**
- * Upload a Float32Array as a single-channel texture.
- * Values should be 0-1. Uses LUMINANCE+FLOAT if available,
- * otherwise packs into LUMINANCE+UNSIGNED_BYTE (8-bit precision, sufficient for masks).
- * NOTE: caller must bind the correct texture unit first. Texture stays bound after call.
+ * Upload a Float32Array as a texture (value packed into RGBA).
+ * Values should be 0-1. Uses RGBA+UNSIGNED_BYTE for maximum GPU compatibility.
+ * The value is written to R channel; shader reads .r to get it.
+ * NOTE: Texture stays bound after call for the caller to use.
  */
+let uploadBuf: Uint8Array | null = null;
 export function uploadFloatTexture(
 	gl: WebGLRenderingContext,
 	texture: WebGLTexture,
@@ -94,38 +95,30 @@ export function uploadFloatTexture(
 ): void {
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 
-	const floatExt = gl.getExtension("OES_texture_float");
-	if (floatExt) {
-		gl.texImage2D(
-			gl.TEXTURE_2D,
-			0,
-			gl.LUMINANCE,
-			width,
-			height,
-			0,
-			gl.LUMINANCE,
-			gl.FLOAT,
-			data,
-		);
-	} else {
-		// Fallback: pack 0-1 floats into LUMINANCE 8-bit
-		const packed = new Uint8Array(data.length);
-		for (let i = 0; i < data.length; i++) {
-			packed[i] = Math.round(Math.min(1, Math.max(0, data[i])) * 255);
-		}
-		gl.texImage2D(
-			gl.TEXTURE_2D,
-			0,
-			gl.LUMINANCE,
-			width,
-			height,
-			0,
-			gl.LUMINANCE,
-			gl.UNSIGNED_BYTE,
-			packed,
-		);
+	// Pack into RGBA8: value in R, 0 in G/B, 255 in A
+	const size = width * height * 4;
+	if (!uploadBuf || uploadBuf.length !== size) {
+		uploadBuf = new Uint8Array(size);
 	}
-	// Texture stays bound for the caller to use
+	for (let i = 0; i < data.length; i++) {
+		const v = Math.round(Math.min(1, Math.max(0, data[i])) * 255);
+		const j = i * 4;
+		uploadBuf[j] = v;
+		uploadBuf[j + 1] = v;
+		uploadBuf[j + 2] = v;
+		uploadBuf[j + 3] = 255;
+	}
+	gl.texImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		width,
+		height,
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		uploadBuf,
+	);
 }
 
 /**
