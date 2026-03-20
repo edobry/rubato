@@ -38,7 +38,7 @@
 		"blur": 0
 	},
 	"rendering": {
-		"pipeline": "legacy"
+		"pipeline": "unified"
 	},
 	"autoTune": {
 		"enabled": true,
