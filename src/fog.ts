@@ -21,6 +21,7 @@ let uScale: WebGLUniformLocation | null = null;
 let uDensity: WebGLUniformLocation | null = null;
 let uBrightness: WebGLUniformLocation | null = null;
 let uColor: WebGLUniformLocation | null = null;
+let uOctaves: WebGLUniformLocation | null = null;
 
 // FBO path for renderFogToTexture
 let fboTexture: WebGLTexture | null = null;
@@ -81,6 +82,7 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 	uDensity = gl.getUniformLocation(program, "u_density");
 	uBrightness = gl.getUniformLocation(program, "u_brightness");
 	uColor = gl.getUniformLocation(program, "u_color");
+	uOctaves = gl.getUniformLocation(program, "u_octaves");
 
 	startTime = performance.now() / 1000;
 
@@ -90,8 +92,9 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 /** Resize the fog canvas to match the window. Call on window resize. */
 export function resizeFog(): void {
 	if (!canvas) return;
-	canvas.width = window.innerWidth;
-	canvas.height = window.innerHeight;
+	const scale = params.fog.renderScale;
+	canvas.width = Math.round(window.innerWidth * scale);
+	canvas.height = Math.round(window.innerHeight * scale);
 	if (gl) {
 		gl.viewport(0, 0, canvas.width, canvas.height);
 	}
@@ -114,6 +117,7 @@ function setFogUniforms(): void {
 	gl.uniform1f(uBrightness, params.fog.brightness);
 	const [r, g, b] = hexToRgbNorm(params.fog.color);
 	gl.uniform3f(uColor, r, g, b);
+	gl.uniform1f(uOctaves, params.fog.octaves);
 }
 
 /** Render one frame of the fog field directly to screen. */

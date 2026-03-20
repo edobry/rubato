@@ -17,7 +17,9 @@
 		"scale": 3.0,
 		"density": 1.2,
 		"brightness": 0.4,
-		"color": "#ffffff"
+		"color": "#ffffff",
+		"octaves": 5,
+		"renderScale": 1.0
 	},
 	"motion": {
 		"deposition": 2.0,

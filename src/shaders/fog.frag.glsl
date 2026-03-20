@@ -8,6 +8,8 @@ uniform float u_scale;
 uniform float u_density;
 uniform float u_brightness;
 uniform vec3 u_color;
+uniform float u_octaves;    // 2-5, controls detail vs performance
+uniform float u_resolution; // render scale (1.0 = full, 0.5 = half)
 
 // Simplex noise functions (Ashima Arts / Ian McEwan)
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -52,17 +54,23 @@ float snoise(vec2 v) {
     return 130.0 * dot(m, g);
 }
 
-// Fractal Brownian Motion — layered noise for organic fog
+// Fractal Brownian Motion — unrolled with octave control for perf tuning.
+// u_octaves=2 on Pi (~60% GPU savings), u_octaves=5 on desktop (full detail).
 float fbm(vec2 p) {
     float value = 0.0;
-    float amplitude = 0.5;
-    float frequency = 1.0;
+    float amp = 0.5;
+    float freq = 1.0;
 
-    for (int i = 0; i < 5; i++) {
-        value += amplitude * snoise(p * frequency);
-        frequency *= 2.0;
-        amplitude *= 0.5;
-    }
+    // Octave 1 (always)
+    value += amp * snoise(p * freq); freq *= 2.0; amp *= 0.5;
+    // Octave 2 (always)
+    value += amp * snoise(p * freq); freq *= 2.0; amp *= 0.5;
+    // Octave 3
+    if (u_octaves > 2.5) { value += amp * snoise(p * freq); freq *= 2.0; amp *= 0.5; }
+    // Octave 4
+    if (u_octaves > 3.5) { value += amp * snoise(p * freq); freq *= 2.0; amp *= 0.5; }
+    // Octave 5
+    if (u_octaves > 4.5) { value += amp * snoise(p * freq); }
 
     return value;
 }

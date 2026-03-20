@@ -583,6 +583,8 @@ export async function initGui(): Promise<void> {
 		.name("Delegate");
 	addParam(seg, params.segmentation, "frameSkip", 1, 6, 1, "Frame Skip");
 	addParam(seg, params.overlay, "downsample", 1, 4, 1, "Overlay Downsample");
+	addParam(seg, params.fog, "octaves", 2, 5, 1, "Fog Octaves");
+	addParam(seg, params.fog, "renderScale", 0.25, 1, 0.25, "Fog Render Scale");
 	seg.open();
 
 	const tune = performance.addFolder("Auto-Tune");
