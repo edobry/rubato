@@ -8,7 +8,10 @@
 // Polyfill: MediaPipe's WASM loader references self.import() which doesn't
 // exist as a global property in workers. Bridge it to the ES dynamic import().
 // biome-ignore lint/suspicious/noExplicitAny: polyfill on global scope
-(self as any).import ??= (url: string) => import(/* @vite-ignore */ url);
+(self as any).import ??= (url: string) => {
+	console.log("[worker] self.import polyfill called with:", url);
+	return import(/* @vite-ignore */ url);
+};
 
 import type { ImageSegmenter as ImageSegmenterType } from "@mediapipe/tasks-vision";
 import type {
@@ -46,8 +49,10 @@ async function handleInit(
 	delegate: "GPU" | "CPU",
 ): Promise<void> {
 	const { FilesetResolver, ImageSegmenter } = await import(
-		"@mediapipe/tasks-vision"
+		/* @vite-ignore */ "@mediapipe/tasks-vision"
 	);
+	// Pass the full WASM directory URL — in a blob-URL worker context,
+	// relative paths don't resolve to the dev server.
 	const vision = await FilesetResolver.forVisionTasks(wasmPath);
 
 	segmenter = await ImageSegmenter.createFromOptions(vision, {
