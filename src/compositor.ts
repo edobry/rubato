@@ -74,10 +74,50 @@ export function initCompositor(): HTMLCanvasElement | null {
 	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 	aPosLocation = gl.getAttribLocation(program, "a_position");
 
-	// Create textures (fog texture managed externally)
+	// Create textures with 1x1 placeholder data so they're renderable
+	// before the first real upload (avoids NPOT warnings on Pi)
+	const placeholder = new Uint8Array([0, 0, 0, 255]);
 	cameraTexture = createTexture(gl);
+	gl.bindTexture(gl.TEXTURE_2D, cameraTexture);
+	gl.texImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		1,
+		1,
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		placeholder,
+	);
+
 	maskTexture = createTexture(gl);
+	gl.bindTexture(gl.TEXTURE_2D, maskTexture);
+	gl.texImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		1,
+		1,
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		placeholder,
+	);
+
 	trailTexture = createTexture(gl);
+	gl.bindTexture(gl.TEXTURE_2D, trailTexture);
+	gl.texImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		1,
+		1,
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		placeholder,
+	);
 
 	// Bind texture units
 	gl.uniform1i(getUniform("u_fog"), 0);
