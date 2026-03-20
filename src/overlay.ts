@@ -67,13 +67,18 @@ export function drawMaskOverlay(
 	displayW: number,
 	displayH: number,
 ): void {
+	// Half-res mode: process every other pixel in both dimensions (4x fewer pixels)
+	const ds = params.overlay.downsample;
+	const renderW = Math.ceil(maskW / ds);
+	const renderH = Math.ceil(maskH / ds);
+
 	// Reuse allocations across frames to avoid GC pressure
-	if (cachedW !== maskW || cachedH !== maskH) {
-		cachedImageData = ctx.createImageData(maskW, maskH);
-		cachedOffscreen = new OffscreenCanvas(maskW, maskH);
+	if (cachedW !== renderW || cachedH !== renderH) {
+		cachedImageData = ctx.createImageData(renderW, renderH);
+		cachedOffscreen = new OffscreenCanvas(renderW, renderH);
 		cachedOffCtx = cachedOffscreen.getContext("2d")!;
-		cachedW = maskW;
-		cachedH = maskH;
+		cachedW = renderW;
+		cachedH = renderH;
 	}
 	const imageData = cachedImageData!;
 	const data = imageData.data;
@@ -88,71 +93,77 @@ export function drawMaskOverlay(
 	// Advance rainbow
 	rainbowHue = (rainbowHue + 0.5) % 360;
 
-	for (let i = 0; i < mask.length; i++) {
-		const confidence = mask[i];
-		const idx = i * 4;
-		const x = i % maskW;
-		const y = Math.floor(i / maskW);
+	for (let ry = 0; ry < renderH; ry++) {
+		for (let rx = 0; rx < renderW; rx++) {
+			// Map back to full-res mask coordinates
+			const x = rx * ds;
+			const y = ry * ds;
+			const i = y * maskW + x;
+			const confidence = mask[i] ?? 0;
+			const outIdx = (ry * renderW + rx) * 4;
+			const idx = outIdx;
 
-		if (mode === "contour") {
-			// Edge detection: show only where mask changes sharply
-			const right = x < maskW - 1 ? mask[i + 1] : confidence;
-			const below = y < maskH - 1 ? mask[i + maskW] : confidence;
-			const edge = Math.abs(confidence - right) + Math.abs(confidence - below);
-			if (edge < 0.05) continue;
-			data[idx] = sr;
-			data[idx + 1] = sg;
-			data[idx + 2] = sb;
-			data[idx + 3] = Math.floor(Math.min(edge * 5, 1) * 255 * opacity);
-			continue;
+			if (mode === "contour") {
+				// Edge detection: show only where mask changes sharply
+				const right = x < maskW - 1 ? mask[i + 1] : confidence;
+				const below = y < maskH - 1 ? mask[i + maskW] : confidence;
+				const edge =
+					Math.abs(confidence - right) + Math.abs(confidence - below);
+				if (edge < 0.05) continue;
+				data[idx] = sr;
+				data[idx + 1] = sg;
+				data[idx + 2] = sb;
+				data[idx + 3] = Math.floor(Math.min(edge * 5, 1) * 255 * opacity);
+				continue;
+			}
+
+			if (mode === "aura") {
+				// Radiating glow — render even outside the mask, based on distance-like falloff
+				// Use confidence directly as a soft distance proxy
+				const glow = confidence > 0 ? confidence : 0;
+				if (glow === 0) continue;
+				// Pulsing brightness
+				const pulse = 0.7 + 0.3 * Math.sin(rainbowHue * 0.05 + y * 0.02);
+				const [r, g, b] = hslToRgb(
+					(rainbowHue + y * 0.3) % 360,
+					0.8,
+					0.3 + 0.3 * pulse,
+				);
+				data[idx] = r;
+				data[idx + 1] = g;
+				data[idx + 2] = b;
+				data[idx + 3] = Math.floor(glow * 200 * opacity * pulse);
+				continue;
+			}
+
+			if (confidence === 0) continue;
+			const alpha = Math.floor(confidence * 255 * opacity);
+
+			if (mode === "solid") {
+				data[idx] = sr;
+				data[idx + 1] = sg;
+				data[idx + 2] = sb;
+			} else if (mode === "rainbow") {
+				const hue = (rainbowHue + x * 0.5 + y * 0.3) % 360;
+				const [r, g, b] = hslToRgb(hue, 1, 0.5);
+				data[idx] = r;
+				data[idx + 1] = g;
+				data[idx + 2] = b;
+			} else if (mode === "gradient") {
+				const normY = y / maskH;
+				const compHue = (rainbowHue + normY * 180) % 360;
+				const [r, g, b] = hslToRgb(compHue, 0.8, 0.5);
+				data[idx] = r;
+				data[idx + 1] = g;
+				data[idx + 2] = b;
+			} else if (mode === "invert") {
+				// Will be composited as an inversion layer
+				data[idx] = 255;
+				data[idx + 1] = 255;
+				data[idx + 2] = 255;
+			}
+			data[idx + 3] = alpha;
 		}
-
-		if (mode === "aura") {
-			// Radiating glow — render even outside the mask, based on distance-like falloff
-			// Use confidence directly as a soft distance proxy
-			const glow = confidence > 0 ? confidence : 0;
-			if (glow === 0) continue;
-			// Pulsing brightness
-			const pulse = 0.7 + 0.3 * Math.sin(rainbowHue * 0.05 + y * 0.02);
-			const [r, g, b] = hslToRgb(
-				(rainbowHue + y * 0.3) % 360,
-				0.8,
-				0.3 + 0.3 * pulse,
-			);
-			data[idx] = r;
-			data[idx + 1] = g;
-			data[idx + 2] = b;
-			data[idx + 3] = Math.floor(glow * 200 * opacity * pulse);
-			continue;
-		}
-
-		if (confidence === 0) continue;
-		const alpha = Math.floor(confidence * 255 * opacity);
-
-		if (mode === "solid") {
-			data[idx] = sr;
-			data[idx + 1] = sg;
-			data[idx + 2] = sb;
-		} else if (mode === "rainbow") {
-			const hue = (rainbowHue + x * 0.5 + y * 0.3) % 360;
-			const [r, g, b] = hslToRgb(hue, 1, 0.5);
-			data[idx] = r;
-			data[idx + 1] = g;
-			data[idx + 2] = b;
-		} else if (mode === "gradient") {
-			const normY = y / maskH;
-			const compHue = (rainbowHue + normY * 180) % 360;
-			const [r, g, b] = hslToRgb(compHue, 0.8, 0.5);
-			data[idx] = r;
-			data[idx + 1] = g;
-			data[idx + 2] = b;
-		} else if (mode === "invert") {
-			// Will be composited as an inversion layer
-			data[idx] = 255;
-			data[idx + 1] = 255;
-			data[idx + 2] = 255;
-		}
-		data[idx + 3] = alpha;
 	}
 
 	cachedOffCtx!.putImageData(imageData, 0, 0);

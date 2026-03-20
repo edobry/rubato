@@ -44,6 +44,7 @@ export interface CreativePreset {
 		scale: number;
 		density: number;
 		brightness: number;
+		color: string;
 	};
 }
 
@@ -76,6 +77,7 @@ export function extractPreset(name: string): CreativePreset {
 			scale: params.fog.scale,
 			density: params.fog.density,
 			brightness: params.fog.brightness,
+			color: params.fog.color,
 		},
 	};
 }
@@ -110,6 +112,7 @@ export function applyPreset(preset: CreativePreset): void {
 	params.fog.scale = preset.fog.scale;
 	params.fog.density = preset.fog.density;
 	params.fog.brightness = preset.fog.brightness;
+	params.fog.color = preset.fog.color ?? "#ffffff";
 }
 
 const d = defaults;
@@ -144,6 +147,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				scale: d.fog.scale,
 				density: d.fog.density,
 				brightness: d.fog.brightness,
+				color: d.fog.color,
 			},
 		},
 		dramatic: {
@@ -173,6 +177,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				scale: 5.0,
 				density: 2.0,
 				brightness: 0.6,
+				color: "#ff6633",
 			},
 		},
 		subtle: {
@@ -202,6 +207,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				scale: 4.0,
 				density: 0.8,
 				brightness: 0.3,
+				color: "#aaccff",
 			},
 		},
 		silhouette: {
@@ -231,6 +237,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				scale: 6.0,
 				density: 1.5,
 				brightness: 0.2,
+				color: "#ffffff",
 			},
 		},
 		rainbow: {
@@ -260,6 +267,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				scale: 3.0,
 				density: 1.2,
 				brightness: 0.5,
+				color: "#ff88ff",
 			},
 		},
 	};

@@ -522,6 +522,7 @@ export async function initGui(): Promise<void> {
 	addParam(fog, params.fog, "scale", 0.5, 10, 0.25, "Scale");
 	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
 	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
+	fog.addColor(params.fog, "color").name("Color");
 	fog.open();
 
 	const detection = creative.addFolder("Detection");
@@ -571,6 +572,7 @@ export async function initGui(): Promise<void> {
 		.add(params.segmentation, "delegate", ["auto", "GPU", "CPU"])
 		.name("Delegate");
 	addParam(seg, params.segmentation, "frameSkip", 1, 6, 1, "Frame Skip");
+	addParam(seg, params.overlay, "downsample", 1, 4, 1, "Overlay Downsample");
 	seg.open();
 
 	const tune = performance.addFolder("Auto-Tune");

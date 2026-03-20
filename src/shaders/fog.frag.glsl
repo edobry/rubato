@@ -7,6 +7,7 @@ uniform float u_speed;
 uniform float u_scale;
 uniform float u_density;
 uniform float u_brightness;
+uniform vec3 u_color;
 
 // Simplex noise functions (Ashima Arts / Ian McEwan)
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -79,5 +80,5 @@ void main() {
     fog = pow(fog, 2.0 - u_density);     // density controls contrast
     fog *= u_brightness;
 
-    gl_FragColor = vec4(vec3(fog), 1.0);
+    gl_FragColor = vec4(fog * u_color, 1.0);
 }

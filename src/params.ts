@@ -68,6 +68,7 @@ export const params = {
 		scale: d.fog.scale,
 		density: d.fog.density,
 		brightness: d.fog.brightness,
+		color: d.fog.color,
 	}),
 	motion: reactive("motion", {
 		// How strongly motion deposits into the trail buffer (0-5)
@@ -88,6 +89,8 @@ export const params = {
 			| "contour"
 			| "invert"
 			| "aura",
+		// Overlay downsample factor (1=full res, 2=half, 4=quarter)
+		downsample: d.overlay.downsample,
 	}),
 	autoTune: reactive("autoTune", {
 		enabled: d.autoTune.enabled,

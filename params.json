@@ -16,7 +16,8 @@
 		"speed": 0.15,
 		"scale": 3.0,
 		"density": 1.2,
-		"brightness": 0.4
+		"brightness": 0.4,
+		"color": "#ffffff"
 	},
 	"motion": {
 		"deposition": 2.0,
@@ -27,7 +28,8 @@
 		"visualize": "mask",
 		"opacity": 0.5,
 		"color": "#00ffff",
-		"colorMode": "solid"
+		"colorMode": "solid",
+		"downsample": 1
 	},
 	"autoTune": {
 		"enabled": true,
