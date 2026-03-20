@@ -566,6 +566,9 @@ export async function initGui(): Promise<void> {
 
 	// ── Performance section ──────────────────────────────────────────
 	const performance = gui.addFolder("Performance");
+	performance
+		.add(params.rendering, "pipeline", ["legacy", "unified"])
+		.name("Pipeline");
 
 	const cam = performance.addFolder("Camera");
 	cam

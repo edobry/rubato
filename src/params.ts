@@ -94,6 +94,9 @@ export const params = {
 		// Box blur passes on overlay (0=off, 1-5 = number of 3x3 blur passes)
 		blur: d.overlay.blur,
 	}),
+	rendering: reactive("rendering", {
+		pipeline: d.rendering.pipeline as "legacy" | "unified",
+	}),
 	autoTune: reactive("autoTune", {
 		enabled: d.autoTune.enabled,
 		targetFps: d.autoTune.targetFps,

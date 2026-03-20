@@ -1,6 +1,7 @@
 import { autoTuneTick } from "./autotune";
 import { initCamera } from "./camera";
-import { drawFog, initFog, resizeFog } from "./fog";
+import { compositeFrame, initCompositor, resizeCompositor } from "./compositor";
+import { drawFog, initFog, renderFogToTexture, resizeFog } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
 import { detectMotion } from "./motion";
@@ -44,11 +45,22 @@ async function main(): Promise<void> {
 	document.body.appendChild(fogCanvas);
 	resizeFog();
 
+	// Unified WebGL compositor (opt-in)
+	const compositorCanvas = initCompositor();
+	if (compositorCanvas) {
+		compositorCanvas.style.display =
+			params.rendering.pipeline === "unified" ? "block" : "none";
+		document.body.appendChild(compositorCanvas);
+		resizeCompositor();
+	}
+
+	// Legacy 2D canvas (default)
 	const canvas = initCanvas();
 	resizeCanvas(canvas);
 	window.addEventListener("resize", () => {
 		resizeCanvas(canvas);
 		resizeFog();
+		if (compositorCanvas) resizeCompositor();
 	});
 
 	// Dev GUI — toggle with G key
@@ -161,7 +173,29 @@ async function main(): Promise<void> {
 		}
 
 		const data = produceFrameData();
-		renderFrame(ctx, video, canvas, data, fps);
+
+		if (params.rendering.pipeline === "unified" && compositorCanvas) {
+			// Unified WebGL path: compositor blends fog + camera + mask + trail
+			compositorCanvas.style.display = "block";
+			canvas.style.display = "none";
+			fogCanvas.style.display = "none";
+
+			const fogTex = renderFogToTexture();
+			const { width: maskW, height: maskH } = video.videoWidth
+				? getSegmenterResolution(video)
+				: { width: 0, height: 0 };
+			compositeFrame(video, fogTex, data.mask, data.trail, maskW, maskH);
+
+			// FPS draws on a separate overlay (TODO: move to DOM element)
+			// For now, draw on the legacy canvas which is hidden
+		} else {
+			// Legacy Canvas 2D path
+			if (compositorCanvas) compositorCanvas.style.display = "none";
+			canvas.style.display = "block";
+			fogCanvas.style.display = "block";
+
+			renderFrame(ctx, video, canvas, data, fps);
+		}
 
 		frameCount++;
 		requestAnimationFrame(loop);

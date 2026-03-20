@@ -32,6 +32,9 @@
 		"downsample": 1,
 		"blur": 0
 	},
+	"rendering": {
+		"pipeline": "legacy"
+	},
 	"autoTune": {
 		"enabled": true,
 		"targetFps": 30,
