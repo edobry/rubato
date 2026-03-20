@@ -46,15 +46,18 @@ interface FrameData {
 
 async function main(): Promise<void> {
 	// Pipeline mode is set at page load. Switching requires reload.
-	const useUnified = params.rendering.pipeline === "unified";
-
-	// Compositor — only initialized in unified mode
+	// Falls back to legacy if compositor init fails (e.g. weak GPU).
+	let useUnified = params.rendering.pipeline === "unified";
 	let compositorCanvas: HTMLCanvasElement | null = null;
 	if (useUnified) {
 		compositorCanvas = initCompositor();
 		if (compositorCanvas) {
 			document.body.appendChild(compositorCanvas);
 			resizeCompositor();
+		} else {
+			console.warn("Compositor init failed, falling back to legacy pipeline");
+			useUnified = false;
+			localStorage.setItem("rubato-pipeline", "legacy");
 		}
 	}
 
