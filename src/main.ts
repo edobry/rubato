@@ -154,10 +154,15 @@ async function main(): Promise<void> {
 				const result = segmentFrame(video, performance.now());
 				if (result) {
 					lastMask = result.smoothed;
-					const { width: mw, height: mh } = getSegmenterResolution(video);
-					const motionResult = detectMotion(result.raw, mw, mh);
-					lastMotion = motionResult.motion;
-					lastTrail = motionResult.trail;
+
+					// Skip motion detection when visualizing mask only —
+					// trails and motion data are not used in that mode.
+					if (params.overlay.visualize !== "mask") {
+						const { width: mw, height: mh } = getSegmenterResolution(video);
+						const motionResult = detectMotion(result.raw, mw, mh);
+						lastMotion = motionResult.motion;
+						lastTrail = motionResult.trail;
+					}
 				}
 			}
 		}
