@@ -539,20 +539,50 @@ async function main(): Promise<void> {
 
 // --- Error recovery for unattended gallery operation ---
 // On unhandled errors or promise rejections, log and auto-reload after 5 seconds.
+// Only one reload is ever scheduled to prevent cascading reload storms.
+let reloadScheduled = false;
+
 function scheduleRecoveryReload(source: string, error: unknown): void {
+	if (reloadScheduled) return;
+	reloadScheduled = true;
 	console.error(`[rubato] Unhandled ${source}:`, error);
 	console.warn("[rubato] Auto-reloading in 5 seconds...");
 	setTimeout(() => location.reload(), 5000);
 }
 
+/** Check if an error originates from Vite/HMR internals. */
+function isViteError(error: unknown): boolean {
+	if (!error) return false;
+	const msg = String(error);
+	if (
+		msg.includes("WebSocket") ||
+		msg.includes("vite") ||
+		msg.includes("HMR") ||
+		msg.includes("hmr")
+	)
+		return true;
+	// Check error stack for Vite client scripts
+	if (error instanceof Error && error.stack) {
+		if (
+			error.stack.includes("@vite/client") ||
+			error.stack.includes("node_modules")
+		)
+			return true;
+	}
+	return false;
+}
+
 window.addEventListener("error", (event) => {
-	scheduleRecoveryReload("error", event.error ?? event.message);
+	const error = event.error ?? event.message;
+	if (!error || isViteError(error)) return;
+	scheduleRecoveryReload("error", error);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
-	// Ignore Vite HMR WebSocket connection failures (common on LAN access)
-	const reason = String(event.reason);
-	if (reason.includes("WebSocket") || reason.includes("vite")) return;
+	// Ignore empty rejections (common from HMR/WebSocket failures)
+	if (!event.reason) return;
+	// Ignore Vite HMR / WebSocket connection failures
+	if (isViteError(event.reason)) return;
 	scheduleRecoveryReload("promise rejection", event.reason);
 });
 
