@@ -603,6 +603,7 @@ export async function initGui(): Promise<void> {
 	addParam(seg, params.segmentation, "frameSkip", 1, 15, 1, "Frame Skip");
 	addParam(seg, params.overlay, "downsample", 1, 4, 1, "Overlay Downsample");
 	addParam(seg, params.fog, "octaves", 2, 5, 1, "Fog Octaves");
+	addParam(seg, params.fog, "frameSkip", 1, 10, 1, "Fog Frame Skip");
 	addParam(seg, params.fog, "renderScale", 0.25, 1, 0.25, "Fog Render Scale");
 	seg.open();
 

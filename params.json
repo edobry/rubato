@@ -20,6 +20,7 @@
 		"color": "#ffffff",
 		"octaves": 5,
 		"renderScale": 1.0,
+		"frameSkip": 1,
 		"maskInteraction": 0.8,
 		"trailInteraction": 2.0
 	},

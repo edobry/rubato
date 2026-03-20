@@ -107,6 +107,7 @@ export const params = {
 		color: d.fog.color,
 		octaves: d.fog.octaves,
 		renderScale: d.fog.renderScale,
+		frameSkip: d.fog.frameSkip,
 		maskInteraction: d.fog.maskInteraction,
 		trailInteraction: d.fog.trailInteraction,
 	}),

@@ -13,6 +13,7 @@ let gl: WebGLRenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let startTime = 0;
+let frameCounter = 0;
 
 // Uniform locations
 let uTime: WebGLUniformLocation | null = null;
@@ -147,6 +148,10 @@ function setFogUniforms(): void {
 export function drawFog(): void {
 	if (!gl || !program) return;
 
+	frameCounter++;
+	if (params.fog.frameSkip > 1 && frameCounter % params.fog.frameSkip !== 0)
+		return;
+
 	setFogUniforms();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -159,6 +164,8 @@ export function drawFog(): void {
  */
 export function renderFogToTexture(): WebGLTexture | null {
 	if (!gl || !program || !canvas) return null;
+
+	frameCounter++;
 
 	const w = canvas.width;
 	const h = canvas.height;
@@ -187,6 +194,15 @@ export function renderFogToTexture(): WebGLTexture | null {
 		fbo = createFramebuffer(gl, fboTexture);
 		fboWidth = w;
 		fboHeight = h;
+	}
+
+	// Skip the actual render if frame skip is active — reuse existing FBO texture
+	if (
+		params.fog.frameSkip > 1 &&
+		frameCounter % params.fog.frameSkip !== 0 &&
+		fboTexture
+	) {
+		return fboTexture;
 	}
 
 	setFogUniforms();
