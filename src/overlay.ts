@@ -3,7 +3,7 @@
  * Draws segmentation masks as semi-transparent colored overlays on the 2D canvas.
  */
 
-import { computeMaskCrop, maskToRender } from "./coords";
+import { computeMaskCrop } from "./coords";
 import { params } from "./params";
 
 // Cached per-frame allocations to avoid GC pressure on constrained hardware
@@ -241,16 +241,18 @@ export function drawMaskOverlay(
 
 	cachedOffCtx!.putImageData(imageData, 0, 0);
 
-	// Compute crop using typed coordinate system
+	// Compute crop in mask space, then scale to render space without rounding.
+	// Using exact floating-point division (no floor/ceil) ensures the overlay
+	// crop matches the camera feed crop pixel-for-pixel at all fillAmount values.
 	const maskCrop = computeMaskCrop(
 		{ width: maskW, height: maskH },
 		{ width: displayW, height: displayH },
 		params.camera.fillAmount,
 	);
-	const renderCrop = maskToRender(maskCrop, ds, {
-		width: renderW,
-		height: renderH,
-	});
+	const srcX = maskCrop.x / ds;
+	const srcY = maskCrop.y / ds;
+	const srcW = maskCrop.w / ds;
+	const srcH = maskCrop.h / ds;
 
 	ctx.save();
 	if (mode === "invert") {
@@ -260,10 +262,10 @@ export function drawMaskOverlay(
 	ctx.scale(-1, 1);
 	ctx.drawImage(
 		cachedOffscreen!,
-		renderCrop.x,
-		renderCrop.y,
-		renderCrop.w,
-		renderCrop.h,
+		srcX,
+		srcY,
+		srcW,
+		srcH,
 		0,
 		0,
 		displayW,
