@@ -77,11 +77,6 @@ async function main(): Promise<void> {
 		);
 	}
 
-	// Enforce performance floors on constrained devices (perf params only)
-	if (device.isConstrained) {
-		if (params.overlay.downsample < 2) params.overlay.downsample = 2;
-	}
-
 	// Pipeline mode is set at page load. Switching requires reload.
 	// Falls back to legacy if compositor init fails (e.g. weak GPU).
 	let useUnified = params.rendering.pipeline === "unified";
@@ -136,9 +131,15 @@ async function main(): Promise<void> {
 		hudCanvas.height = window.innerHeight;
 	}
 
-	// Dev GUI — toggle with G key
+	// Dev GUI — toggle with G key (loads presets which may override params)
 	if (import.meta.env.VITE_DEV_GUI === "true") {
 		await initGui();
+	}
+
+	// Enforce performance floors AFTER presets load (presets are creative-only
+	// but older presets may have included perf params before we split them)
+	if (device.isConstrained) {
+		if (params.overlay.downsample < 2) params.overlay.downsample = 2;
 	}
 
 	const ctx = canvas.getContext("2d");
