@@ -67,6 +67,15 @@ async function main(): Promise<void> {
 	resizeFog();
 
 	// Legacy 2D canvas (default)
+	// DOM FPS overlay for unified mode
+	let fpsOverlay: HTMLDivElement | null = null;
+	if (useUnified) {
+		fpsOverlay = document.createElement("div");
+		fpsOverlay.style.cssText =
+			"position:fixed;top:8px;left:8px;z-index:10000;font:bold 16px monospace;color:#0f0;background:rgba(0,0,0,0.6);padding:4px 10px;pointer-events:none";
+		document.body.appendChild(fpsOverlay);
+	}
+
 	// Legacy 2D canvas — hidden in unified mode
 	const canvas = initCanvas();
 	if (useUnified) canvas.style.display = "none";
@@ -190,15 +199,19 @@ async function main(): Promise<void> {
 
 		if (useUnified && compositorCanvas) {
 			// Unified WebGL path: compositor blends fog + camera + mask + trail
-
 			const fogTex = renderFogToTexture();
 			const { width: maskW, height: maskH } = video.videoWidth
 				? getSegmenterResolution(video)
 				: { width: 0, height: 0 };
 			compositeFrame(video, fogTex, data.mask, data.trail, maskW, maskH);
 
-			// FPS draws on a separate overlay (TODO: move to DOM element)
-			// For now, draw on the legacy canvas which is hidden
+			// DOM FPS overlay
+			const fpsVal = fps.tick();
+			if (fpsOverlay) {
+				fpsOverlay.textContent = `${fpsVal} fps`;
+				fpsOverlay.style.color =
+					fpsVal >= 24 ? "#0f0" : fpsVal >= 15 ? "#ff0" : "#f00";
+			}
 		} else {
 			// Legacy Canvas 2D path
 			renderFrame(ctx, video, canvas, data, fps);
