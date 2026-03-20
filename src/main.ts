@@ -206,7 +206,27 @@ async function main(): Promise<void> {
 			const { width: maskW, height: maskH } = video.videoWidth
 				? getSegmenterResolution(video)
 				: { width: 0, height: 0 };
-			compositeFrame(video, fogTex, data.mask, data.trail, maskW, maskH);
+			// Select which data to pass based on the visualize dropdown,
+			// mirroring the legacy path's per-mode overlay logic.
+			const viz = params.overlay.visualize;
+			let compMask: Float32Array | null = null;
+			let compTrail: Float32Array | null = null;
+			switch (viz) {
+				case "mask":
+					compMask = data.mask;
+					break;
+				case "motion":
+					compMask = data.motion;
+					break;
+				case "trail":
+					compTrail = data.trail;
+					break;
+				case "both":
+					compMask = data.mask;
+					compTrail = data.trail;
+					break;
+			}
+			compositeFrame(video, fogTex, compMask, compTrail, maskW, maskH);
 
 			// DOM FPS overlay
 			const fpsVal = fps.tick();
