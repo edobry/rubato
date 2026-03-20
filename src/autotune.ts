@@ -39,14 +39,17 @@ interface ConfigRecord {
 
 /**
  * Build the ordered list of configs from highest quality (index 0) to lowest.
- * Degradation order: resolution → model → downsample → frame skip (last resort).
- * Frame skip has the most visual impact (mask latency) so it's bumped last.
+ * Degradation order: resolution → downsample → frame skip → model (last resort).
+ *
+ * Model is outermost because model changes require worker re-initialization
+ * which is expensive (~2-3s). We exhaust all res/downsample/skip combos
+ * before switching models.
  */
 function buildConfigLadder(): Config[] {
 	const configs: Config[] = [];
-	for (let frameSkip = 1; frameSkip <= MAX_FRAME_SKIP; frameSkip++) {
-		for (const downsample of DOWNSAMPLE_LADDER) {
-			for (const model of MODEL_LADDER) {
+	for (const model of MODEL_LADDER) {
+		for (let frameSkip = 1; frameSkip <= MAX_FRAME_SKIP; frameSkip++) {
+			for (const downsample of DOWNSAMPLE_LADDER) {
 				for (const resolution of RESOLUTION_LADDER) {
 					configs.push({ frameSkip, model, resolution, downsample });
 				}
@@ -79,6 +82,7 @@ function configIndex(c: Config): number {
 
 let frameTimes: number[] = [];
 let lastAdjustTime = 0;
+let lastAdjustSettleEnd = 0; // Effective settle deadline (extended for expensive changes)
 
 /** FPS history per config key. */
 const configHistory: Map<string, ConfigRecord> = new Map();
@@ -281,6 +285,9 @@ function resetTimers(): void {
 	floorLogged = false;
 }
 
+/** Multiplier for settle time after expensive config changes. */
+const EXPENSIVE_SETTLE_MULTIPLIER = 3;
+
 function switchConfig(
 	newConfig: Config,
 	direction: string,
@@ -288,14 +295,31 @@ function switchConfig(
 ): void {
 	const fps = autoTuneState.fps;
 	const target = params.autoTune.targetFps;
-	const oldKey = configKey(getCurrentConfig());
+	const current = getCurrentConfig();
+	const oldKey = configKey(current);
+
+	// Detect expensive changes that need longer settle time
+	const modelChanged = newConfig.model !== current.model;
+	const resolutionChanged = newConfig.resolution !== current.resolution;
+	const isExpensive = modelChanged || resolutionChanged;
+
 	applyConfig(newConfig);
+
+	// Extend settle time for expensive changes (resolution switch causes
+	// temporary FPS drop, model switch requires worker reinit)
+	const settleTime = isExpensive
+		? params.autoTune.settleTime * EXPENSIVE_SETTLE_MULTIPLIER
+		: params.autoTune.settleTime;
 	lastAdjustTime = performance.now();
+	// Store the effective settle end time so the tick check uses it
+	lastAdjustSettleEnd = lastAdjustTime + settleTime;
+
 	frameTimes = [];
 	resetTimers();
 	const newKey = configKey(newConfig);
+	const tag = isExpensive ? `${direction} [expensive]` : direction;
 	log(
-		`${direction} ${fps}fps (target ${target}) | ${oldKey} → ${newKey} | ${reason}`,
+		`${tag} ${fps}fps (target ${target}) | ${oldKey} → ${newKey} | ${reason}`,
 	);
 }
 
@@ -319,7 +343,7 @@ export function autoTuneTick(): void {
 		return;
 	}
 
-	if (now - lastAdjustTime < params.autoTune.settleTime) {
+	if (now < lastAdjustSettleEnd) {
 		autoTuneState.status = "settling";
 		return;
 	}
