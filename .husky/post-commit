@@ -1,0 +1,1 @@
+git push 2>/dev/null || echo "Push failed (no remote or offline) — will push later"

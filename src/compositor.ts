@@ -212,6 +212,20 @@ export function compositeFrame(
 	const [r, g, b] = hexToRgbNorm(params.overlay.color);
 	gl.uniform3f(getUniform("u_overlayColor"), r, g, b);
 	gl.uniform1f(getUniform("u_time"), performance.now() / 1000);
+
+	// Map color mode string to float for GLSL
+	const colorModeMap: Record<string, number> = {
+		solid: 0,
+		rainbow: 1,
+		gradient: 2,
+		contour: 3,
+		invert: 4,
+		aura: 5,
+	};
+	gl.uniform1f(
+		getUniform("u_colorMode"),
+		colorModeMap[params.overlay.colorMode] ?? 0,
+	);
 	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
 	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
 	gl.uniform1f(getUniform("u_blur"), params.overlay.blur);
