@@ -10,6 +10,7 @@ import { computeCrop } from "./renderer";
 let cachedImageData: ImageData | null = null;
 let cachedOffscreen: OffscreenCanvas | null = null;
 let cachedOffCtx: OffscreenCanvasRenderingContext2D | null = null;
+let cachedBlurBuf: Uint8ClampedArray | null = null;
 let cachedW = 0;
 let cachedH = 0;
 
@@ -77,6 +78,7 @@ export function drawMaskOverlay(
 		cachedImageData = ctx.createImageData(renderW, renderH);
 		cachedOffscreen = new OffscreenCanvas(renderW, renderH);
 		cachedOffCtx = cachedOffscreen.getContext("2d")!;
+		cachedBlurBuf = new Uint8ClampedArray(renderW * renderH * 4);
 		cachedW = renderW;
 		cachedH = renderH;
 	}
@@ -163,6 +165,45 @@ export function drawMaskOverlay(
 				data[idx + 2] = 255;
 			}
 			data[idx + 3] = alpha;
+		}
+	}
+
+	// Apply box blur passes to smooth jagged mask edges
+	const blurPasses = params.overlay.blur;
+	if (blurPasses > 0) {
+		const src = data;
+		const tmp = cachedBlurBuf!;
+		for (let pass = 0; pass < blurPasses; pass++) {
+			for (let y = 0; y < renderH; y++) {
+				for (let x = 0; x < renderW; x++) {
+					let rSum = 0;
+					let gSum = 0;
+					let bSum = 0;
+					let aSum = 0;
+					let count = 0;
+					for (let dy = -1; dy <= 1; dy++) {
+						const ny = y + dy;
+						if (ny < 0 || ny >= renderH) continue;
+						for (let dx = -1; dx <= 1; dx++) {
+							const nx = x + dx;
+							if (nx < 0 || nx >= renderW) continue;
+							const si = (ny * renderW + nx) * 4;
+							rSum += src[si];
+							gSum += src[si + 1];
+							bSum += src[si + 2];
+							aSum += src[si + 3];
+							count++;
+						}
+					}
+					const di = (y * renderW + x) * 4;
+					tmp[di] = (rSum / count + 0.5) | 0;
+					tmp[di + 1] = (gSum / count + 0.5) | 0;
+					tmp[di + 2] = (bSum / count + 0.5) | 0;
+					tmp[di + 3] = (aSum / count + 0.5) | 0;
+				}
+			}
+			// Copy temp buffer back to source for next pass
+			src.set(tmp);
 		}
 	}
 

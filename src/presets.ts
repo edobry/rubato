@@ -25,6 +25,7 @@ export interface CreativePreset {
 		opacity: number;
 		color: string;
 		colorMode: string;
+		blur: number;
 	};
 	motion: {
 		deposition: number;
@@ -58,6 +59,7 @@ export function extractPreset(name: string): CreativePreset {
 			opacity: params.overlay.opacity,
 			color: params.overlay.color,
 			colorMode: params.overlay.colorMode,
+			blur: params.overlay.blur,
 		},
 		motion: {
 			deposition: params.motion.deposition,
@@ -92,6 +94,7 @@ export function applyPreset(preset: CreativePreset): void {
 	params.overlay.color = preset.overlay.color;
 	params.overlay.colorMode = preset.overlay
 		.colorMode as typeof params.overlay.colorMode;
+	params.overlay.blur = preset.overlay.blur ?? 0;
 
 	// Motion
 	params.motion.deposition = preset.motion.deposition;
@@ -128,6 +131,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				opacity: d.overlay.opacity,
 				color: d.overlay.color,
 				colorMode: d.overlay.colorMode,
+				blur: d.overlay.blur,
 			},
 			motion: {
 				deposition: d.motion.deposition,
@@ -158,6 +162,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				opacity: 0.9,
 				color: "#ff4400",
 				colorMode: "aura",
+				blur: 0,
 			},
 			motion: {
 				deposition: 12,
@@ -188,6 +193,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				opacity: 0.25,
 				color: "#88ccff",
 				colorMode: "solid",
+				blur: 0,
 			},
 			motion: {
 				deposition: 0.8,
@@ -218,6 +224,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				opacity: 0.85,
 				color: "#ffffff",
 				colorMode: "solid",
+				blur: 0,
 			},
 			motion: {
 				deposition: 6,
@@ -248,6 +255,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				opacity: 0.75,
 				color: "#ffffff",
 				colorMode: "rainbow",
+				blur: 0,
 			},
 			motion: {
 				deposition: 4,

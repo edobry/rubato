@@ -91,6 +91,8 @@ export const params = {
 			| "aura",
 		// Overlay downsample factor (1=full res, 2=half, 4=quarter)
 		downsample: d.overlay.downsample,
+		// Box blur passes on overlay (0=off, 1-5 = number of 3x3 blur passes)
+		blur: d.overlay.blur,
 	}),
 	autoTune: reactive("autoTune", {
 		enabled: d.autoTune.enabled,

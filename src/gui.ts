@@ -397,7 +397,13 @@ export async function initGui(): Promise<void> {
 		.add(
 			{
 				save() {
-					const name = presetState.newName.trim();
+					let name = presetState.newName.trim();
+					if (!name) {
+						// Fall back to the currently selected preset name
+						// (strip the "* " prefix for user presets)
+						const sel = presetState.selected;
+						name = sel.startsWith("* ") ? sel.slice(2) : sel;
+					}
 					if (!name) return;
 					const preset = extractPreset(name);
 					savePreset(name, preset);
@@ -510,6 +516,7 @@ export async function initGui(): Promise<void> {
 			"aura",
 		])
 		.name("Color Mode");
+	addParam(overlayStyle, params.overlay, "blur", 0, 5, 1, "Blur");
 	overlayStyle.open();
 
 	const trails = creative.addFolder("Trails");

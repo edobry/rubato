@@ -29,7 +29,8 @@
 		"opacity": 0.5,
 		"color": "#00ffff",
 		"colorMode": "solid",
-		"downsample": 1
+		"downsample": 1,
+		"blur": 0
 	},
 	"autoTune": {
 		"enabled": true,
