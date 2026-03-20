@@ -289,9 +289,11 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	private initWorker(modelUrl: string, delegate: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			try {
+				// Classic worker (not module) — MediaPipe's WASM loader is
+				// incompatible with module workers (overrides self.import).
+				// Vite bundles everything into a single script for classic workers.
 				this.worker = new Worker(
 					new URL("./segmentation-worker.ts", import.meta.url),
-					{ type: "module" },
 				);
 			} catch (err) {
 				console.warn("Failed to create segmentation worker:", err);
