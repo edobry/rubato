@@ -22,20 +22,26 @@ export function detectDevice(): DeviceInfo {
 	const cores = navigator.hardwareConcurrency || 0;
 	const memory = (navigator as { deviceMemory?: number }).deviceMemory;
 
+	// Read GPU renderer string from WebGL (need it for detection)
+	const gpu = getGpuRenderer();
+
 	// Detect ARM platforms via user agent
 	const isAarch64 = ua.includes("Linux aarch64");
 	const isArmv7 = ua.includes("Linux armv7l");
 	const isArm = isAarch64 || isArmv7;
 
-	// Low core count + ARM is a strong signal for Pi or similar SBC
-	const isConstrained = isArm && cores <= 4;
+	// Detect Raspberry Pi via GPU renderer (most reliable)
+	const isBroadcom =
+		gpu.toLowerCase().includes("broadcom") || gpu.includes("V3D");
+	const isPi = isBroadcom || (isArm && cores <= 4);
+
+	// Constrained = Pi, ARM SBCs, or any device with Broadcom GPU
+	const isConstrained = isPi || cores <= 2;
 
 	let platform = "Desktop";
-	if (isAarch64) platform = "Pi (aarch64)";
-	else if (isArmv7) platform = "Pi (armv7l)";
-
-	// Read GPU renderer string from WebGL
-	const gpu = getGpuRenderer();
+	if (isPi)
+		platform = `Pi (${isBroadcom ? (gpu.match(/V3D\s*[\d.]+/)?.[0] ?? "Broadcom") : "ARM"})`;
+	else if (isArm) platform = "ARM SBC";
 
 	cached = { isConstrained, platform, cores, gpu };
 	if (memory !== undefined) cached.memory = memory;

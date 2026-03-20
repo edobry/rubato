@@ -6,6 +6,7 @@ import {
 	initCompositor,
 	resizeCompositor,
 } from "./compositor";
+import { detectDevice } from "./device";
 import { drawFog, initFog, renderFogToTexture, resizeFog } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
@@ -52,6 +53,30 @@ interface FrameData {
 }
 
 async function main(): Promise<void> {
+	// Auto-apply constrained device defaults on first visit
+	const device = detectDevice();
+	if (
+		device.isConstrained &&
+		!localStorage.getItem("rubato-device-configured")
+	) {
+		console.log(
+			`Constrained device detected (${device.platform}), applying Pi defaults`,
+		);
+		params.segmentation.model = "fast";
+		params.segmentation.frameSkip = 4;
+		params.camera.resolution = "480p";
+		params.fog.octaves = 2;
+		params.fog.renderScale = 0.5;
+		params.overlay.downsample = 2;
+		params.rendering.pipeline = "legacy";
+		localStorage.setItem("rubato-device-configured", "true");
+		localStorage.setItem("rubato-pipeline", "legacy");
+		showStatus(
+			`${device.platform} detected — optimized defaults applied`,
+			3000,
+		);
+	}
+
 	// Pipeline mode is set at page load. Switching requires reload.
 	// Falls back to legacy if compositor init fails (e.g. weak GPU).
 	let useUnified = params.rendering.pipeline === "unified";
