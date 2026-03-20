@@ -12,6 +12,13 @@ import { initGui } from "./gui";
 import { detectMotion } from "./motion";
 import { drawMaskOverlay } from "./overlay";
 import { params } from "./params";
+import {
+	drawPerfOverlay,
+	getPerfSummary,
+	perfFrameEnd,
+	perfFrameStart,
+	perfMark,
+} from "./perf";
 import { drawFrame, initCanvas, resizeCanvas } from "./renderer";
 import {
 	getSegmenterResolution,
@@ -179,16 +186,18 @@ async function main(): Promise<void> {
 	): void {
 		const { width, height } = canvas;
 
-		// Render fog field (behind everything via separate WebGL canvas)
+		// Render fog field
 		drawFog();
+		perfMark("fog", "#4488ff");
 
-		// Clear the 2D canvas — transparent so fog shows through when feed is off
+		// Clear the 2D canvas
 		ctx.clearRect(0, 0, width, height);
 
 		// Draw camera feed if enabled
 		if (params.camera.showFeed) {
 			drawFrame(ctx, video);
 		}
+		perfMark("camera", "#44ff44");
 
 		// Draw overlays
 		if (segmentationReady && params.overlay.showOverlay) {
@@ -205,13 +214,16 @@ async function main(): Promise<void> {
 				drawMaskOverlay(ctx, data.trail, maskW, maskH, width, height);
 			}
 		}
+		perfMark("overlay", "#ff8844");
 
 		fps.draw(ctx);
+		drawPerfOverlay(ctx);
 	}
 
 	function loop(): void {
 		if (!video || !ctx) return;
 
+		perfFrameStart();
 		autoTuneTick();
 
 		// Check if resolution changed via GUI (or auto-tuner)
@@ -220,6 +232,7 @@ async function main(): Promise<void> {
 		}
 
 		const data = produceFrameData();
+		perfMark("segmentation", "#ff4444");
 
 		if (useUnified && compositorCanvas) {
 			// Unified WebGL path: compositor blends fog + camera + mask + trail
@@ -249,16 +262,20 @@ async function main(): Promise<void> {
 			}
 			compositeFrame(video, fogTex, compMask, compTrail, maskW, maskH);
 
-			// DOM FPS overlay
+			perfMark("composite", "#ff8844");
+			perfFrameEnd();
+
+			// DOM FPS overlay with perf breakdown
 			const fpsVal = fps.tick();
 			if (fpsOverlay) {
-				fpsOverlay.textContent = `${fpsVal} fps`;
+				fpsOverlay.textContent = `${fpsVal} fps | ${getPerfSummary()}`;
 				fpsOverlay.style.color =
 					fpsVal >= 24 ? "#0f0" : fpsVal >= 15 ? "#ff0" : "#f00";
 			}
 		} else {
 			// Legacy Canvas 2D path
 			renderFrame(ctx, video, canvas, data, fps);
+			perfFrameEnd();
 		}
 
 		frameCount++;
