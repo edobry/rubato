@@ -1,4 +1,9 @@
-import { autoTuneState, autoTuneTick, onLogChange } from "./autotune";
+import {
+	autoTuneState,
+	autoTuneTick,
+	onLogChange,
+	resetAutoTuneFrames,
+} from "./autotune";
 import { initCamera } from "./camera";
 import {
 	compositeFrame,
@@ -52,6 +57,9 @@ async function changeResolution(resolution: string): Promise<void> {
 	currentResolution = resolution; // Update immediately to prevent re-entry
 	try {
 		video = await initCamera(resolution);
+		// Reset autotune frame collection so it doesn't evaluate the
+		// low-FPS frames captured during the resolution change stall.
+		resetAutoTuneFrames();
 		console.log(`Camera switched to ${resolution}`);
 	} catch (err) {
 		console.error("Failed to change resolution:", err);
@@ -528,5 +536,21 @@ async function main(): Promise<void> {
 		pipeline,
 	};
 }
+
+// --- Error recovery for unattended gallery operation ---
+// On unhandled errors or promise rejections, log and auto-reload after 5 seconds.
+function scheduleRecoveryReload(source: string, error: unknown): void {
+	console.error(`[rubato] Unhandled ${source}:`, error);
+	console.warn("[rubato] Auto-reloading in 5 seconds...");
+	setTimeout(() => location.reload(), 5000);
+}
+
+window.addEventListener("error", (event) => {
+	scheduleRecoveryReload("error", event.error ?? event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+	scheduleRecoveryReload("promise rejection", event.reason);
+});
 
 void main();

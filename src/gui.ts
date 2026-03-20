@@ -835,10 +835,6 @@ export async function initGui(): Promise<void> {
 
 	// Keyboard controls
 	window.addEventListener("keydown", (e) => {
-		console.log(
-			`[gui] keydown: key=${e.key}, target=${(e.target as HTMLElement)?.tagName}, activeElement=${document.activeElement?.tagName}, navItems=${navItems.length}`,
-		);
-
 		// If any interactive element inside the GUI panel has focus (e.g. after
 		// clicking a dropdown, checkbox, or slider), blur it so navigation keys
 		// are handled by our handler instead of the browser. This must happen

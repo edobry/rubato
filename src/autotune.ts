@@ -326,6 +326,17 @@ function switchConfig(
 	);
 }
 
+// --- Public API ---
+
+/** Reset frame collection and adjust time. Call after expensive async operations
+ *  (like camera resolution changes) complete, so the tuner doesn't evaluate
+ *  stale frames collected during the stall. */
+export function resetAutoTuneFrames(): void {
+	frameTimes = [];
+	lastAdjustTime = performance.now();
+	lastAdjustSettleEnd = lastAdjustTime + params.autoTune.settleTime;
+}
+
 // --- Main tick ---
 
 export function autoTuneTick(): void {
