@@ -25,6 +25,9 @@ uniform float u_colorMode;   // 0=solid, 1=rainbow, 2=gradient, 3=contour, 4=inv
 uniform float u_blur;            // blur radius (0-5)
 uniform vec2 u_maskTexelSize;    // 1.0/maskWidth, 1.0/maskHeight
 
+// Camera fill (0 = mask-only, 1 = full frame)
+uniform float u_cameraFill;
+
 // Fog interaction
 uniform float u_fogMaskStrength;   // how much silhouette parts the fog (0-1)
 uniform float u_fogTrailStrength;  // how much trails modulate fog brightness
@@ -146,9 +149,14 @@ void main() {
     // Fog interaction: trails brighten/modulate fog
     color += fog * trail * u_fogTrailStrength;
 
-    // Layer camera feed where person is detected (if enabled)
+    // Layer camera feed (if enabled).
+    // u_cameraFill controls the minimum camera visibility:
+    //   0 = camera only where person mask is detected (artistic mode)
+    //   1 = camera fills the entire frame (camera test / debug mode)
+    // Intermediate values blend between the two.
     if (u_showFeed > 0.5) {
-        color = mix(color, camera, mask * 0.8);
+        float camBlend = max(mask, u_cameraFill) * 0.8;
+        color = mix(color, camera, camBlend);
     }
 
     // Overlay tint on person (color mode aware)

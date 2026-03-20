@@ -250,6 +250,10 @@ export function compositeFrame(
 		getUniform("u_colorMode"),
 		colorModeMap[params.overlay.colorMode] ?? 0,
 	);
+	gl.uniform1f(
+		getUniform("u_cameraFill"),
+		params.camera.showFeed ? params.camera.fillAmount : 0,
+	);
 	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
 	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
 	gl.uniform1f(getUniform("u_blur"), params.overlay.blur);

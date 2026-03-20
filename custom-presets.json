@@ -128,14 +128,14 @@
 		"overlay": {
 			"showOverlay": false,
 			"visualize": "both",
-			"opacity": 0.4,
+			"opacity": 0,
 			"color": "#ffffff",
 			"colorMode": "solid",
 			"blur": 0
 		},
 		"motion": {
-			"deposition": 7.7,
-			"decay": 0.933
+			"deposition": 0,
+			"decay": 0
 		},
 		"segmentation": {
 			"confidenceThreshold": 0.55,
@@ -147,11 +147,11 @@
 			"fillAmount": 1
 		},
 		"fog": {
-			"speed": 0.21,
-			"scale": 2.5,
-			"density": 2.4,
-			"brightness": 0.05,
-			"color": "#6b6b6b"
+			"speed": 0,
+			"scale": 1,
+			"density": 0,
+			"brightness": 0,
+			"color": "#000000"
 		}
 	}
 }
