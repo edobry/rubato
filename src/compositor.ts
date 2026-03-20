@@ -24,6 +24,8 @@ let canvas: HTMLCanvasElement | null = null;
 
 // Textures (fog texture comes externally from renderFogToTexture)
 let cameraTexture: WebGLTexture | null = null;
+let quadBuffer: WebGLBuffer | null = null;
+let aPosLocation = -1;
 let maskTexture: WebGLTexture | null = null;
 let trailTexture: WebGLTexture | null = null;
 
@@ -67,12 +69,10 @@ export function initCompositor(): HTMLCanvasElement | null {
 
 	// Full-screen quad
 	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	const buf = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+	quadBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-	const aPos = gl.getAttribLocation(program, "a_position");
-	gl.enableVertexAttribArray(aPos);
-	gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+	aPosLocation = gl.getAttribLocation(program, "a_position");
 
 	// Create textures (fog texture managed externally)
 	cameraTexture = createTexture(gl);
@@ -112,9 +112,18 @@ export function compositeFrame(
 	maskW: number,
 	maskH: number,
 ): void {
-	if (!gl || !program || !canvas) return;
+	if (!gl || !program || !canvas || !quadBuffer) return;
+
+	// Unbind any FBO left from fog render pass — render to screen
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.viewport(0, 0, canvas.width, canvas.height);
 
 	gl.useProgram(program);
+
+	// Rebind our vertex buffer (fog render pass uses its own)
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+	gl.enableVertexAttribArray(aPosLocation);
+	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 
 	// Upload fog texture (from fog render pass)
 	if (fogTex) {
