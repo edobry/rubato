@@ -272,6 +272,13 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.workerBusy = false;
 		this.prevMask = null;
 		this.prevSyncResult = null;
+		// Ensure state allows new frames after reset
+		if (this.state.status === "processing" || this.state.status === "ready") {
+			this.state = { status: "ready", mode: this.state.mode };
+		}
+		console.log(
+			`[pipeline] reset: gen=${this.generation}, state=${this.state.status}`,
+		);
 	}
 
 	// -----------------------------------------------------------------------
@@ -340,7 +347,12 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.workerBusy = false;
 
 		// Discard results from before the last reset/reinit
-		if (this.workerSendGeneration !== this.generation) return;
+		if (this.workerSendGeneration !== this.generation) {
+			console.log(
+				`[pipeline] discarding stale result: sendGen=${this.workerSendGeneration}, gen=${this.generation}`,
+			);
+			return;
+		}
 
 		this.latestResult = {
 			mask: msg.mask,
