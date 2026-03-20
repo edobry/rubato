@@ -83,11 +83,11 @@ export default defineConfig({
 	},
 	server: {
 		host: true,
-		hmr: {
-			// Let the client connect to whatever hostname it used for the page.
-			// Without this, HMR tries localhost which fails on LAN clients.
-			host: "0.0.0.0",
-		},
+		// HMR disabled — WebSocket connections fail on LAN clients due to
+		// hostname/SSL mismatch, causing cascading unhandled rejections that
+		// crash Chrome. LAN clients (Mac Mini, Pi) just refresh manually.
+		// HMR works fine when accessing via localhost.
+		hmr: false,
 		headers: {
 			"Cache-Control": "no-store",
 		},
