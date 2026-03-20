@@ -132,9 +132,23 @@ export function segmentFrame(
 		console.warn("segmentForVideo threw:", err);
 	}
 
-	if (!confidenceMasks?.length) {
-		// Silent GPU failure detection: if we're in auto mode and getting
-		// no masks consistently, fall back to CPU
+	// Check for missing or all-zero masks (silent GPU failure on Pi)
+	let maskEmpty = !confidenceMasks?.length;
+	let rawData: Float32Array | null = null;
+	if (!maskEmpty) {
+		rawData = confidenceMasks![0].getAsFloat32Array();
+		// Check if mask is all zeros (GPU produced output but it's garbage)
+		let hasNonZero = false;
+		for (let i = 0; i < rawData.length; i += 100) {
+			if (rawData[i] > 0.01) {
+				hasNonZero = true;
+				break;
+			}
+		}
+		if (!hasNonZero) maskEmpty = true;
+	}
+
+	if (maskEmpty) {
 		if (
 			params.segmentation.delegate === "auto" ||
 			params.segmentation.delegate === "GPU"
@@ -142,11 +156,10 @@ export function segmentFrame(
 			gpuFailCount++;
 			if (gpuFailCount >= GPU_FAIL_THRESHOLD) {
 				console.warn(
-					`No mask output for ${GPU_FAIL_THRESHOLD} frames — GPU not working, switching to CPU`,
+					`No usable mask output for ${GPU_FAIL_THRESHOLD} frames — GPU not working, switching to CPU`,
 				);
 				params.segmentation.delegate = "CPU";
 				loadModel(params.segmentation.model, "CPU");
-				// Enable auto-tune to find optimal settings for this hardware
 				if (!params.autoTune.enabled) {
 					params.autoTune.enabled = true;
 					console.log("Auto-tune enabled to optimize for constrained hardware");
@@ -156,9 +169,8 @@ export function segmentFrame(
 		return prevResult;
 	}
 
-	gpuFailCount = 0; // Reset on success
-
-	const rawData = confidenceMasks[0].getAsFloat32Array();
+	gpuFailCount = 0;
+	const maskData = rawData!;
 	const pixelCount = video.videoWidth * video.videoHeight;
 
 	// Build the raw (thresholded but unsmoothed) mask
@@ -166,7 +178,7 @@ export function segmentFrame(
 	const threshold = params.segmentation.confidenceThreshold;
 
 	for (let i = 0; i < pixelCount; i++) {
-		rawMask[i] = rawData[i] > threshold ? rawData[i] : 0;
+		rawMask[i] = maskData[i] > threshold ? maskData[i] : 0;
 	}
 
 	// Build the smoothed mask from the raw mask
