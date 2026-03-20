@@ -254,11 +254,22 @@ function adjustSelected(direction: 1 | -1, shift: boolean): void {
 }
 
 /** Make the GUI panel draggable by its title bar. */
-function makeDraggable(guiElement: HTMLElement): void {
-	// lil-gui's root title is the first direct child with class "title"
-	const titleBar = guiElement.querySelector(
-		":scope > .title",
-	) as HTMLElement | null;
+function makeDraggable(guiInstance: GUI): void {
+	const guiElement = guiInstance.domElement;
+	// Prefer lil-gui's exposed $title property; fall back to DOM queries
+	// for resilience across browser versions.
+	const titleBar =
+		(guiInstance as unknown as { $title: HTMLElement | undefined }).$title ??
+		(guiElement.querySelector(":scope > .title") as HTMLElement | null) ??
+		(Array.from(guiElement.children).find(
+			(el) => el instanceof HTMLElement && el.classList.contains("title"),
+		) as HTMLElement | null) ??
+		((): HTMLElement | null => {
+			const el = guiElement.querySelector(".title");
+			return el instanceof HTMLElement && el.parentElement === guiElement
+				? el
+				: null;
+		})();
 	if (!titleBar) {
 		console.warn("Could not find GUI title bar for dragging");
 		return;
@@ -729,7 +740,7 @@ export async function initGui(): Promise<void> {
 		.name("Export JSON (E)");
 
 	// Make panel draggable
-	makeDraggable(gui.domElement);
+	makeDraggable(gui);
 
 	// Build flat navigation list from ALL controllers and folder headings
 	buildNavItems(gui);
