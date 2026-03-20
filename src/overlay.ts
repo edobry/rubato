@@ -209,7 +209,14 @@ export function drawMaskOverlay(
 
 	cachedOffCtx!.putImageData(imageData, 0, 0);
 
+	// Compute crop in downsampled space (divide by ds)
 	const crop = computeCrop(maskW, maskH, displayW, displayH);
+	const dsCrop = {
+		sx: crop.sx / ds,
+		sy: crop.sy / ds,
+		sw: crop.sw / ds,
+		sh: crop.sh / ds,
+	};
 	ctx.save();
 	if (mode === "invert") {
 		ctx.globalCompositeOperation = "difference";
@@ -218,10 +225,10 @@ export function drawMaskOverlay(
 	ctx.scale(-1, 1);
 	ctx.drawImage(
 		cachedOffscreen!,
-		crop.sx,
-		crop.sy,
-		crop.sw,
-		crop.sh,
+		dsCrop.sx,
+		dsCrop.sy,
+		dsCrop.sw,
+		dsCrop.sh,
 		0,
 		0,
 		displayW,
