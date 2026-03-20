@@ -19,6 +19,7 @@ const SAMPLE_WINDOW = 30; // Reduced from 60 for faster initial convergence
 const RESOLUTION_LADDER = ["720p", "480p", "360p"];
 const MODEL_LADDER = ["quality", "fast"];
 const DOWNSAMPLE_LADDER = [1, 2, 4];
+const FOG_FRAMESKIP_LADDER = [1, 2, 3, 5];
 const MAX_FRAME_SKIP = 15;
 const MIN_SAMPLES_FOR_TRUST = 3;
 
@@ -29,6 +30,7 @@ interface Config {
 	model: string;
 	resolution: string;
 	downsample: number;
+	fogFrameSkip: number;
 }
 
 interface ConfigRecord {
@@ -39,19 +41,28 @@ interface ConfigRecord {
 
 /**
  * Build the ordered list of configs from highest quality (index 0) to lowest.
- * Degradation order: resolution → downsample → frame skip → model (last resort).
+ * Degradation order: resolution → downsample → fogFrameSkip → frame skip → model (last resort).
  *
  * Model is outermost because model changes require worker re-initialization
- * which is expensive (~2-3s). We exhaust all res/downsample/skip combos
- * before switching models.
+ * which is expensive (~2-3s). We exhaust all res/downsample/fogSkip/skip combos
+ * before switching models. Fog frame skip is tried before segmentation frame skip
+ * because it's GPU-side and nearly invisible (fog changes slowly).
  */
 function buildConfigLadder(): Config[] {
 	const configs: Config[] = [];
 	for (const model of MODEL_LADDER) {
 		for (let frameSkip = 1; frameSkip <= MAX_FRAME_SKIP; frameSkip++) {
-			for (const downsample of DOWNSAMPLE_LADDER) {
-				for (const resolution of RESOLUTION_LADDER) {
-					configs.push({ frameSkip, model, resolution, downsample });
+			for (const fogFrameSkip of FOG_FRAMESKIP_LADDER) {
+				for (const downsample of DOWNSAMPLE_LADDER) {
+					for (const resolution of RESOLUTION_LADDER) {
+						configs.push({
+							frameSkip,
+							model,
+							resolution,
+							downsample,
+							fogFrameSkip,
+						});
+					}
 				}
 			}
 		}
@@ -62,7 +73,7 @@ function buildConfigLadder(): Config[] {
 const CONFIG_LADDER = buildConfigLadder();
 
 function configKey(c: Config): string {
-	return `${c.resolution}/${c.model}/ds${c.downsample}/skip${c.frameSkip}`;
+	return `${c.resolution}/${c.model}/ds${c.downsample}/fogskip${c.fogFrameSkip}/skip${c.frameSkip}`;
 }
 
 function configsEqual(a: Config, b: Config): boolean {
@@ -70,7 +81,8 @@ function configsEqual(a: Config, b: Config): boolean {
 		a.frameSkip === b.frameSkip &&
 		a.model === b.model &&
 		a.resolution === b.resolution &&
-		a.downsample === b.downsample
+		a.downsample === b.downsample &&
+		a.fogFrameSkip === b.fogFrameSkip
 	);
 }
 
@@ -161,6 +173,7 @@ function getCurrentConfig(): Config {
 		model: params.segmentation.model,
 		resolution: params.camera.resolution,
 		downsample: params.overlay.downsample,
+		fogFrameSkip: params.fog.frameSkip,
 	};
 }
 
@@ -169,6 +182,7 @@ function applyConfig(c: Config): void {
 	params.segmentation.model = c.model;
 	params.camera.resolution = c.resolution;
 	params.overlay.downsample = c.downsample;
+	params.fog.frameSkip = c.fogFrameSkip;
 }
 
 function recordFps(config: Config, fps: number): void {
