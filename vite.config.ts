@@ -83,11 +83,13 @@ export default defineConfig({
 	},
 	server: {
 		host: true,
-		// HMR disabled — WebSocket connections fail on LAN clients due to
-		// hostname/SSL mismatch, causing cascading unhandled rejections that
-		// crash Chrome. LAN clients (Mac Mini, Pi) just refresh manually.
-		// HMR works fine when accessing via localhost.
-		hmr: false,
+		hmr: {
+			// Use the Tailscale hostname so LAN/tailnet clients can connect
+			// to the HMR WebSocket via the same resolvable name.
+			host: "linkslate",
+			protocol: "wss",
+			clientPort: 5173,
+		},
 		headers: {
 			"Cache-Control": "no-store",
 		},
