@@ -132,12 +132,20 @@ export function segmentFrame(
 		console.warn("segmentForVideo threw:", err);
 	}
 
-	// Check for missing or all-zero masks (silent GPU failure on Pi)
-	let maskEmpty = !confidenceMasks?.length;
+	// Check for missing masks
 	let rawData: Float32Array | null = null;
-	if (!maskEmpty) {
+	const hasMasks = confidenceMasks && confidenceMasks.length > 0;
+	if (hasMasks) {
 		rawData = confidenceMasks![0].getAsFloat32Array();
-		// Check if mask is all zeros (GPU produced output but it's garbage)
+	}
+
+	// Silent GPU failure detection: only check during probe period (first 30 frames)
+	// After that, assume GPU is working — all-zero masks just mean no person in frame
+	const inProbePeriod =
+		gpuFailCount >= 0 && gpuFailCount < GPU_FAIL_THRESHOLD + 20;
+	let maskFailed = !hasMasks;
+	if (!maskFailed && inProbePeriod && rawData) {
+		// During probe: check if mask is all zeros (GPU garbage)
 		let hasNonZero = false;
 		for (let i = 0; i < rawData.length; i += 100) {
 			if (rawData[i] > 0.01) {
@@ -145,10 +153,10 @@ export function segmentFrame(
 				break;
 			}
 		}
-		if (!hasNonZero) maskEmpty = true;
+		if (!hasNonZero) maskFailed = true;
 	}
 
-	if (maskEmpty) {
+	if (maskFailed) {
 		if (
 			params.segmentation.delegate === "auto" ||
 			params.segmentation.delegate === "GPU"
@@ -169,7 +177,7 @@ export function segmentFrame(
 		return prevResult;
 	}
 
-	gpuFailCount = 0;
+	gpuFailCount = -1; // Mark probe complete — GPU is confirmed working
 	const maskData = rawData!;
 	const pixelCount = video.videoWidth * video.videoHeight;
 
