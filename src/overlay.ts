@@ -3,8 +3,8 @@
  * Draws segmentation masks as semi-transparent colored overlays on the 2D canvas.
  */
 
+import { computeMaskCrop, maskToRender } from "./coords";
 import { params } from "./params";
-import { computeCrop } from "./renderer";
 
 // Cached per-frame allocations to avoid GC pressure on constrained hardware
 let cachedImageData: ImageData | null = null;
@@ -241,22 +241,17 @@ export function drawMaskOverlay(
 
 	cachedOffCtx!.putImageData(imageData, 0, 0);
 
-	// Compute crop in downsampled space (divide by ds).
-	// Floor sx/sy and ceil sw/sh so the source rect is pixel-aligned and fully
-	// covers the visible region.  Clamp to the OffscreenCanvas bounds so a
-	// downsample change never produces an out-of-range or fractional source rect
-	// (which would cause a visible position jump on the transition frame).
-	const crop = computeCrop(maskW, maskH, displayW, displayH);
-	const rawSx = crop.sx / ds;
-	const rawSy = crop.sy / ds;
-	const rawSw = crop.sw / ds;
-	const rawSh = crop.sh / ds;
-	const dsCrop = {
-		sx: Math.max(0, Math.floor(rawSx)),
-		sy: Math.max(0, Math.floor(rawSy)),
-		sw: Math.min(renderW - Math.max(0, Math.floor(rawSx)), Math.ceil(rawSw)),
-		sh: Math.min(renderH - Math.max(0, Math.floor(rawSy)), Math.ceil(rawSh)),
-	};
+	// Compute crop using typed coordinate system
+	const maskCrop = computeMaskCrop(
+		{ width: maskW, height: maskH },
+		{ width: displayW, height: displayH },
+		params.camera.fillAmount,
+	);
+	const renderCrop = maskToRender(maskCrop, ds, {
+		width: renderW,
+		height: renderH,
+	});
+
 	ctx.save();
 	if (mode === "invert") {
 		ctx.globalCompositeOperation = "difference";
@@ -265,10 +260,10 @@ export function drawMaskOverlay(
 	ctx.scale(-1, 1);
 	ctx.drawImage(
 		cachedOffscreen!,
-		dsCrop.sx,
-		dsCrop.sy,
-		dsCrop.sw,
-		dsCrop.sh,
+		renderCrop.x,
+		renderCrop.y,
+		renderCrop.w,
+		renderCrop.h,
 		0,
 		0,
 		displayW,
