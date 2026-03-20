@@ -77,6 +77,10 @@ function presetSyncPlugin(): Plugin {
 }
 
 export default defineConfig({
+	worker: {
+		format: "es",
+		plugins: () => [glsl()],
+	},
 	plugins: [
 		basicSsl(),
 		glsl(),
