@@ -6,6 +6,7 @@
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
 import { params, SEGMENTATION_MODELS } from "./params";
+import { hideStatus, showStatus } from "./status";
 
 let segmenter: ImageSegmenter | null = null;
 let prevMask: Float32Array | null = null;
@@ -162,10 +163,15 @@ export function segmentFrame(
 			params.segmentation.delegate === "GPU"
 		) {
 			gpuFailCount++;
+			// Show probe status while probing
+			if (gpuFailCount > 0 && gpuFailCount < GPU_FAIL_THRESHOLD) {
+				showStatus("Probing GPU... step in front of camera", 0, true);
+			}
 			if (gpuFailCount >= GPU_FAIL_THRESHOLD) {
 				console.warn(
 					`No usable mask output for ${GPU_FAIL_THRESHOLD} frames — GPU not working, switching to CPU`,
 				);
+				showStatus("GPU unavailable — switched to CPU", 3000);
 				params.segmentation.delegate = "CPU";
 				loadModel(params.segmentation.model, "CPU");
 				if (!params.autoTune.enabled) {
@@ -177,6 +183,11 @@ export function segmentFrame(
 		return prevResult;
 	}
 
+	if (gpuFailCount >= 0) {
+		// Probe just succeeded — hide the probe status after a short delay
+		hideStatus();
+		setTimeout(() => showStatus("Ready", 2000), 200);
+	}
 	gpuFailCount = -1; // Mark probe complete — GPU is confirmed working
 	const maskData = rawData!;
 	const pixelCount = video.videoWidth * video.videoHeight;

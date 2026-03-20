@@ -1,4 +1,4 @@
-import { autoTuneTick } from "./autotune";
+import { autoTuneTick, onLogChange } from "./autotune";
 import { initCamera } from "./camera";
 import {
 	compositeFrame,
@@ -18,6 +18,7 @@ import {
 	initSegmentation,
 	segmentFrame,
 } from "./segmentation";
+import { showStatus } from "./status";
 
 // Exposed so GUI can trigger camera re-acquisition
 let video: HTMLVideoElement | null = null;
@@ -102,8 +103,10 @@ async function main(): Promise<void> {
 
 	const fps = new FpsCounter();
 
+	showStatus("Initializing camera...");
 	try {
 		video = await initCamera(params.camera.resolution);
+		showStatus("Camera ready");
 	} catch (err) {
 		console.error("Camera unavailable:", err);
 		ctx.fillStyle = "#000";
@@ -117,14 +120,27 @@ async function main(): Promise<void> {
 
 	// Initialize segmentation — non-blocking, render loop starts immediately
 	let segmentationReady = false;
+	showStatus("Loading segmentation model...");
 	initSegmentation()
 		.then(() => {
 			segmentationReady = true;
 			console.log("segmentation ready");
+			showStatus("Segmentation ready — stand in front of camera", 3000);
 		})
 		.catch((err) => {
 			console.error("Segmentation failed to load:", err);
+			showStatus("Segmentation failed to load", 5000);
 		});
+
+	// Show autotune actions as brief status notifications
+	onLogChange((log) => {
+		if (log.length > 0) {
+			const latest = log[log.length - 1];
+			// Strip the timestamp prefix (e.g. "12:34:56 PM ...")
+			const msg = latest.replace(/^\S+\s+(AM|PM)?\s*/, "");
+			showStatus(`autotune: ${msg}`, 3000);
+		}
+	});
 
 	let frameCount = 0;
 	let lastMask: Float32Array | null = null;
