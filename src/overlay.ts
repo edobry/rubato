@@ -241,13 +241,21 @@ export function drawMaskOverlay(
 
 	cachedOffCtx!.putImageData(imageData, 0, 0);
 
-	// Compute crop in downsampled space (divide by ds)
+	// Compute crop in downsampled space (divide by ds).
+	// Floor sx/sy and ceil sw/sh so the source rect is pixel-aligned and fully
+	// covers the visible region.  Clamp to the OffscreenCanvas bounds so a
+	// downsample change never produces an out-of-range or fractional source rect
+	// (which would cause a visible position jump on the transition frame).
 	const crop = computeCrop(maskW, maskH, displayW, displayH);
+	const rawSx = crop.sx / ds;
+	const rawSy = crop.sy / ds;
+	const rawSw = crop.sw / ds;
+	const rawSh = crop.sh / ds;
 	const dsCrop = {
-		sx: crop.sx / ds,
-		sy: crop.sy / ds,
-		sw: crop.sw / ds,
-		sh: crop.sh / ds,
+		sx: Math.max(0, Math.floor(rawSx)),
+		sy: Math.max(0, Math.floor(rawSy)),
+		sw: Math.min(renderW - Math.max(0, Math.floor(rawSx)), Math.ceil(rawSw)),
+		sh: Math.min(renderH - Math.max(0, Math.floor(rawSy)), Math.ceil(rawSh)),
 	};
 	ctx.save();
 	if (mode === "invert") {
