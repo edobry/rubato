@@ -114,6 +114,10 @@ function updateHighlight(): void {
 		el.style.backgroundColor =
 			i === selectedIndex ? "rgba(0, 255, 255, 0.08)" : "";
 	}
+	const selectedEl = navItems[selectedIndex]?.element;
+	if (selectedEl) {
+		selectedEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+	}
 }
 
 /** Check if a nav item is currently visible (not inside a collapsed folder). */
