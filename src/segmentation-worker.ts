@@ -7,10 +7,20 @@
 
 // Polyfill: MediaPipe's WASM loader references self.import() which doesn't
 // exist as a global property in workers. Bridge it to the ES dynamic import().
+// Polyfill: MediaPipe's WASM loader calls self.import() to load vision_wasm_internal.js.
+// This file is UMD/CJS (sets globals as side effects), not ESM. Using dynamic import()
+// would treat it as ESM and miss the global ModuleFactory. Instead, fetch + eval to
+// preserve the global scope side effects that MediaPipe expects.
 // biome-ignore lint/suspicious/noExplicitAny: polyfill on global scope
-(self as any).import ??= (url: string) => {
+(self as any).import ??= async (url: string) => {
 	console.log("[worker] self.import polyfill called with:", url);
-	return import(/* @vite-ignore */ url);
+	const resp = await fetch(url);
+	if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+	const code = await resp.text();
+	// biome-ignore lint/security/noGlobalEval: required to load UMD module in worker
+	(0, eval)(code);
+	// Return empty module — the script sets globals as side effects
+	return {};
 };
 
 import type { ImageSegmenter as ImageSegmenterType } from "@mediapipe/tasks-vision";
