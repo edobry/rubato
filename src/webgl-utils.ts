@@ -78,6 +78,12 @@ export function createFramebuffer(
  * Uses LUMINANCE + FLOAT if OES_texture_float is available, otherwise
  * falls back to packing floats into RGBA8 (each float encoded across 4 bytes).
  */
+/**
+ * Upload a Float32Array as a single-channel texture.
+ * Values should be 0-1. Uses LUMINANCE+FLOAT if available,
+ * otherwise packs into LUMINANCE+UNSIGNED_BYTE (8-bit precision, sufficient for masks).
+ * NOTE: caller must bind the correct texture unit first. Texture stays bound after call.
+ */
 export function uploadFloatTexture(
 	gl: WebGLRenderingContext,
 	texture: WebGLTexture,
@@ -101,29 +107,30 @@ export function uploadFloatTexture(
 			data,
 		);
 	} else {
-		// Fallback: pack each float into an RGBA8 pixel (IEEE 754 bytes).
-		const packed = new Uint8Array(data.length * 4);
-		const view = new DataView(packed.buffer);
+		// Fallback: pack 0-1 floats into LUMINANCE 8-bit
+		const packed = new Uint8Array(data.length);
 		for (let i = 0; i < data.length; i++) {
-			view.setFloat32(i * 4, data[i], true);
+			packed[i] = Math.round(Math.min(1, Math.max(0, data[i])) * 255);
 		}
 		gl.texImage2D(
 			gl.TEXTURE_2D,
 			0,
-			gl.RGBA,
+			gl.LUMINANCE,
 			width,
 			height,
 			0,
-			gl.RGBA,
+			gl.LUMINANCE,
 			gl.UNSIGNED_BYTE,
 			packed,
 		);
 	}
-
-	gl.bindTexture(gl.TEXTURE_2D, null);
+	// Texture stays bound for the caller to use
 }
 
-/** Upload a video element as a texture via texImage2D. */
+/**
+ * Upload a video element as a texture via texImage2D.
+ * NOTE: caller must bind the correct texture unit first. Texture stays bound after call.
+ */
 export function uploadVideoTexture(
 	gl: WebGLRenderingContext,
 	texture: WebGLTexture,
@@ -131,5 +138,5 @@ export function uploadVideoTexture(
 ): void {
 	gl.bindTexture(gl.TEXTURE_2D, texture);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-	gl.bindTexture(gl.TEXTURE_2D, null);
+	// Texture stays bound for the caller to use
 }

@@ -125,29 +125,30 @@ export function compositeFrame(
 	gl.enableVertexAttribArray(aPosLocation);
 	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 
-	// Upload fog texture (from fog render pass)
+	// Bind fog texture (rendered by fog pass into FBO on same GL context)
+	gl.activeTexture(gl.TEXTURE0);
 	if (fogTex) {
-		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, fogTex);
 	}
 
-	// Upload camera frame
+	// Upload camera frame as texture
 	gl.activeTexture(gl.TEXTURE1);
-	gl.bindTexture(gl.TEXTURE_2D, cameraTexture!);
 	uploadVideoTexture(gl, cameraTexture!, video);
 
-	// Upload mask
+	// Upload mask as luminance texture
+	gl.activeTexture(gl.TEXTURE2);
 	if (mask && maskW > 0 && maskH > 0) {
-		gl.activeTexture(gl.TEXTURE2);
-		gl.bindTexture(gl.TEXTURE_2D, maskTexture!);
 		uploadFloatTexture(gl, maskTexture!, mask, maskW, maskH);
+	} else {
+		gl.bindTexture(gl.TEXTURE_2D, maskTexture!);
 	}
 
-	// Upload trail
+	// Upload trail as luminance texture
+	gl.activeTexture(gl.TEXTURE3);
 	if (trail && maskW > 0 && maskH > 0) {
-		gl.activeTexture(gl.TEXTURE3);
-		gl.bindTexture(gl.TEXTURE_2D, trailTexture!);
 		uploadFloatTexture(gl, trailTexture!, trail, maskW, maskH);
+	} else {
+		gl.bindTexture(gl.TEXTURE_2D, trailTexture!);
 	}
 
 	// Set uniforms
