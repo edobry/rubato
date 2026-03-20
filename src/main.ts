@@ -77,10 +77,8 @@ async function main(): Promise<void> {
 		);
 	}
 
-	// Enforce performance floors on constrained devices (even after preset load)
+	// Enforce performance floors on constrained devices (perf params only)
 	if (device.isConstrained) {
-		if (params.fog.octaves > 3) params.fog.octaves = 2;
-		if (params.fog.renderScale > 0.5) params.fog.renderScale = 0.5;
 		if (params.overlay.downsample < 2) params.overlay.downsample = 2;
 	}
 
