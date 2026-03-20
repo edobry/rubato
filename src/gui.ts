@@ -15,8 +15,10 @@
 
 import type { Controller } from "lil-gui";
 import GUI from "lil-gui";
-import { onLogChange } from "./autotune";
+import { autoTuneState, onLogChange } from "./autotune";
+import { detectDevice } from "./device";
 import { onParamChange, params } from "./params";
+import { getPerfSummary } from "./perf";
 import {
 	applyPreset,
 	type CreativePreset,
@@ -724,6 +726,85 @@ export async function initGui(): Promise<void> {
 	});
 
 	tune.open();
+
+	// Copy Debug Info button
+	performance
+		.add(
+			{
+				copyDebugInfo() {
+					const device = detectDevice();
+					const perf = getPerfSummary();
+					const lines: string[] = [];
+
+					lines.push("=== rubato debug info ===");
+					lines.push("");
+
+					// Device
+					lines.push("-- Device --");
+					lines.push(`Platform: ${device.platform}`);
+					lines.push(`Constrained: ${device.isConstrained}`);
+					lines.push(`Cores: ${device.cores}`);
+					lines.push(`GPU: ${device.gpu}`);
+					if (device.memory !== undefined)
+						lines.push(`Memory: ${device.memory} GB`);
+					lines.push("");
+
+					// Pipeline & segmentation
+					lines.push("-- Pipeline --");
+					lines.push(`Mode: ${params.rendering.pipeline}`);
+					lines.push(`Seg model: ${params.segmentation.model}`);
+					lines.push(`Seg delegate: ${params.segmentation.delegate}`);
+					lines.push(`Resolution: ${params.camera.resolution}`);
+					lines.push(`Frame skip: ${params.segmentation.frameSkip}`);
+					lines.push("");
+
+					// FPS & performance
+					lines.push("-- Performance --");
+					lines.push(`FPS: ${autoTuneState.fps}`);
+					lines.push(`Perf breakdown: ${perf || "n/a"}`);
+					lines.push("");
+
+					// Autotune
+					lines.push("-- Auto-Tune --");
+					lines.push(`Enabled: ${params.autoTune.enabled}`);
+					lines.push(`Target FPS: ${params.autoTune.targetFps}`);
+					lines.push(`Status: ${autoTuneState.status}`);
+					lines.push(`Last action: ${autoTuneState.lastAction || "none"}`);
+					lines.push(`Adjustments: ${autoTuneState.adjustCount}`);
+					if (autoTuneState.log.length > 0) {
+						lines.push("Log:");
+						for (const entry of autoTuneState.log) {
+							lines.push(`  ${entry}`);
+						}
+					}
+					lines.push("");
+
+					// Params snapshot
+					lines.push("-- Params --");
+					lines.push(JSON.stringify(params, null, 2));
+					lines.push("");
+
+					// localStorage values
+					lines.push("-- localStorage --");
+					for (const key of [
+						"rubato-gpu-failed",
+						"rubato-pipeline",
+						"rubato-last-preset",
+					]) {
+						lines.push(`${key}: ${localStorage.getItem(key) ?? "(not set)"}`);
+					}
+
+					const text = lines.join("\n");
+					navigator.clipboard.writeText(text).then(
+						() => console.log("Debug info copied to clipboard"),
+						() => console.warn("Clipboard write failed"),
+					);
+				},
+			},
+			"copyDebugInfo",
+		)
+		.name("Copy Debug Info");
+
 	performance.open();
 
 	// Export button
