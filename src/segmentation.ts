@@ -42,18 +42,25 @@ async function createSegmenter(
 		return ImageSegmenter.createFromOptions(vision, options);
 	}
 
-	// "auto": try GPU, fall back to CPU
+	// "auto": check if we previously failed GPU on this device
+	const gpuFailed = localStorage.getItem("rubato-gpu-failed") === "true";
+	if (gpuFailed) {
+		console.log("Skipping GPU probe (previously failed on this device)");
+		options.baseOptions.delegate = "CPU";
+		const seg = await ImageSegmenter.createFromOptions(vision, options);
+		console.log("Segmentation using CPU delegate (cached)");
+		return seg;
+	}
+
+	// Try GPU, fall back to CPU
 	try {
 		options.baseOptions.delegate = "GPU";
 		const seg = await ImageSegmenter.createFromOptions(vision, options);
-
-		// GPU creation can "succeed" but produce no output on weak GPUs.
-		// We can't easily test that here, so we also check in segmentFrame
-		// and re-init with CPU if we get no masks.
 		console.log("Segmentation using GPU delegate");
 		return seg;
 	} catch {
 		console.warn("GPU delegate failed, falling back to CPU");
+		localStorage.setItem("rubato-gpu-failed", "true");
 		options.baseOptions.delegate = "CPU";
 		const seg = await ImageSegmenter.createFromOptions(vision, options);
 		console.log("Segmentation using CPU delegate");
@@ -172,6 +179,7 @@ export function segmentFrame(
 					`No usable mask output for ${GPU_FAIL_THRESHOLD} frames — GPU not working, switching to CPU`,
 				);
 				showStatus("GPU unavailable — switched to CPU", 3000);
+				localStorage.setItem("rubato-gpu-failed", "true");
 				params.segmentation.delegate = "CPU";
 				loadModel(params.segmentation.model, "CPU");
 				if (!params.autoTune.enabled) {
