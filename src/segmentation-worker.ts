@@ -8,7 +8,7 @@
  *   new Worker(new URL('./segmentation-worker.ts', import.meta.url), { type: 'module' })
  */
 
-import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
+import type { ImageSegmenter as ImageSegmenterType } from "@mediapipe/tasks-vision";
 import type {
 	WorkerErrorMessage,
 	WorkerInboundMessage,
@@ -16,7 +16,7 @@ import type {
 	WorkerResultMessage,
 } from "./worker-types";
 
-let segmenter: ImageSegmenter | null = null;
+let segmenter: ImageSegmenterType | null = null;
 
 /**
  * Post a typed message back to the main thread.
@@ -43,6 +43,9 @@ async function handleInit(
 	wasmPath: string,
 	delegate: "GPU" | "CPU",
 ): Promise<void> {
+	const { FilesetResolver, ImageSegmenter } = await import(
+		"@mediapipe/tasks-vision"
+	);
 	const vision = await FilesetResolver.forVisionTasks(wasmPath);
 
 	segmenter = await ImageSegmenter.createFromOptions(vision, {
@@ -75,7 +78,7 @@ function handleFrame(
 
 	const t0 = performance.now();
 
-	let result: ReturnType<ImageSegmenter["segmentForVideo"]>;
+	let result: ReturnType<ImageSegmenterType["segmentForVideo"]>;
 	try {
 		result = segmenter.segmentForVideo(bitmap, timestamp);
 	} catch (err) {
