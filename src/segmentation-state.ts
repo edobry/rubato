@@ -338,7 +338,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			const initMsg: WorkerInMessage = {
 				type: "init",
 				modelUrl,
-				wasmPath: "/mediapipe/wasm",
+				wasmPath: `${location.origin}/mediapipe/wasm`,
 				delegate: resolvedDelegate,
 			};
 			this.worker.postMessage(initMsg);
