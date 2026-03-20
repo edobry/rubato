@@ -834,16 +834,15 @@ export async function initGui(): Promise<void> {
 
 	// Keyboard controls
 	window.addEventListener("keydown", (e) => {
-		// Don't intercept if user is typing in an input
-		if (
-			e.target instanceof HTMLInputElement ||
-			e.target instanceof HTMLTextAreaElement
-		)
-			return;
+		console.log(
+			`[gui] keydown: key=${e.key}, target=${(e.target as HTMLElement)?.tagName}, activeElement=${document.activeElement?.tagName}, navItems=${navItems.length}`,
+		);
 
 		// If any interactive element inside the GUI panel has focus (e.g. after
 		// clicking a dropdown, checkbox, or slider), blur it so navigation keys
-		// are handled by our handler instead of the browser.
+		// are handled by our handler instead of the browser. This must happen
+		// *before* the input-element early-return below, otherwise the blur
+		// never fires and the early-return keeps swallowing arrow keys.
 		if (
 			gui &&
 			document.activeElement instanceof HTMLElement &&
@@ -851,6 +850,15 @@ export async function initGui(): Promise<void> {
 		) {
 			document.activeElement.blur();
 		}
+
+		// Don't intercept if user is typing in an input that is *not* part of
+		// the GUI panel (e.g. a separate text field on the page).
+		if (
+			(e.target instanceof HTMLInputElement ||
+				e.target instanceof HTMLTextAreaElement) &&
+			!gui?.domElement.contains(e.target)
+		)
+			return;
 
 		switch (e.key) {
 			case "g":
