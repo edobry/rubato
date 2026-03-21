@@ -5,7 +5,12 @@ import type {
 	ParamUpdateMessage,
 	PresetCommandMessage,
 	PresetListMessage,
+	RtcAnswerMessage,
+	RtcIceCandidateMessage,
+	RtcOfferMessage,
 	StateMessage,
+	StreamRequestMessage,
+	StreamStopMessage,
 	WsMessage,
 } from "./protocol.js";
 
@@ -16,6 +21,11 @@ type ParamStateHandler = (msg: ParamStateMessage) => void;
 type RequestStateHandler = () => void;
 type PresetListHandler = (msg: PresetListMessage) => void;
 type PresetCommandHandler = (msg: PresetCommandMessage) => void;
+type StreamRequestHandler = (msg: StreamRequestMessage) => void;
+type StreamStopHandler = (msg: StreamStopMessage) => void;
+type RtcOfferHandler = (msg: RtcOfferMessage) => void;
+type RtcAnswerHandler = (msg: RtcAnswerMessage) => void;
+type RtcIceCandidateHandler = (msg: RtcIceCandidateMessage) => void;
 type ConnectionHandler = (connected: boolean) => void;
 
 const MAX_RECONNECT_DELAY = 10_000;
@@ -25,6 +35,9 @@ export class WsClient {
 	private readonly role: ClientRole;
 	private readonly url: string;
 
+	/** Unique ID for admin clients, used for targeted WebRTC signaling */
+	readonly adminId: string | undefined;
+
 	private commandHandlers: CommandHandler[] = [];
 	private stateHandlers: StateHandler[] = [];
 	private paramUpdateHandlers: ParamUpdateHandler[] = [];
@@ -32,6 +45,11 @@ export class WsClient {
 	private requestStateHandlers: RequestStateHandler[] = [];
 	private presetListHandlers: PresetListHandler[] = [];
 	private presetCommandHandlers: PresetCommandHandler[] = [];
+	private streamRequestHandlers: StreamRequestHandler[] = [];
+	private streamStopHandlers: StreamStopHandler[] = [];
+	private rtcOfferHandlers: RtcOfferHandler[] = [];
+	private rtcAnswerHandlers: RtcAnswerHandler[] = [];
+	private rtcIceCandidateHandlers: RtcIceCandidateHandler[] = [];
 	private connectionHandlers: ConnectionHandler[] = [];
 
 	private reconnectDelay = 1000;
@@ -45,6 +63,9 @@ export class WsClient {
 
 	constructor(role: ClientRole) {
 		this.role = role;
+		if (role === "admin") {
+			this.adminId = crypto.randomUUID();
+		}
 		const proto = location.protocol === "https:" ? "wss:" : "ws:";
 		this.url = `${proto}//${location.host}/ws`;
 		this.connect();
@@ -83,6 +104,31 @@ export class WsClient {
 	/** Register handler for preset command messages (used by piece). */
 	onPresetCommand(handler: PresetCommandHandler): void {
 		this.presetCommandHandlers.push(handler);
+	}
+
+	/** Register handler for stream request messages (used by piece). */
+	onStreamRequest(handler: StreamRequestHandler): void {
+		this.streamRequestHandlers.push(handler);
+	}
+
+	/** Register handler for stream stop messages (used by piece). */
+	onStreamStop(handler: StreamStopHandler): void {
+		this.streamStopHandlers.push(handler);
+	}
+
+	/** Register handler for RTC offer messages (used by admin). */
+	onRtcOffer(handler: RtcOfferHandler): void {
+		this.rtcOfferHandlers.push(handler);
+	}
+
+	/** Register handler for RTC answer messages (used by piece). */
+	onRtcAnswer(handler: RtcAnswerHandler): void {
+		this.rtcAnswerHandlers.push(handler);
+	}
+
+	/** Register handler for RTC ICE candidate messages (used by both). */
+	onRtcIceCandidate(handler: RtcIceCandidateHandler): void {
+		this.rtcIceCandidateHandlers.push(handler);
 	}
 
 	/** Register a handler for connection status changes. */
@@ -141,6 +187,33 @@ export class WsClient {
 		this.send({ type: "presetCommand", action, name });
 	}
 
+	/** Request the piece to start streaming via WebRTC (used by admin). */
+	sendStreamRequest(): void {
+		if (!this.adminId) return;
+		this.send({ type: "streamRequest", adminId: this.adminId });
+	}
+
+	/** Tell the piece to stop streaming (used by admin). */
+	sendStreamStop(): void {
+		if (!this.adminId) return;
+		this.send({ type: "streamStop", adminId: this.adminId });
+	}
+
+	/** Send a WebRTC offer to a specific admin (used by piece). */
+	sendRtcOffer(adminId: string, offer: RTCSessionDescriptionInit): void {
+		this.send({ type: "rtcOffer", adminId, offer });
+	}
+
+	/** Send a WebRTC answer to the piece (used by admin). */
+	sendRtcAnswer(adminId: string, answer: RTCSessionDescriptionInit): void {
+		this.send({ type: "rtcAnswer", adminId, answer });
+	}
+
+	/** Send an ICE candidate to the other peer (used by both). */
+	sendRtcIceCandidate(adminId: string, candidate: RTCIceCandidateInit): void {
+		this.send({ type: "rtcIceCandidate", adminId, candidate });
+	}
+
 	/** Tear down the client and stop reconnecting. */
 	destroy(): void {
 		this.destroyed = true;
@@ -166,7 +239,15 @@ export class WsClient {
 			this.setConnected(true);
 
 			// Register our role with the server
-			this.send({ type: "register", role: this.role });
+			if (this.role === "admin" && this.adminId) {
+				this.send({
+					type: "register",
+					role: this.role,
+					adminId: this.adminId,
+				});
+			} else {
+				this.send({ type: "register", role: this.role });
+			}
 		});
 
 		ws.addEventListener("message", (ev) => {
@@ -189,6 +270,16 @@ export class WsClient {
 					for (const h of this.presetListHandlers) h(msg);
 				} else if (msg.type === "presetCommand") {
 					for (const h of this.presetCommandHandlers) h(msg);
+				} else if (msg.type === "streamRequest") {
+					for (const h of this.streamRequestHandlers) h(msg);
+				} else if (msg.type === "streamStop") {
+					for (const h of this.streamStopHandlers) h(msg);
+				} else if (msg.type === "rtcOffer") {
+					for (const h of this.rtcOfferHandlers) h(msg);
+				} else if (msg.type === "rtcAnswer") {
+					for (const h of this.rtcAnswerHandlers) h(msg);
+				} else if (msg.type === "rtcIceCandidate") {
+					for (const h of this.rtcIceCandidateHandlers) h(msg);
 				}
 			} catch {
 				// Ignore malformed messages

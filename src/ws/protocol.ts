@@ -5,6 +5,8 @@ export type ClientRole = "piece" | "admin";
 export interface RegisterMessage {
 	type: "register";
 	role: ClientRole;
+	/** Unique ID for admin clients, used for targeted WebRTC signaling */
+	adminId?: string;
 }
 
 /** Commands from admin → piece */
@@ -57,6 +59,40 @@ export interface PresetCommandMessage {
 	name: string;
 }
 
+/** Admin requests the piece to start streaming via WebRTC */
+export interface StreamRequestMessage {
+	type: "streamRequest";
+	/** Unique ID for this admin's stream session */
+	adminId: string;
+}
+
+/** Admin tells piece to stop streaming */
+export interface StreamStopMessage {
+	type: "streamStop";
+	adminId: string;
+}
+
+/** WebRTC offer from piece → specific admin */
+export interface RtcOfferMessage {
+	type: "rtcOffer";
+	adminId: string;
+	offer: RTCSessionDescriptionInit;
+}
+
+/** WebRTC answer from admin → piece */
+export interface RtcAnswerMessage {
+	type: "rtcAnswer";
+	adminId: string;
+	answer: RTCSessionDescriptionInit;
+}
+
+/** ICE candidate exchange (bidirectional) */
+export interface RtcIceCandidateMessage {
+	type: "rtcIceCandidate";
+	adminId: string;
+	candidate: RTCIceCandidateInit;
+}
+
 /** All possible messages */
 export type WsMessage =
 	| RegisterMessage
@@ -66,4 +102,9 @@ export type WsMessage =
 	| ParamStateMessage
 	| RequestStateMessage
 	| PresetListMessage
-	| PresetCommandMessage;
+	| PresetCommandMessage
+	| StreamRequestMessage
+	| StreamStopMessage
+	| RtcOfferMessage
+	| RtcAnswerMessage
+	| RtcIceCandidateMessage;
