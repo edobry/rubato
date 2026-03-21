@@ -122,6 +122,51 @@ export function uploadFloatTexture(
 }
 
 /**
+ * Upload a 3-channel Float32Array as an RGBA texture.
+ * Input data has 3 floats per pixel (R, G, B in [0,1]).
+ * Packed into RGBA8 with A=255.
+ */
+let uploadBufRGB: Uint8Array | null = null;
+export function uploadFloatRGBTexture(
+	gl: WebGLRenderingContext,
+	texture: WebGLTexture,
+	data: Float32Array,
+	width: number,
+	height: number,
+): void {
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+
+	const pixelCount = width * height;
+	const size = pixelCount * 4;
+	if (!uploadBufRGB || uploadBufRGB.length !== size) {
+		uploadBufRGB = new Uint8Array(size);
+	}
+	for (let i = 0; i < pixelCount; i++) {
+		const src = i * 3;
+		const dst = i * 4;
+		uploadBufRGB[dst] = Math.round(Math.min(1, Math.max(0, data[src]!)) * 255);
+		uploadBufRGB[dst + 1] = Math.round(
+			Math.min(1, Math.max(0, data[src + 1]!)) * 255,
+		);
+		uploadBufRGB[dst + 2] = Math.round(
+			Math.min(1, Math.max(0, data[src + 2]!)) * 255,
+		);
+		uploadBufRGB[dst + 3] = 255;
+	}
+	gl.texImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA,
+		width,
+		height,
+		0,
+		gl.RGBA,
+		gl.UNSIGNED_BYTE,
+		uploadBufRGB,
+	);
+}
+
+/**
  * Upload a video element as a texture via texImage2D.
  * NOTE: caller must bind the correct texture unit first. Texture stays bound after call.
  */

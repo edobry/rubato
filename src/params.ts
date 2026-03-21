@@ -100,6 +100,7 @@ export const params = {
 		motionThreshold: d.segmentation.motionThreshold,
 	}),
 	fog: reactive("fog", {
+		mode: d.fog.mode as "classic" | "shadow",
 		speed: d.fog.speed,
 		scale: d.fog.scale,
 		density: d.fog.density,
@@ -110,6 +111,21 @@ export const params = {
 		frameSkip: d.fog.frameSkip,
 		maskInteraction: d.fog.maskInteraction,
 		trailInteraction: d.fog.trailInteraction,
+	}),
+	shadow: reactive("shadow", {
+		forceScale: d.shadow.forceScale,
+		damping: d.shadow.damping,
+		diffusion: d.shadow.diffusion,
+		advection: d.shadow.advection,
+		noiseScale: d.shadow.noiseScale,
+		noiseSpeed: d.shadow.noiseSpeed,
+		noiseAmount: d.shadow.noiseAmount,
+		baseColor: d.shadow.baseColor,
+		highlightColor: d.shadow.highlightColor,
+		baseDensity: d.shadow.baseDensity,
+		creepSpeed: d.shadow.creepSpeed,
+		resolution: d.shadow.resolution,
+		velocityGrid: d.shadow.velocityGrid,
 	}),
 	motion: reactive("motion", {
 		// How strongly motion deposits into the trail buffer (0-5)
@@ -124,6 +140,7 @@ export const params = {
 		diffusionRate: d.density.diffusionRate,
 		decayVariance: d.density.decayVariance,
 		disintegrationSpeed: d.density.disintegrationSpeed,
+		diffusionMode: d.density.diffusionMode as "isotropic" | "anisotropic",
 	}),
 	overlay: reactive("overlay", {
 		showOverlay: d.overlay.showOverlay,

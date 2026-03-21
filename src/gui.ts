@@ -576,6 +576,9 @@ export async function initGui(): Promise<void> {
 		0.01,
 		"Diffusion Rate",
 	);
+	density
+		.add(params.density, "diffusionMode", ["isotropic", "anisotropic"])
+		.name("Diffusion Mode");
 	addParam(
 		density,
 		params.density,

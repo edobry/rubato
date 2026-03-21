@@ -15,6 +15,7 @@ import {
 	createFramebuffer,
 	createProgram,
 	createTexture,
+	uploadFloatRGBTexture,
 	uploadFloatTexture,
 } from "./webgl-utils";
 
@@ -62,6 +63,7 @@ let uDecayVariance: WebGLUniformLocation | null = null;
 let uDisintSpeed: WebGLUniformLocation | null = null;
 let uTime: WebGLUniformLocation | null = null;
 let uTexelSize: WebGLUniformLocation | null = null;
+let uDiffusionMode: WebGLUniformLocation | null = null;
 
 /**
  * Initialize the GPU trail accumulator on a shared WebGL context.
@@ -104,6 +106,7 @@ export function initGpuTrail(sharedGl: WebGLRenderingContext): void {
 	uDisintSpeed = gl.getUniformLocation(trailProgram, "u_disintSpeed");
 	uTime = gl.getUniformLocation(trailProgram, "u_time");
 	uTexelSize = gl.getUniformLocation(trailProgram, "u_texelSize");
+	uDiffusionMode = gl.getUniformLocation(trailProgram, "u_diffusionMode");
 
 	// Motion map texture — allocated once, resized as needed
 	motionTexture = createTexture(gl);
@@ -204,9 +207,14 @@ export function updateGpuTrail(
 	gl.enableVertexAttribArray(aPosLocation);
 	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 
-	// Upload motion map to texture
+	// Upload motion map to texture — use RGB with direction vectors when anisotropic
 	gl.activeTexture(gl.TEXTURE0);
-	uploadFloatTexture(gl, motionTexture, motionMap, w, h);
+	if (isImprint && params.density.diffusionMode === "anisotropic") {
+		const vectors = computeMotionVectors(motionMap, w, h);
+		uploadFloatRGBTexture(gl, motionTexture, vectors, w, h);
+	} else {
+		uploadFloatTexture(gl, motionTexture, motionMap, w, h);
+	}
 	gl.uniform1i(uMotion, 0);
 
 	// Bind previous trail as input
@@ -236,6 +244,10 @@ export function updateGpuTrail(
 		gl.uniform1f(uDisintSpeed, params.density.disintegrationSpeed);
 		gl.uniform1f(uTime, performance.now() / 1000);
 		gl.uniform2f(uTexelSize, w > 0 ? 1.0 / w : 0, h > 0 ? 1.0 / h : 0);
+		gl.uniform1f(
+			uDiffusionMode,
+			params.density.diffusionMode === "anisotropic" ? 1.0 : 0.0,
+		);
 	}
 
 	// Render into the target FBO
@@ -280,6 +292,54 @@ export function resetMotion(): void {
 		fboHeight = 0;
 		pingPongState = true;
 	}
+}
+
+/**
+ * Compute motion vectors from a magnitude map.
+ * Returns a Float32Array of w*h*3 (R=magnitude, G=dx [0,1], B=dy [0,1]).
+ * Direction is derived from the spatial gradient of the motion magnitude.
+ */
+function computeMotionVectors(
+	motionMap: Float32Array,
+	w: number,
+	h: number,
+): Float32Array {
+	const pixelCount = w * h;
+	const result = new Float32Array(pixelCount * 3);
+
+	for (let y = 0; y < h; y++) {
+		for (let x = 0; x < w; x++) {
+			const idx = y * w + x;
+			const mag = motionMap[idx]!;
+
+			let dx = 0;
+			let dy = 0;
+			if (mag > 0) {
+				if (x > 0 && x < w - 1) {
+					dx = motionMap[idx + 1]! - motionMap[idx - 1]!;
+				}
+				if (y > 0 && y < h - 1) {
+					dy = motionMap[idx + w]! - motionMap[idx - w]!;
+				}
+
+				const len = Math.sqrt(dx * dx + dy * dy);
+				if (len > 0.001) {
+					dx /= len;
+					dy /= len;
+				} else {
+					dx = 0;
+					dy = 0;
+				}
+			}
+
+			const out = idx * 3;
+			result[out] = mag;
+			result[out + 1] = dx * 0.5 + 0.5;
+			result[out + 2] = dy * 0.5 + 0.5;
+		}
+	}
+
+	return result;
 }
 
 /**

@@ -13,6 +13,7 @@
 		"motionThreshold": 0.1
 	},
 	"fog": {
+		"mode": "classic",
 		"speed": 0.15,
 		"scale": 3.0,
 		"density": 1.2,
@@ -24,6 +25,21 @@
 		"maskInteraction": 0.8,
 		"trailInteraction": 2.0
 	},
+	"shadow": {
+		"forceScale": 0.5,
+		"damping": 0.98,
+		"diffusion": 0.15,
+		"advection": 0.3,
+		"noiseScale": 4.0,
+		"noiseSpeed": 0.03,
+		"noiseAmount": 0.3,
+		"baseColor": "#111111",
+		"highlightColor": "#2a2a2a",
+		"baseDensity": 0.9,
+		"creepSpeed": 0.02,
+		"resolution": 64,
+		"velocityGrid": 16
+	},
 	"motion": {
 		"deposition": 2.0,
 		"decay": 0.97
@@ -34,7 +50,8 @@
 		"drainRate": 0.9,
 		"diffusionRate": 0.05,
 		"decayVariance": 0.2,
-		"disintegrationSpeed": 0.1
+		"disintegrationSpeed": 0.1,
+		"diffusionMode": "isotropic"
 	},
 	"overlay": {
 		"showOverlay": true,

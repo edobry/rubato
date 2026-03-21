@@ -19,6 +19,7 @@ uniform float u_decayVariance;    // noise modulation on decay
 uniform float u_disintSpeed;      // noise evolution speed
 uniform float u_time;             // for noise animation
 uniform vec2 u_texelSize;         // 1/width, 1/height for neighbor sampling
+uniform float u_diffusionMode;    // 0 = isotropic, 1 = anisotropic
 
 // Simplex noise (Ashima Arts / Ian McEwan) — same as fog shader
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -98,13 +99,43 @@ void main() {
     newDensity *= clamp(localDecay, 0.0, 1.0);
 
     // Spatial diffusion — density bleeds into neighbors
-    float neighbors = (
-        texture2D(u_prevTrail, v_uv + vec2(u_texelSize.x, 0.0)).g +
-        texture2D(u_prevTrail, v_uv - vec2(u_texelSize.x, 0.0)).g +
-        texture2D(u_prevTrail, v_uv + vec2(0.0, u_texelSize.y)).g +
-        texture2D(u_prevTrail, v_uv - vec2(0.0, u_texelSize.y)).g
-    ) * 0.25;
-    newDensity = mix(newDensity, neighbors, u_diffusionRate);
+    if (u_diffusionMode > 0.5) {
+        // Anisotropic: sample along motion direction
+        vec2 motionDir = texture2D(u_motion, v_uv).gb * 2.0 - 1.0;
+        float dirLen = length(motionDir);
+
+        if (dirLen > 0.01) {
+            vec2 dir = normalize(motionDir);
+            vec2 perp = vec2(-dir.y, dir.x);
+            vec2 stepAlong = dir * u_texelSize;
+            vec2 stepPerp = perp * u_texelSize;
+
+            float along1 = texture2D(u_prevTrail, v_uv + stepAlong).g;
+            float along2 = texture2D(u_prevTrail, v_uv - stepAlong).g;
+            float perp1 = texture2D(u_prevTrail, v_uv + stepPerp).g;
+            float perp2 = texture2D(u_prevTrail, v_uv - stepPerp).g;
+
+            float neighbors = (along1 + along2) * 0.35 + (perp1 + perp2) * 0.15;
+            newDensity = mix(newDensity, neighbors, u_diffusionRate);
+        } else {
+            float neighbors = (
+                texture2D(u_prevTrail, v_uv + vec2(u_texelSize.x, 0.0)).g +
+                texture2D(u_prevTrail, v_uv - vec2(u_texelSize.x, 0.0)).g +
+                texture2D(u_prevTrail, v_uv + vec2(0.0, u_texelSize.y)).g +
+                texture2D(u_prevTrail, v_uv - vec2(0.0, u_texelSize.y)).g
+            ) * 0.25;
+            newDensity = mix(newDensity, neighbors, u_diffusionRate);
+        }
+    } else {
+        // Isotropic: equal weight in all 4 cardinal directions
+        float neighbors = (
+            texture2D(u_prevTrail, v_uv + vec2(u_texelSize.x, 0.0)).g +
+            texture2D(u_prevTrail, v_uv - vec2(u_texelSize.x, 0.0)).g +
+            texture2D(u_prevTrail, v_uv + vec2(0.0, u_texelSize.y)).g +
+            texture2D(u_prevTrail, v_uv - vec2(0.0, u_texelSize.y)).g
+        ) * 0.25;
+        newDensity = mix(newDensity, neighbors, u_diffusionRate);
+    }
 
     // Clamp
     newCultivation = clamp(newCultivation, 0.0, 1.0);
