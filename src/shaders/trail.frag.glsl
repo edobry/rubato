@@ -132,24 +132,22 @@ void main() {
     float isPresent = step(0.1, mask);
     float newCultivation = prevCultivation + isPresent * u_cultivationRate;
 
-    // --- Phase 2: Channeling (departure-based release) ---
-    // Density is deposited where the body WAS but ISN'T anymore.
-    // When the body moves away from a region, all cultivation stored
-    // there converts to visible density — the qi empties from the
-    // vessel into the space left behind. This naturally produces:
-    //   - Slow motion → narrow departure edge → concentrated, blobby pools
-    //   - Fast motion → wide departure sweep → elongated, intense traces
-    // The velocity scaling is implicit: more pixels depart per frame
-    // when moving fast, so more total density appears.
-    float departure = (1.0 - isPresent) * step(0.005, prevCultivation);
+    // --- Phase 2a: Direct motion deposition ---
+    // Motion at body edges deposits density immediately (like legacy trail).
+    // Guarantees visible traces even if cultivation pipeline has issues.
+    float newDensity = prevDensity + motion * u_deposition;
 
-    // drainRate controls how quickly cultivation converts to density:
-    //   0.0 = instant release (maximum drama)
-    //   0.9 = slow exponential drain (lingering tail)
+    // --- Phase 2b: Cultivation leakage ---
+    // Cultivation slowly bleeds into density while body is present,
+    // creating a faint glow that builds during stillness.
+    newDensity += prevCultivation * isPresent * u_cultivationRate * 0.5;
+
+    // --- Phase 2c: Channeling (departure-based release) ---
+    // When the body moves away, cultivation converts to visible density.
+    float departure = (1.0 - isPresent) * step(0.005, prevCultivation);
     float retainFactor = mix(1.0, u_drainRate, departure);
     float drained = prevCultivation * (1.0 - retainFactor);
-    float release = drained * u_channelStrength;
-    float newDensity = prevDensity + release;
+    newDensity += drained * u_channelStrength;
 
     // Zero out cultivation where body departed (energy was converted)
     newCultivation *= retainFactor;

@@ -557,7 +557,7 @@ export async function initGui(): Promise<void> {
 	overlayStyle.open();
 
 	const trails = creative.addFolder("Trails");
-	addParam(trails, params.motion, "deposition", 0, 8, 0.1, "Deposition");
+	addParam(trails, params.motion, "deposition", 0, 50, 0.5, "Deposition");
 	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
 	trails.open();
 
@@ -567,17 +567,17 @@ export async function initGui(): Promise<void> {
 		params.density,
 		"cultivationRate",
 		0.001,
-		0.15,
-		0.001,
+		1.0,
+		0.005,
 		"Cultivation Rate",
 	);
 	addParam(
 		density,
 		params.density,
 		"channelStrength",
-		0.5,
-		20.0,
-		0.1,
+		0,
+		200.0,
+		1.0,
 		"Channel Strength",
 	);
 	addParam(density, params.density, "drainRate", 0, 0.99, 0.01, "Drain Rate");
@@ -586,7 +586,7 @@ export async function initGui(): Promise<void> {
 		params.density,
 		"diffusionRate",
 		0,
-		0.3,
+		1.0,
 		0.01,
 		"Diffusion Rate",
 	);
@@ -623,7 +623,7 @@ export async function initGui(): Promise<void> {
 	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
 	fog.addColor(params.fog, "color").name("Color");
 	addParam(fog, params.fog, "maskInteraction", 0, 2, 0.1, "Mask → Fog");
-	addParam(fog, params.fog, "trailInteraction", 0, 15, 0.1, "Trail → Fog");
+	addParam(fog, params.fog, "trailInteraction", 0, 50, 0.5, "Trail → Fog");
 	fog.open();
 
 	const shadow = backdrop.addFolder("Shadow");
