@@ -312,7 +312,10 @@ export function updateFluid(
 	ensureFBOs(res);
 
 	const texelSize = 1.0 / res;
-	const dt = 0.016; // ~60fps timestep
+	// dt is a visual speed parameter, not a real timestep.
+	// In GPU fluid sims, dt controls advection distance and force magnitude.
+	// 0.016 (real 60fps dt) makes advection microscopic; 0.3-0.5 is typical.
+	const dt = 0.4;
 
 	// Upload mask and motion textures
 	if (mask && maskW > 0 && maskH > 0) {
