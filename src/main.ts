@@ -545,11 +545,45 @@ window.addEventListener("unhandledrejection", (event) => {
 	scheduleRecoveryReload("promise rejection", event.reason);
 });
 
+const PIECE_STATE_KEY = "rubato-piece-state";
+
+function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
+	if (lobbyEl) destroyLobby(lobbyEl);
+	localStorage.setItem(PIECE_STATE_KEY, "running");
+	ws.sendState("running");
+	void main(ws);
+}
+
 function boot(): void {
+	const ws = new WsClient("piece");
+	const shouldResume = localStorage.getItem(PIECE_STATE_KEY) === "running";
+
+	if (shouldResume) {
+		// Auto-resume: skip lobby, go straight to piece
+		ws.onConnectionChange((connected) => {
+			if (connected) ws.sendState("running");
+		});
+		ws.onCommand((msg) => {
+			switch (msg.command) {
+				case "stop":
+					localStorage.removeItem(PIECE_STATE_KEY);
+					location.reload();
+					break;
+				case "reload":
+					location.reload();
+					break;
+			}
+		});
+		void main(ws);
+		return;
+	}
+
+	// Show lobby and wait for run command or tap
 	const lobbyEl = showLobby();
 	document.body.appendChild(lobbyEl);
 
-	const ws = new WsClient("piece");
+	// Tap anywhere on lobby to start
+	lobbyEl.addEventListener("click", () => startPiece(ws, lobbyEl));
 
 	ws.onConnectionChange((connected) => {
 		if (connected) {
@@ -563,9 +597,7 @@ function boot(): void {
 	ws.onCommand((msg) => {
 		switch (msg.command) {
 			case "run":
-				destroyLobby(lobbyEl);
-				ws.sendState("running");
-				void main(ws);
+				startPiece(ws, lobbyEl);
 				break;
 			case "stop":
 			case "reload":

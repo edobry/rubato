@@ -12,6 +12,7 @@ const STYLES = {
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 		color: #fff;
 		-webkit-font-smoothing: antialiased;
+		cursor: pointer;
 	`,
 	inner: `
 		display: flex;
@@ -113,8 +114,18 @@ export function showLobby(): HTMLElement {
 	urlText.style.cssText = STYLES.urlText;
 	urlText.textContent = adminUrl;
 
+	const guidance = document.createElement("p");
+	guidance.style.cssText = `
+		font-size: 11px;
+		color: #444;
+		letter-spacing: 0.05em;
+		margin: 0;
+	`;
+	guidance.textContent = "Scan to control remotely";
+
 	qrWrapper.appendChild(canvas);
 	qrWrapper.appendChild(urlText);
+	qrWrapper.appendChild(guidance);
 	inner.appendChild(qrWrapper);
 
 	// Status
@@ -124,6 +135,17 @@ export function showLobby(): HTMLElement {
 	statusEl.textContent = "Ready";
 
 	inner.appendChild(statusEl);
+
+	const tapHint = document.createElement("p");
+	tapHint.style.cssText = `
+		font-size: 11px;
+		color: #333;
+		letter-spacing: 0.05em;
+		margin-top: 32px;
+	`;
+	tapHint.textContent = "tap anywhere to start";
+	inner.appendChild(tapHint);
+
 	overlay.appendChild(inner);
 
 	return overlay;
