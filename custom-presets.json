@@ -153,5 +153,111 @@
 			"brightness": 0,
 			"color": "#000000"
 		}
+	},
+	"taichi3": {
+		"name": "taichi3",
+		"overlay": {
+			"showOverlay": true,
+			"visualize": "both",
+			"opacity": 0.1,
+			"color": "#ffffff",
+			"colorMode": "solid",
+			"blur": 0
+		},
+		"motion": {
+			"deposition": 14,
+			"decay": 0.959
+		},
+		"density": {
+			"cultivationRate": 1.141,
+			"channelStrength": 198,
+			"drainRate": 0.56,
+			"diffusionRate": 0.59,
+			"decayVariance": 0.13,
+			"disintegrationSpeed": 0.35
+		},
+		"segmentation": {
+			"confidenceThreshold": 0.55,
+			"temporalSmoothing": 0,
+			"motionThreshold": 0.3
+		},
+		"camera": {
+			"showFeed": false,
+			"fillAmount": 1
+		},
+		"fog": {
+			"mode": "shadow",
+			"speed": 0.44,
+			"scale": 3,
+			"density": 1.8,
+			"brightness": 0.05,
+			"color": "#6b6b6b"
+		},
+		"shadow": {
+			"forceScale": 0,
+			"damping": 0.985,
+			"diffusion": 0.13,
+			"advection": 0.1,
+			"noiseScale": 1,
+			"noiseSpeed": 0.015,
+			"noiseAmount": 0.9,
+			"baseColor": "#111111",
+			"highlightColor": "#1c1c1c",
+			"baseDensity": 0.35,
+			"creepSpeed": 0.05
+		}
+	},
+	"taichi live": {
+		"name": "taichi live",
+		"overlay": {
+			"showOverlay": true,
+			"visualize": "both",
+			"opacity": 0.1,
+			"color": "#ffffff",
+			"colorMode": "solid",
+			"blur": 0
+		},
+		"motion": {
+			"deposition": 14,
+			"decay": 0.959
+		},
+		"density": {
+			"cultivationRate": 1.141,
+			"channelStrength": 198,
+			"drainRate": 0.56,
+			"diffusionRate": 0.59,
+			"decayVariance": 0.13,
+			"disintegrationSpeed": 0.35
+		},
+		"segmentation": {
+			"confidenceThreshold": 0.55,
+			"temporalSmoothing": 0,
+			"motionThreshold": 0.3
+		},
+		"camera": {
+			"showFeed": false,
+			"fillAmount": 1
+		},
+		"fog": {
+			"mode": "shadow",
+			"speed": 0.44,
+			"scale": 3,
+			"density": 1.8,
+			"brightness": 0.05,
+			"color": "#6b6b6b"
+		},
+		"shadow": {
+			"forceScale": 0,
+			"damping": 0.985,
+			"diffusion": 0.13,
+			"advection": 0.1,
+			"noiseScale": 1,
+			"noiseSpeed": 0.015,
+			"noiseAmount": 0.9,
+			"baseColor": "#111111",
+			"highlightColor": "#1c1c1c",
+			"baseDensity": 0.35,
+			"creepSpeed": 0.05
+		}
 	}
 }

@@ -82,6 +82,20 @@ export function createParamsPanel(options: {
 		savePanelState(uiState);
 	});
 
+	// Collapse/Expand all button
+	const collapseAllBtn = document.createElement("button");
+	collapseAllBtn.className = "collapse-all-toggle";
+	collapseAllBtn.textContent = "Expand All";
+	content.appendChild(collapseAllBtn);
+
+	// Track section elements for collapse/expand all
+	const sectionEntries: {
+		name: string;
+		header: HTMLButtonElement;
+		content: HTMLDivElement;
+		setExpanded: (open: boolean) => void;
+	}[] = [];
+
 	// Build sections
 	for (const section of CREATIVE_PARAMS) {
 		const sectionEl = document.createElement("div");
@@ -99,12 +113,22 @@ export function createParamsPanel(options: {
 		sectionEl.appendChild(sectionContent);
 
 		let sectionExpanded = sectionSaved;
-		header.addEventListener("click", () => {
-			sectionExpanded = !sectionExpanded;
+		const setSectionExpanded = (open: boolean) => {
+			sectionExpanded = open;
 			sectionContent.style.display = sectionExpanded ? "" : "none";
 			header.innerHTML = `<span>${section.name}</span><span>${sectionExpanded ? "\u25BE" : "\u25B8"}</span>`;
 			uiState.sections[section.name] = sectionExpanded;
+		};
+		header.addEventListener("click", () => {
+			setSectionExpanded(!sectionExpanded);
 			savePanelState(uiState);
+			updateCollapseAllLabel();
+		});
+		sectionEntries.push({
+			name: section.name,
+			header,
+			content: sectionContent,
+			setExpanded: setSectionExpanded,
 		});
 
 		for (const ctrl of section.controls) {
@@ -225,6 +249,27 @@ export function createParamsPanel(options: {
 
 		content.appendChild(sectionEl);
 	}
+
+	// Update collapse-all button label based on initial state
+	const updateCollapseAllLabel = () => {
+		const anyOpen = sectionEntries.some(
+			(e) => e.content.style.display !== "none",
+		);
+		collapseAllBtn.textContent = anyOpen ? "Collapse All" : "Expand All";
+	};
+	updateCollapseAllLabel();
+
+	collapseAllBtn.addEventListener("click", () => {
+		const anyOpen = sectionEntries.some(
+			(e) => e.content.style.display !== "none",
+		);
+		const targetState = !anyOpen;
+		for (const entry of sectionEntries) {
+			entry.setExpanded(targetState);
+		}
+		savePanelState(uiState);
+		updateCollapseAllLabel();
+	});
 
 	function updateParams(
 		params: Record<string, Record<string, number | string | boolean>>,

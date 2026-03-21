@@ -285,6 +285,30 @@ body {
 	margin-top: 16px;
 }
 
+.collapse-all-toggle {
+	appearance: none;
+	background: transparent;
+	border: 1px solid #333;
+	color: #666;
+	font-family: inherit;
+	font-size: 11px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	padding: 8px 16px;
+	width: 100%;
+	cursor: pointer;
+	text-align: center;
+	margin-bottom: 12px;
+	transition:
+		color 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.collapse-all-toggle:active {
+	color: #aaa;
+	border-color: #555;
+}
+
 .param-section {
 	margin-bottom: 4px;
 }
