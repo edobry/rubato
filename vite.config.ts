@@ -125,7 +125,6 @@ export default defineConfig(({ mode }) => {
 				: {
 						host: tailscaleHost ?? "localhost",
 						protocol: "wss",
-						clientPort: 5173,
 					},
 			watch: isLive ? { ignored: ["**"] } : undefined,
 			headers: {
