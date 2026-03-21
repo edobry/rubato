@@ -1,3 +1,25 @@
+/**
+ * Fog Field — Ambient Visual Ground
+ *
+ * The fog is the installation's resting state: a slowly drifting field of
+ * procedural noise that fills the projection when no viewer is present. It
+ * represents potential — the undisturbed surface that density traces will
+ * later illuminate. When a viewer moves through the camera's field of view,
+ * their accumulated density does not replace the fog; instead, density
+ * *modulates* the fog, revealing structure that was always latently there.
+ * The interplay between fog and density is the core visual metaphor of
+ * Rubato: presence gives form to what was formless.
+ *
+ * Implementation: two offset layers of fractal Brownian motion (FBM) built
+ * on 2D simplex noise, drifting in different directions to produce organic,
+ * non-repeating movement. The number of FBM octaves is the primary
+ * performance knob — 5 octaves yield rich detail on a desktop GPU, while
+ * 2 octaves keep the Raspberry Pi within budget at ~60% GPU savings.
+ *
+ * A crop system restricts the fog to the camera's visible region so that
+ * fog and density align spatially. Outside the crop, the screen is black.
+ */
+
 precision mediump float;
 
 varying vec2 v_uv;
@@ -93,13 +115,18 @@ void main() {
     vec2 uv = v_uv * u_scale;
     float t = u_time * u_speed;
 
-    // Two layers of fbm with different drift directions for organic movement
+    // Two FBM layers drift in different directions so the fog feels alive —
+    // slow, cloud-like motion with no obvious tiling or repetition.
+    // The offset vec2(5.2, 1.3) breaks correlation between layers.
     float n1 = fbm(uv + vec2(t * 0.3, t * 0.1));
     float n2 = fbm(uv + vec2(-t * 0.2, t * 0.15) + vec2(5.2, 1.3));
 
-    // Combine and shape
-    float fog = (n1 + n2) * 0.5 + 0.5; // normalize to 0-1
-    fog = pow(fog, 2.0 - u_density);     // density controls contrast
+    // Combine, normalize to 0-1, then shape:
+    //   - u_density controls contrast (higher = more opaque, less variation)
+    //   - u_brightness sets overall intensity
+    //   - u_color tints the monochrome noise to match the installation palette
+    float fog = (n1 + n2) * 0.5 + 0.5;
+    fog = pow(fog, 2.0 - u_density);
     fog *= u_brightness;
 
     gl_FragColor = vec4(fog * u_color, 1.0);

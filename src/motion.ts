@@ -1,11 +1,46 @@
 /**
- * Motion detection module.
- * Compares consecutive raw segmentation masks to identify which pixels
- * of the silhouette are moving vs still.
+ * Motion detection and GPU trail accumulation module.
  *
- * Trail accumulation runs on the GPU via a ping-pong FBO when a shared
- * WebGL context is provided (unified pipeline). Falls back to CPU
- * Float32Array accumulation for the legacy pipeline.
+ * This module is the bridge between CPU-side body segmentation and GPU-side
+ * density accumulation. It sits at stage 3–5 of the rendering pipeline:
+ *
+ *   1. Camera captures video frames
+ *   2. MediaPipe segments the body → per-pixel confidence mask (Float32Array)
+ *   3. **detectMotionMap()** diffs consecutive masks → per-pixel motion magnitude
+ *   4. **computeMotionVectors()** computes spatial gradients of the diff → motion
+ *      direction (dx, dy) for anisotropic diffusion
+ *   5. **updateGpuTrail()** uploads motion (+ optional mask) to GPU textures and
+ *      runs the trail shader via FBO ping-pong → persistent trail texture
+ *   6. trail.frag.glsl reads previous trail state + new motion → updated trail
+ *   7. The compositor samples the trail texture for final rendering
+ *
+ * ## Motion texture format
+ *
+ * - **Isotropic / legacy mode**: single-channel LUMINANCE texture. Each pixel
+ *   stores motion magnitude (0 = still, 1 = maximum change).
+ * - **Anisotropic mode**: RGB texture packed as:
+ *     - R = motion magnitude
+ *     - G = dx (motion direction x), mapped from [-1, 1] → [0, 1]
+ *     - B = dy (motion direction y), mapped from [-1, 1] → [0, 1]
+ *   The shader unpacks back to [-1, 1] with `dir = texel.gb * 2.0 - 1.0`.
+ *
+ * ## FBO ping-pong
+ *
+ * Trail state persists across frames without CPU readback via two framebuffer
+ * objects (FBOs) that alternate roles each frame. On frame N, the shader reads
+ * the trail from FBO-A (previous state) and writes the updated trail to FBO-B.
+ * On frame N+1 the roles swap: read from FBO-B, write to FBO-A. The `outputTex`
+ * returned to the compositor always points to whichever FBO was just written.
+ *
+ * ## Two operating modes
+ *
+ * - **Legacy (CPU)**: `detectMotion()` computes motion + trail accumulation
+ *   entirely on the CPU using a Float32Array buffer. Used when no shared WebGL
+ *   context is available.
+ * - **Unified (GPU)**: `initGpuTrail()` sets up the shader and FBOs on the
+ *   shared WebGL context. Each frame, `detectMotionMap()` runs on the CPU to
+ *   produce motion data, then `updateGpuTrail()` uploads it and runs the trail
+ *   shader on the GPU. This is the primary path for the imprint density system.
  */
 
 import { params } from "./params";
@@ -19,25 +54,27 @@ import {
 	uploadFloatTexture,
 } from "./webgl-utils";
 
+/** Previous frame's segmentation mask, retained for frame-to-frame diffing. */
 let prevRawMask: Float32Array | null = null;
 
-// CPU trail buffer — used only in legacy (non-unified) mode
+/** CPU trail buffer — used only in legacy (non-unified) mode. */
 let trailBuffer: Float32Array | null = null;
 
-// GPU trail state — used when initGpuTrail() has been called
+// ── GPU trail state — populated by initGpuTrail() ──────────────────────────
 let gl: WebGLRenderingContext | null = null;
 let trailProgram: WebGLProgram | null = null;
 let quadBuffer: WebGLBuffer | null = null;
 let aPosLocation = -1;
 
-// Ping-pong FBOs: write to fboA while reading fboTexB, then swap
+// ── Ping-pong FBOs ─────────────────────────────────────────────────────────
+// Two FBOs alternate as read (previous trail) and write (new trail) targets.
+// pingPongState=true → write to A, read from B; pingPongState=false → inverse.
 let fboTexA: WebGLTexture | null = null;
 let fboTexB: WebGLTexture | null = null;
 let fboA: WebGLFramebuffer | null = null;
 let fboB: WebGLFramebuffer | null = null;
 let fboWidth = 0;
 let fboHeight = 0;
-// Which FBO is the "current" output? true = A is output, false = B is output
 let pingPongState = true;
 
 // Motion map texture — uploaded each frame
@@ -46,14 +83,14 @@ let motionTexture: WebGLTexture | null = null;
 // Mask texture — uploaded each frame for imprint mode
 let maskTexture: WebGLTexture | null = null;
 
-// Uniform locations
-let uPrevTrail: WebGLUniformLocation | null = null;
-let uMotion: WebGLUniformLocation | null = null;
-let uMask: WebGLUniformLocation | null = null;
-let uDeposition: WebGLUniformLocation | null = null;
-let uDecay: WebGLUniformLocation | null = null;
+// ── Uniform locations (mapped to trail.frag.glsl) ──────────────────────────
+let uPrevTrail: WebGLUniformLocation | null = null; // sampler: previous trail FBO
+let uMotion: WebGLUniformLocation | null = null; // sampler: current motion map
+let uMask: WebGLUniformLocation | null = null; // sampler: current segmentation mask
+let uDeposition: WebGLUniformLocation | null = null; // how much motion adds to trail
+let uDecay: WebGLUniformLocation | null = null; // per-frame multiplicative decay
 
-// Imprint mode uniforms
+// Imprint density mode uniforms — only used when visualize === "imprint"
 let uMode: WebGLUniformLocation | null = null;
 let uCultivationRate: WebGLUniformLocation | null = null;
 let uChannelStrength: WebGLUniformLocation | null = null;
@@ -67,7 +104,17 @@ let uDiffusionMode: WebGLUniformLocation | null = null;
 
 /**
  * Initialize the GPU trail accumulator on a shared WebGL context.
+ *
+ * Compiles the trail shader (trail.vert.glsl + trail.frag.glsl), sets up the
+ * full-screen quad geometry, resolves all uniform locations, and allocates
+ * reusable textures for motion and mask uploads. The ping-pong FBOs are
+ * allocated lazily in {@link ensureFBOs} on the first frame, since the mask
+ * dimensions aren't known yet.
+ *
  * Call this once during startup (unified pipeline only).
+ *
+ * @param sharedGl - The WebGL context shared with the compositor, so the trail
+ *   texture can be sampled directly without copying.
  */
 export function initGpuTrail(sharedGl: WebGLRenderingContext): void {
 	gl = sharedGl;
@@ -121,8 +168,12 @@ export function isGpuTrailActive(): boolean {
 }
 
 /**
- * Ensure the ping-pong FBOs are allocated at the right size.
- * Reallocates if the mask dimensions change (e.g. camera resolution switch).
+ * Ensure the ping-pong FBOs are allocated at the correct resolution.
+ *
+ * Called at the start of each {@link updateGpuTrail} invocation. If the mask
+ * dimensions have changed (e.g. camera resolution switch), tears down the old
+ * FBOs and allocates new RGBA textures + framebuffers. Resets `pingPongState`
+ * so the first frame after resize writes to FBO-A.
  */
 function ensureFBOs(w: number, h: number): void {
 	if (!gl) return;
@@ -174,12 +225,28 @@ function ensureFBOs(w: number, h: number): void {
 }
 
 /**
- * Run one GPU trail accumulation step.
- * Reads the motion map, blends with the previous trail, writes to the output FBO.
- * Returns the trail texture for the compositor to sample directly.
+ * Run one GPU trail accumulation step (the core of the FBO ping-pong).
  *
- * When `mask` is provided and visualize is "imprint", runs the imprint density
- * pipeline (cultivation → channeling → disintegration) instead of the legacy trail.
+ * Each invocation:
+ * 1. Ensures FBOs are allocated at the correct resolution
+ * 2. Selects the read FBO (previous trail state) and write FBO (output)
+ * 3. Uploads the motion map — as LUMINANCE for isotropic mode, or as RGB
+ *    (magnitude + direction vectors) for anisotropic diffusion
+ * 4. Optionally uploads the segmentation mask for imprint density mode
+ * 5. Sets all trail/density uniforms from the live params
+ * 6. Draws a full-screen quad to run trail.frag.glsl into the write FBO
+ * 7. Swaps the ping-pong state so next frame reads from what we just wrote
+ *
+ * Returns the trail texture (the FBO attachment we just rendered into) so the
+ * compositor can bind it directly — no CPU readback needed.
+ *
+ * @param motionMap - Per-pixel motion magnitude from {@link detectMotionMap}
+ * @param w - Width of the motion map (matches segmentation mask resolution)
+ * @param h - Height of the motion map
+ * @param mask - Optional segmentation mask for imprint density mode. When
+ *   provided and visualize === "imprint", enables the cultivation/channeling/
+ *   disintegration pipeline in the shader.
+ * @returns The trail texture to sample, or null if GPU trail is not initialized.
  */
 export function updateGpuTrail(
 	motionMap: Float32Array,
@@ -207,7 +274,8 @@ export function updateGpuTrail(
 	gl.enableVertexAttribArray(aPosLocation);
 	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 
-	// Upload motion map to texture — use RGB with direction vectors when anisotropic
+	// Upload motion map to texture unit 0.
+	// Anisotropic mode packs magnitude + direction into RGB; isotropic uses LUMINANCE.
 	gl.activeTexture(gl.TEXTURE0);
 	if (isImprint && params.density.diffusionMode === "anisotropic") {
 		const vectors = computeMotionVectors(motionMap, w, h);
@@ -258,7 +326,7 @@ export function updateGpuTrail(
 	// Restore default framebuffer
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-	// Swap ping-pong
+	// Swap ping-pong so next frame reads from the FBO we just wrote to
 	pingPongState = !pingPongState;
 
 	return outputTex;
@@ -273,7 +341,14 @@ export function getGpuTrailTexture(): WebGLTexture | null {
 	return pingPongState ? fboTexB : fboTexA;
 }
 
-/** Reset motion detection state. Call when switching presets or visualization modes. */
+/**
+ * Reset all motion detection and trail state.
+ *
+ * Clears the previous-frame mask, CPU trail buffer, and GPU FBOs. Call when
+ * switching presets or visualization modes to prevent stale trail data from
+ * the previous mode bleeding through. FBOs are lazily reallocated on the
+ * next frame via {@link ensureFBOs}.
+ */
 export function resetMotion(): void {
 	prevRawMask = null;
 	trailBuffer = null;
@@ -295,9 +370,22 @@ export function resetMotion(): void {
 }
 
 /**
- * Compute motion vectors from a magnitude map.
- * Returns a Float32Array of w*h*3 (R=magnitude, G=dx [0,1], B=dy [0,1]).
- * Direction is derived from the spatial gradient of the motion magnitude.
+ * Compute motion direction vectors from a magnitude map using spatial gradients.
+ *
+ * For each pixel with nonzero motion, computes the gradient of the motion
+ * magnitude using central differences (right - left, below - above). The
+ * gradient of the signed diff points from where the body arrived to where it
+ * left, giving the direction of motion. The resulting (dx, dy) vector is
+ * normalized to unit length, then mapped from [-1, 1] to [0, 1] for GPU
+ * texture encoding (the shader reverses this with `dir = texel.gb * 2.0 - 1.0`).
+ *
+ * Pixels with near-zero gradient length (< 0.001) get zero direction to avoid
+ * amplifying noise.
+ *
+ * @param motionMap - Per-pixel motion magnitude (single-channel, w*h)
+ * @param w - Width in pixels
+ * @param h - Height in pixels
+ * @returns Float32Array of w*h*3, packed as [R=magnitude, G=dx, B=dy] per pixel
  */
 function computeMotionVectors(
 	motionMap: Float32Array,
@@ -343,8 +431,25 @@ function computeMotionVectors(
 }
 
 /**
- * Detect motion (frame diff only).
- * Returns the raw motion map as a Float32Array.
+ * Detect per-pixel motion by diffing the current segmentation mask against the
+ * previous frame's mask.
+ *
+ * For each pixel, computes `|current - previous|`. Values below the configured
+ * motion threshold ({@link params.segmentation.motionThreshold}) are zeroed to
+ * suppress sensor noise. The result is a Float32Array where each value is either
+ * 0 (no significant change) or the magnitude of the confidence change (0..1).
+ *
+ * On the first frame (no previous mask), returns all zeros.
+ *
+ * This is the CPU-side motion computation used by both the legacy and unified
+ * pipelines. In the unified pipeline, the output feeds into
+ * {@link updateGpuTrail}; in the legacy pipeline, it feeds into
+ * {@link detectMotion} which also accumulates the CPU trail buffer.
+ *
+ * @param currentRaw - Current frame's segmentation mask (per-pixel confidence 0..1)
+ * @param width - Mask width in pixels
+ * @param height - Mask height in pixels
+ * @returns Per-pixel motion magnitude map (Float32Array, same dimensions)
  */
 export function detectMotionMap(
 	currentRaw: Float32Array,
@@ -377,8 +482,21 @@ export function detectMotionMap(
 }
 
 /**
- * Legacy CPU-side detect motion + trail accumulation.
- * Used by the legacy (non-unified) pipeline.
+ * Legacy CPU-side motion detection with trail accumulation.
+ *
+ * Combines {@link detectMotionMap} with a simple CPU trail buffer: each frame,
+ * motion magnitude is multiplied by `deposition` and added to the trail, then
+ * the entire trail is multiplied by `decay` (< 1.0) so it fades over time.
+ * Values below 0.005 are clamped to zero to prevent ghost trails.
+ *
+ * Used only by the legacy (non-unified) pipeline. The unified pipeline uses
+ * {@link detectMotionMap} + {@link updateGpuTrail} instead, which runs the
+ * equivalent logic on the GPU via trail.frag.glsl.
+ *
+ * @param currentRaw - Current frame's segmentation mask
+ * @param width - Mask width in pixels
+ * @param height - Mask height in pixels
+ * @returns Object with `motion` (raw motion map) and `trail` (accumulated trail)
  */
 export function detectMotion(
 	currentRaw: Float32Array,

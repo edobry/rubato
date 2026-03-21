@@ -1,9 +1,48 @@
 /**
- * Unified WebGL compositor.
- * Blends fog, camera feed, segmentation mask, and trail buffer
- * in a single shader pass with per-pixel control.
+ * compositor.ts — Unified WebGL rendering pipeline for 時痕 Rubato.
  *
- * This is the sole rendering pipeline for the application.
+ * This module is the final stage of the visual pipeline and determines
+ * everything the viewer sees on screen. It composites four input layers
+ * into a single full-screen output using a fragment shader:
+ *
+ *   Layer 0 (TEXTURE0) — **Fog**: A procedural noise field rendered to an
+ *     offscreen FBO by fog.ts on the same WebGL context. Always visible;
+ *     this is the ambient idle-state visual.
+ *
+ *   Layer 1 (TEXTURE1) — **Camera**: The live webcam feed, uploaded each
+ *     frame from an HTMLVideoElement. Only shown when `params.camera.showFeed`
+ *     is true (debug/alignment use).
+ *
+ *   Layer 2 (TEXTURE2) — **Mask**: Body-segmentation confidence values
+ *     (one float per pixel from the BodyPix/TFLite model). Uploaded as a
+ *     luminance texture (R channel = confidence 0–1).
+ *
+ *   Layer 3 (TEXTURE3) — **Trail / Density**: Accumulated movement history.
+ *     Can arrive as either:
+ *       - `Float32Array` (CPU path): uploaded to a managed WebGLTexture each frame.
+ *       - `WebGLTexture` (GPU FBO path): bound directly, no upload needed.
+ *     In default mode, the R channel modulates fog brightness. In imprint mode,
+ *     the G channel (density) illuminates the fog from within.
+ *
+ * Coordinate system:
+ *   The compositor renders a full-screen quad in clip space (−1 to +1).
+ *   Camera/mask/trail textures use a shared crop transform (`u_cropOffset`,
+ *   `u_cropScale`) computed by `computeCropUV()` in renderer.ts, which maps
+ *   the camera's native resolution to the display aspect ratio with optional
+ *   mirroring. The fog texture is sampled without cropping since it is
+ *   rendered at display resolution.
+ *
+ * Lifecycle:
+ *   1. `initCompositor()` — creates the canvas, compiles the shader, allocates
+ *      textures with 1×1 placeholders, binds texture units, and wires up
+ *      WebGL context-loss recovery for unattended gallery operation.
+ *   2. `resizeCompositor()` — called on window resize to sync canvas/viewport.
+ *   3. `compositeFrame()` — called once per animation frame to upload textures,
+ *      set uniforms from the live `params` object, and draw the quad.
+ *
+ * This module owns no rendering logic itself — all blending decisions live
+ * in the fragment shader (composite.frag.glsl). This file is purely
+ * responsible for texture management and uniform plumbing.
  */
 
 import { params } from "./params";
@@ -17,25 +56,32 @@ import {
 	uploadVideoTexture,
 } from "./webgl-utils";
 
+// --- Module state ---
+// The compositor owns the primary WebGL context. Fog rendering shares this
+// context via getCompositorGl(), writing to an offscreen FBO whose texture
+// is passed back into compositeFrame() as `fogTex`.
 let gl: WebGLRenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let canvas: HTMLCanvasElement | null = null;
 
-// Textures (fog texture comes externally from renderFogToTexture)
+// Managed textures — fog texture is external (rendered by fog.ts into an FBO
+// on this same GL context), so it is received as a parameter, not stored here.
 let cameraTexture: WebGLTexture | null = null;
 let quadBuffer: WebGLBuffer | null = null;
 let aPosLocation = -1;
 let maskTexture: WebGLTexture | null = null;
 let trailTexture: WebGLTexture | null = null;
 
-// Uniform locations
+// Lazily-cached uniform locations, keyed by GLSL uniform name.
 const uniforms: Record<string, WebGLUniformLocation | null> = {};
 
+/** Convert a CSS hex color (e.g. "#ff8800") to normalized [0–1] RGB triple for GLSL. */
 function hexToRgbNorm(hex: string): [number, number, number] {
 	const n = Number.parseInt(hex.replace("#", ""), 16);
 	return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
+/** Look up (and cache) a uniform location by name. Safe to call every frame. */
 function getUniform(name: string): WebGLUniformLocation | null {
 	if (!(name in uniforms)) {
 		uniforms[name] = gl!.getUniformLocation(program!, name);
@@ -44,8 +90,21 @@ function getUniform(name: string): WebGLUniformLocation | null {
 }
 
 /**
- * Initialize the unified compositor.
- * Returns the canvas element to insert into the DOM.
+ * Initialize the unified WebGL compositor.
+ *
+ * Creates a full-screen canvas, compiles the composite shader, allocates
+ * a full-screen quad VBO, and creates three managed textures (camera, mask,
+ * trail) with 1×1 placeholder data so they are valid before the first real
+ * upload. Texture unit assignments are fixed:
+ *   - Unit 0: fog   (bound externally each frame)
+ *   - Unit 1: camera
+ *   - Unit 2: mask
+ *   - Unit 3: trail
+ *
+ * Also registers WebGL context-loss/restore handlers so the installation
+ * can recover automatically during unattended gallery operation.
+ *
+ * @returns The canvas element to insert into the DOM, or `null` on failure.
  */
 export function initCompositor(): HTMLCanvasElement | null {
 	canvas = document.createElement("canvas");
@@ -151,6 +210,7 @@ export function getCompositorGl(): WebGLRenderingContext | null {
 	return gl;
 }
 
+/** Sync the compositor canvas and GL viewport to the current window size. */
 export function resizeCompositor(): void {
 	if (!canvas || !gl) return;
 	canvas.width = window.innerWidth;
@@ -159,11 +219,30 @@ export function resizeCompositor(): void {
 }
 
 /**
- * Render a composited frame.
- * Call this instead of the legacy Canvas 2D renderFrame().
+ * Render a single composited frame to the screen.
  *
- * The `trail` parameter accepts either a Float32Array (uploaded as texture,
- * legacy path) or a WebGLTexture (bound directly, GPU trail path).
+ * This is called once per animation frame by the main loop. It:
+ *   1. Unbinds any FBO left from prior render passes (fog/trail) so we draw
+ *      to the default framebuffer (the screen).
+ *   2. Re-binds the compositor's own vertex buffer and shader program (other
+ *      passes may have switched these).
+ *   3. Binds/uploads all four input textures to their fixed texture units.
+ *   4. Sets all shader uniforms from the live `params` object.
+ *   5. Draws a full-screen quad (TRIANGLE_STRIP, 4 vertices).
+ *
+ * @param video     - The live camera feed. Its current frame is uploaded to
+ *                    TEXTURE1 each call via `texImage2D`.
+ * @param fogTex    - The fog layer texture, rendered by fog.ts into an FBO on
+ *                    this same GL context. Bound to TEXTURE0.
+ * @param mask      - Body-segmentation confidence map (one float per pixel,
+ *                    0 = background, 1 = person). Uploaded as a luminance
+ *                    texture to TEXTURE2. May be null before segmentation starts.
+ * @param trail     - Accumulated movement trace. Accepts two forms:
+ *                      - `Float32Array`: CPU-computed trail, uploaded each frame.
+ *                      - `WebGLTexture`: GPU trail FBO, bound directly (no upload).
+ *                    Bound to TEXTURE3. May be null if trail is disabled.
+ * @param maskW     - Width of the mask/trail data in pixels.
+ * @param maskH     - Height of the mask/trail data in pixels.
  */
 export function compositeFrame(
 	video: HTMLVideoElement,
@@ -215,7 +294,10 @@ export function compositeFrame(
 		gl.bindTexture(gl.TEXTURE_2D, trailTexture!);
 	}
 
-	// Set uniforms
+	// --- Set uniforms ---
+	// Crop transform: maps the camera's native aspect ratio to the display,
+	// producing UV offset/scale values that the shader uses to sample
+	// camera, mask, and trail textures in the correct region.
 	const { width: displayW, height: displayH } = canvas;
 	const crop = computeCropUV(
 		video.videoWidth,
@@ -237,7 +319,8 @@ export function compositeFrame(
 	gl.uniform3f(getUniform("u_overlayColor"), r, g, b);
 	gl.uniform1f(getUniform("u_time"), performance.now() / 1000);
 
-	// Map color mode string to float for GLSL
+	// Map the color mode name to an integer code for the shader's
+	// computeOverlayColor() switch. Must stay in sync with composite.frag.glsl.
 	const colorModeMap: Record<string, number> = {
 		solid: 0,
 		rainbow: 1,
@@ -250,20 +333,32 @@ export function compositeFrame(
 		getUniform("u_colorMode"),
 		colorModeMap[params.overlay.colorMode] ?? 0,
 	);
+	// u_cameraFill: 0 = camera visible only where mask detects a person,
+	// 1 = camera fills the entire frame (debug). Forced to 0 when feed is off.
 	gl.uniform1f(
 		getUniform("u_cameraFill"),
 		params.camera.showFeed ? params.camera.fillAmount : 0,
 	);
+	// Fog interaction uniforms:
+	// - u_fogMaskStrength: how much the body silhouette parts/clears the fog (0–1)
+	// - u_fogTrailStrength: how much accumulated trails modulate fog brightness (0–1)
+	// - u_fogMode: 0 = classic (bright fog, silhouette darkens), 1 = shadow (dark fog, silhouette lightens)
 	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
 	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
 	gl.uniform1f(
 		getUniform("u_fogMode"),
 		params.fog.mode === "shadow" ? 1.0 : 0.0,
 	);
+	// u_imprint: switches the shader to imprint mode, where the trail's G channel
+	// (density) illuminates the fog instead of the R channel modulating brightness.
+	// The body silhouette is never shown in this mode.
 	gl.uniform1f(
 		getUniform("u_imprint"),
 		params.overlay.visualize === "imprint" ? 1.0 : 0.0,
 	);
+	// u_blur: Gaussian blur radius applied to mask/trail in the shader (0 = off).
+	// u_maskTexelSize: reciprocal mask dimensions, used by the shader's blur kernel
+	// and the contour color mode's edge-detection gradient sampling.
 	gl.uniform1f(getUniform("u_blur"), params.overlay.blur);
 	gl.uniform2f(
 		getUniform("u_maskTexelSize"),

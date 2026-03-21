@@ -104,9 +104,13 @@ float gaussianBlur(sampler2D tex, vec2 uv, vec2 texelSize, float radius) {
     return sum / weightSum;
 }
 
+// Transforms screen-space UVs into camera-texture UVs, applying the crop
+// region (to handle aspect-ratio mismatch between screen and camera) and
+// optional horizontal mirroring (so the viewer's movement feels intuitive).
 vec2 getCameraUV(vec2 baseUV) {
     vec2 uv = u_cropOffset + baseUV * u_cropScale;
     if (u_mirror > 0.5) {
+        // Reflect around the crop region's horizontal center
         uv.x = u_cropOffset.x + u_cropScale.x - (uv.x - u_cropOffset.x);
     }
     return uv;
@@ -128,24 +132,38 @@ vec3 hsl2rgb(float h, float s, float l) {
     return rgb + m;
 }
 
-// Compute overlay color based on color mode, UV position, time, and current base color
-// Returns vec4(rgb, alpha_multiplier) where alpha_multiplier modulates the overlay alpha
+// Compute overlay color based on the active color mode.
+// Returns vec4(rgb, alpha_multiplier) — the alpha component modulates the
+// overlay's blending strength, allowing modes like contour to be transparent
+// where there is no edge, or aura to pulse in intensity.
+//
+// Color modes (u_colorMode):
+//   0 - Solid:    flat tint using u_overlayColor
+//   1 - Rainbow:  full-saturation hue cycles across position and time
+//   2 - Gradient: warm-to-cool hue sweep driven by vertical position + time
+//   3 - Contour:  only the edges of the silhouette are drawn (Sobel-like gradient)
+//   4 - Invert:   density darkens instead of brightens (inverts the base color)
+//   5 - Aura:     pulsing colored glow with hue shift, inspired by the legacy
+//                 p5.js prototype's rainbow-hue animation
 vec4 computeOverlayColor(vec2 uv, float maskVal, float trailVal, vec3 baseColor) {
-    // solid (0)
+    // Mode 0: Solid — flat color, full alpha
     if (u_colorMode < 0.5) {
         return vec4(u_overlayColor, 1.0);
     }
-    // rainbow (1)
+    // Mode 1: Rainbow — hue varies with both screen position and time
     if (u_colorMode < 1.5) {
         float h = mod(u_time * 0.5 + uv.x * 0.5 + uv.y * 0.3, 1.0);
         return vec4(hsl2rgb(h, 1.0, 0.5), 1.0);
     }
-    // gradient (2)
+    // Mode 2: Gradient — vertical hue sweep, slightly desaturated
     if (u_colorMode < 2.5) {
         float h = mod(u_time * 0.5 + uv.y * 0.5, 1.0);
         return vec4(hsl2rgb(h, 0.8, 0.5), 1.0);
     }
-    // contour (3) — edge detection via mask gradient
+    // Mode 3: Contour — renders only the silhouette's edge, not its interior.
+    // Uses a simple finite-difference gradient (dx, dy) on the mask to detect
+    // boundaries. Returns alpha=0 for non-edge pixels so the overlay is invisible
+    // everywhere except at the body's outline.
     if (u_colorMode < 3.5) {
         float right = texture2D(u_mask, uv + vec2(u_maskTexelSize.x, 0.0)).r;
         float below = texture2D(u_mask, uv + vec2(0.0, u_maskTexelSize.y)).r;
@@ -157,14 +175,15 @@ vec4 computeOverlayColor(vec2 uv, float maskVal, float trailVal, vec3 baseColor)
         float ea = min(edge * 5.0, 1.0);
         return vec4(u_overlayColor, ea);
     }
-    // invert (4) — invert the base color
+    // Mode 4: Invert — flips the base color so density creates dark traces
+    // instead of bright ones. Useful for light-on-dark vs dark-on-light aesthetics.
     if (u_colorMode < 4.5) {
         return vec4(1.0 - baseColor, 1.0);
     }
-    // aura (5) — pulsing glow with hue shift
-    // Legacy uses: pulse = 0.7 + 0.3 * sin(rainbowHue * 0.05 + y * 0.02)
-    //              hue = (rainbowHue + y * 0.3) % 360
-    // rainbowHue advances 0.5/frame ~= 30/sec, so rainbowHue ≈ time * 30
+    // Mode 5: Aura — a pulsing, color-shifting glow around the body.
+    // Ported from the legacy p5.js prototype where rainbowHue advanced
+    // 0.5 per frame (~30/sec). The pulse modulates both brightness and
+    // alpha, creating a breathing effect.
     float pulse = 0.7 + 0.3 * sin(u_time * 1.5 + uv.y * 1.44);
     float hue = mod(u_time * 0.083 + uv.y * 0.3, 1.0);
     vec3 auraColor = hsl2rgb(hue, 0.8, 0.3 + 0.3 * pulse);
@@ -173,18 +192,22 @@ vec4 computeOverlayColor(vec2 uv, float maskVal, float trailVal, vec3 baseColor)
 }
 
 void main() {
-    // Flip Y for video/mask textures (WebGL origin is bottom-left, video is top-left)
+    // --- Coordinate setup ---
+    // WebGL's origin is bottom-left but video/camera textures have top-left
+    // origin. Flip Y so mask and camera samples align with the screen.
     vec2 flippedUV = vec2(v_uv.x, 1.0 - v_uv.y);
 
-    // Sample fog (rendered in WebGL space, no flip needed)
+    // Fog is rendered in WebGL space (by our own fog shader), so no flip needed.
     vec3 fog = texture2D(u_fog, v_uv).rgb;
 
-    // Sample camera-space textures (Y-flipped for video/mask coordinate space)
+    // Map screen UVs into camera texture space (applies crop + mirror).
     vec2 camUV = getCameraUV(flippedUV);
 
-    // When fillAmount < 1.0 (zoomed out), some screen pixels map outside the
-    // camera texture's 0-1 range. CLAMP_TO_EDGE repeats edge pixels, causing
-    // visible vertical line artifacts. Zero out everything outside valid range.
+    // --- Bounds check ---
+    // When the camera crop is zoomed out (fillAmount < 1.0), some screen pixels
+    // land outside the camera texture's 0-1 range. GL's CLAMP_TO_EDGE would
+    // smear the edge row/column, creating visible line artifacts. We explicitly
+    // zero out any sample outside the valid region.
     bool inBounds = camUV.x >= 0.0 && camUV.x <= 1.0 && camUV.y >= 0.0 && camUV.y <= 1.0;
 
     vec3 camera = inBounds ? texture2D(u_camera, camUV).rgb : vec3(0.0);
@@ -196,17 +219,26 @@ void main() {
     } else if (u_blur > 0.5) {
         mask = gaussianBlur(u_mask, camUV, u_maskTexelSize, u_blur);
         trail = gaussianBlur(u_trail, camUV, u_maskTexelSize, u_blur);
-        // Smooth edges to eliminate stepped aliasing artifacts
+        // After blurring, the mask has soft gradients at the boundary.
+        // Smoothstep re-thresholds the gradient to prevent visible banding
+        // while keeping the transition soft (0.1 to 0.5 range).
         mask = smoothstep(0.1, 0.5, mask);
     } else {
         mask = texture2D(u_mask, camUV).r;
         trail = texture2D(u_trail, camUV).r;
     }
 
-    // Imprint mode: density illuminates fog, no person outline visible
+    // --- Imprint mode (gallery default) ---
+    // In imprint mode the viewer's body is NEVER shown — no silhouette, no
+    // outline, no camera feed. The only visible effect of presence is that
+    // accumulated movement energy (density, stored in the trail FBO's G
+    // channel) illuminates the fog from within. The result: ghostly bright
+    // traces that persist and slowly fade, as if the fog remembers where
+    // the body moved.
     if (u_imprint > 0.5) {
-        // In imprint mode, trail texture has R=cultivation, G=density
-        // Sample the G channel for the density value
+        // Trail FBO channels: R = cultivation (not used here), G = density.
+        // Density is the core artistic signal — it represents accumulated
+        // movement energy at each pixel.
         float density;
         if (!inBounds) {
             density = 0.0;
@@ -214,40 +246,44 @@ void main() {
             density = texture2D(u_trail, camUV).g;
         }
 
-        // Base layer: fog
+        // Start with pure fog — the baseline the viewer always sees.
         vec3 color = fog;
 
-        // Density illuminates the fog — brighter where energy has been channeled
+        // Density illuminates the fog multiplicatively: where density is high,
+        // the fog glows brighter (fog * density). This preserves the fog's
+        // texture and color while making it luminous — not a flat overlay.
         color += fog * density * u_fogTrailStrength;
 
-        // Layer camera feed (if enabled)
+        // Camera feed — debug only, never shown in gallery installation.
         if (u_showFeed > 0.5) {
             float camBlend = u_cameraFill * 0.8;
             color = mix(color, camera, camBlend);
         }
 
-        // No overlay tint — person outline is never visible in imprint mode
+        // No overlay tint in imprint mode — the body outline must stay invisible.
 
         gl_FragColor = vec4(color, 1.0);
         return;
     }
 
-    // Base layer: fog
+    // --- Non-imprint compositing (debug / development modes) ---
+    // Start with fog as the base, then layer body interactions on top.
     vec3 color = fog;
 
-    // Fog interaction: mode-dependent
+    // Fog interaction depends on the fog aesthetic mode:
     if (u_fogMode < 0.5) {
-        // Classic: silhouette carves through bright fog (darkens)
+        // Classic mode: bright ambient fog. The body's silhouette suppresses
+        // (darkens) the fog where it stands, creating a carved-out clearing.
+        // Trails then brighten the fog where movement has accumulated.
         float fogSuppression = mask * u_fogMaskStrength;
         color *= (1.0 - fogSuppression);
-        // Trails brighten fog
         color += fog * trail * u_fogTrailStrength;
     } else {
-        // Shadow: silhouette creates clearings in dark fog (lightens)
-        // In shadow mode, the displacement handles the primary interaction,
-        // but mask still adds immediate presence clearing
+        // Shadow mode: dark ambient fog. The body creates subtle bright
+        // clearings rather than dark ones. The effect is more understated —
+        // the fog displacement shader handles the primary visual interaction,
+        // while the mask adds a gentle immediate-presence brightening.
         color += vec3(mask * u_fogMaskStrength * 0.1);
-        // Trails create subtle light traces in the shadow
         color += vec3(trail * u_fogTrailStrength * 0.05);
     }
 
@@ -261,7 +297,11 @@ void main() {
         color = mix(color, camera, camBlend);
     }
 
-    // Overlay tint on person (color mode aware)
+    // --- Overlay tint (debug visualization, off in gallery) ---
+    // Blends a colored overlay onto the composited image wherever the body
+    // or its trail is present. The alpha is driven by whichever is stronger:
+    // the live mask or 70% of the trail value, multiplied by the mode's own
+    // alpha (e.g., contour mode returns 0 for non-edge pixels).
     if (u_showOverlay > 0.5) {
         vec4 overlayResult = computeOverlayColor(camUV, mask, trail, color);
         float overlayAlpha = max(mask, trail * 0.7) * u_opacity * overlayResult.a;

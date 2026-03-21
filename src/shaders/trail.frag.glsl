@@ -1,25 +1,68 @@
 precision mediump float;
 
+/*
+ * 時痕 Rubato — Trail Fragment Shader (Imprint Density System)
+ * ============================================================
+ *
+ * This shader implements the core artistic logic of the Rubato installation:
+ * the body is never displayed, but the *memory of its movement* lingers as
+ * an impressionistic residue in fog. Standing still produces nothing visible.
+ * Moving through space leaves a trace — not of form, but of force.
+ *
+ * The conceptual framework draws from butoh (舞踏, the dance of darkness),
+ * where the body is a vessel for internal forces rather than a shape to be
+ * displayed, and from tai chi quan's model of qi cultivation and flow.
+ *
+ * THREE-PHASE IMPRINT DENSITY MODEL
+ * ----------------------------------
+ *
+ * Phase 1 — Cultivation (qi gathering)
+ *   Stillness within the body silhouette accumulates invisible energy in the
+ *   R channel. Nothing is rendered; the viewer sees only fog. Like qi pooling
+ *   in a practitioner's dantian before it flows, the body is a vessel slowly
+ *   filling with potential. The longer you stand still, the more energy gathers.
+ *
+ * Phase 2 — Channeling (meridian flow)
+ *   When the body moves, accumulated cultivation drains from the R channel and
+ *   releases into the G channel as visible density. The trace doesn't outline
+ *   the body — it marks where motion *occurred*, elongating through the space
+ *   traversed. Longer stillness produces more dramatic release; faster motion
+ *   produces more intense traces. This models qi flowing through meridians:
+ *   energy channeled along paths of movement.
+ *
+ * Phase 3 — Disintegration (memory corruption)
+ *   Visible density does not fade uniformly. Instead, simplex noise modulates
+ *   the decay rate per-pixel, creating non-uniform fragmentation — traces
+ *   break apart unevenly like misfiring neurons or corrupting memory, then
+ *   dissolve back into the fog. This avoids the artificial look of linear fade.
+ *
+ * DATA ENCODING
+ * -------------
+ *   Trail buffer:  R = cultivation energy (invisible), G = visible density
+ *   Motion texture: R = magnitude, G = dx direction, B = dy direction
+ *   Mask texture:   R = body silhouette (1 = inside body)
+ */
+
 varying vec2 v_uv;
 
-uniform sampler2D u_prevTrail;  // previous frame's trail buffer
-uniform sampler2D u_motion;     // current frame's motion map
-uniform sampler2D u_mask;       // segmentation mask (imprint mode)
+uniform sampler2D u_prevTrail;  // previous frame's trail buffer (R=cultivation, G=density)
+uniform sampler2D u_motion;     // motion map (R=magnitude, GB=direction when anisotropic)
+uniform sampler2D u_mask;       // segmentation mask — body silhouette for cultivation bounds
 
-uniform float u_deposition;     // how much motion adds to trail
-uniform float u_decay;          // multiplicative decay per frame
+uniform float u_deposition;     // (legacy mode) how much motion adds to trail
+uniform float u_decay;          // base multiplicative decay per frame
 
-// Imprint mode uniforms
-uniform float u_mode;           // 0 = legacy trail, 1 = imprint
-uniform float u_cultivationRate;  // how fast energy builds during stillness
-uniform float u_channelStrength;  // how much energy releases on motion
-uniform float u_drainRate;        // how fast cultivation empties during motion
-uniform float u_diffusionRate;    // spatial spreading speed
-uniform float u_decayVariance;    // noise modulation on decay
-uniform float u_disintSpeed;      // noise evolution speed
-uniform float u_time;             // for noise animation
+// Imprint density system uniforms
+uniform float u_mode;             // 0 = legacy trail, 1 = imprint density system
+uniform float u_cultivationRate;  // qi gathering speed — how fast energy builds during stillness
+uniform float u_channelStrength;  // meridian flow intensity — how much energy releases on motion
+uniform float u_drainRate;        // vessel emptying — how fast cultivation drains during motion
+uniform float u_diffusionRate;    // spatial bleed — how much density spreads to neighbors
+uniform float u_decayVariance;    // disintegration roughness — noise modulation on decay
+uniform float u_disintSpeed;      // corruption drift — how fast the disintegration pattern shifts
+uniform float u_time;             // clock for noise animation
 uniform vec2 u_texelSize;         // 1/width, 1/height for neighbor sampling
-uniform float u_diffusionMode;    // 0 = isotropic, 1 = anisotropic
+uniform float u_diffusionMode;    // 0 = isotropic (uniform spread), 1 = anisotropic (elongated along motion, like meridian traces)
 
 // Simplex noise (Ashima Arts / Ian McEwan) — same as fog shader
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -77,30 +120,49 @@ void main() {
         return;
     }
 
-    // === Imprint mode (u_mode == 1) ===
-    float prevCultivation = texture2D(u_prevTrail, v_uv).r;
-    float prevDensity = texture2D(u_prevTrail, v_uv).g;
+    // === Imprint density system (u_mode == 1) ===
+    float prevCultivation = texture2D(u_prevTrail, v_uv).r;  // invisible energy
+    float prevDensity = texture2D(u_prevTrail, v_uv).g;      // visible trace
     float mask = texture2D(u_mask, v_uv).r;
 
-    // Phase 1: Cultivation — stillness within the body accumulates energy
+    // --- Phase 1: Cultivation (qi gathering) ---
+    // Energy accumulates only where the body is present AND still.
+    // isStill is 1.0 inside the silhouette with no motion, 0.0 otherwise.
+    // This is invisible — the viewer sees nothing while standing still,
+    // but the vessel is filling with potential energy for later release.
     float isStill = mask * (1.0 - step(0.01, motion));
     float newCultivation = prevCultivation + isStill * u_cultivationRate;
 
-    // Phase 2: Channeling — motion releases cultivated energy into density
+    // --- Phase 2: Channeling (meridian flow) ---
+    // Motion converts accumulated cultivation into visible density.
+    // release = cultivation * motion * strength: the trace intensity is
+    // proportional to BOTH how long you stood still (cultivation) AND
+    // how fast you're moving (motion). This creates the dramatic burst
+    // when a long-still viewer suddenly moves.
     float release = prevCultivation * motion * u_channelStrength;
     float newDensity = prevDensity + release;
 
-    // Drain cultivation during motion
+    // Drain the vessel — cultivation empties as the body moves,
+    // transferring its stored energy into the visible trace
     newCultivation *= mix(1.0, u_drainRate, step(0.01, motion));
 
-    // Phase 3: Disintegration — noise-modulated decay (not uniform fade)
+    // --- Phase 3: Disintegration (memory corruption) ---
+    // Traces don't fade uniformly — they fragment and break apart.
+    // Simplex noise creates spatially varying decay: some pixels decay
+    // faster, others linger, producing an organic dissolution that
+    // resembles corrupting memory or misfiring neurons.
     float noiseVal = snoise(v_uv * 8.0 + u_time * u_disintSpeed);
     float localDecay = u_decay * (1.0 + noiseVal * u_decayVariance);
     newDensity *= clamp(localDecay, 0.0, 1.0);
 
-    // Spatial diffusion — density bleeds into neighbors
+    // Spatial diffusion — density bleeds into neighboring pixels.
+    // This softens hard edges and lets traces spread organically.
     if (u_diffusionMode > 0.5) {
-        // Anisotropic: sample along motion direction
+        // Anisotropic diffusion: density spreads preferentially along the
+        // direction of motion, creating elongated "meridian" traces rather
+        // than uniform circular blobs. Along-motion neighbors get 70% weight,
+        // perpendicular neighbors get 30%, so traces stretch in the direction
+        // the body traveled.
         vec2 motionDir = texture2D(u_motion, v_uv).gb * 2.0 - 1.0;
         float dirLen = length(motionDir);
 
@@ -127,7 +189,7 @@ void main() {
             newDensity = mix(newDensity, neighbors, u_diffusionRate);
         }
     } else {
-        // Isotropic: equal weight in all 4 cardinal directions
+        // Isotropic diffusion: equal spread in all directions (uniform blur)
         float neighbors = (
             texture2D(u_prevTrail, v_uv + vec2(u_texelSize.x, 0.0)).g +
             texture2D(u_prevTrail, v_uv - vec2(u_texelSize.x, 0.0)).g +
@@ -141,9 +203,10 @@ void main() {
     newCultivation = clamp(newCultivation, 0.0, 1.0);
     newDensity = clamp(newDensity, 0.0, 1.0);
 
-    // Clean up near-zero values
+    // Clean up near-zero values to avoid accumulating GPU rounding noise
     if (newCultivation < 0.005) newCultivation = 0.0;
     if (newDensity < 0.005) newDensity = 0.0;
 
+    // Output: R = cultivation (invisible energy), G = visible density, BA unused
     gl_FragColor = vec4(newCultivation, newDensity, 0.0, 1.0);
 }
