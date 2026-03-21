@@ -60,6 +60,22 @@ controls.appendChild(stopBtn);
 controls.appendChild(reloadBtn);
 container.appendChild(controls);
 
+// Display toggles
+const toggles = document.createElement("div");
+toggles.className = "controls toggles";
+
+const toggleGuiBtn = document.createElement("button");
+toggleGuiBtn.textContent = "Toggle Params";
+toggleGuiBtn.disabled = true;
+
+const toggleHudBtn = document.createElement("button");
+toggleHudBtn.textContent = "Toggle Stats";
+toggleHudBtn.disabled = true;
+
+toggles.appendChild(toggleGuiBtn);
+toggles.appendChild(toggleHudBtn);
+container.appendChild(toggles);
+
 document.body.appendChild(container);
 
 // --- State tracking ---
@@ -74,6 +90,10 @@ function updateButtons(): void {
 	runBtn.disabled = !connected || isRunning;
 	stopBtn.disabled = !connected || isLobby;
 	reloadBtn.disabled = !connected;
+
+	// Toggle buttons only work when piece is running
+	toggleGuiBtn.disabled = !connected || !isRunning;
+	toggleHudBtn.disabled = !connected || !isRunning;
 }
 
 // --- Wire up controls ---
@@ -81,6 +101,8 @@ function updateButtons(): void {
 runBtn.addEventListener("click", () => ws.sendCommand("run"));
 stopBtn.addEventListener("click", () => ws.sendCommand("stop"));
 reloadBtn.addEventListener("click", () => ws.sendCommand("reload"));
+toggleGuiBtn.addEventListener("click", () => ws.sendCommand("toggleGui"));
+toggleHudBtn.addEventListener("click", () => ws.sendCommand("toggleHud"));
 
 // --- Wire up WS events ---
 
@@ -93,6 +115,13 @@ ws.onState((state: StateMessage) => {
 		error: "Error",
 	};
 	stateValue.textContent = labels[state.state] ?? state.state;
+
+	if (state.guiVisible !== undefined) {
+		toggleGuiBtn.textContent = state.guiVisible ? "Hide Params" : "Show Params";
+	}
+	if (state.hudVisible !== undefined) {
+		toggleHudBtn.textContent = state.hudVisible ? "Hide Stats" : "Show Stats";
+	}
 
 	updateButtons();
 });

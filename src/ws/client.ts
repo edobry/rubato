@@ -59,7 +59,12 @@ export class WsClient {
 	/** Send a state update to admin clients (used by piece). */
 	sendState(
 		state: StateMessage["state"],
-		extra?: { fps?: number; error?: string },
+		extra?: {
+			fps?: number;
+			error?: string;
+			guiVisible?: boolean;
+			hudVisible?: boolean;
+		},
 	): void {
 		this.send({ type: "state", state, ...extra });
 	}

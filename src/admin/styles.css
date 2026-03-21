@@ -128,3 +128,8 @@ body {
 	border-color: #222;
 	background: #111;
 }
+
+.controls.toggles {
+	border-top: 1px solid #222;
+	padding-top: 24px;
+}

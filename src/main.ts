@@ -435,8 +435,10 @@ async function main(ws?: WsClient): Promise<void> {
 		// Draw FPS graph + perf overlay on the HUD canvas
 		if (hudCtx) {
 			hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
-			fps.draw(hudCtx);
-			drawPerfOverlay(hudCtx);
+			if (hudVisible) {
+				fps.draw(hudCtx);
+				drawPerfOverlay(hudCtx);
+			}
 		}
 
 		frameCount++;
@@ -444,6 +446,22 @@ async function main(ws?: WsClient): Promise<void> {
 	}
 
 	requestAnimationFrame(loop);
+
+	// Handle admin toggle commands
+	if (ws) {
+		ws.onCommand((msg) => {
+			if (msg.command === "toggleGui") {
+				const visible = toggleGui();
+				ws.sendState("running", { guiVisible: visible, hudVisible });
+			} else if (msg.command === "toggleHud") {
+				const visible = toggleHud();
+				ws.sendState("running", {
+					guiVisible: isGuiVisible(),
+					hudVisible: visible,
+				});
+			}
+		});
+	}
 
 	// Expose debug API for Playwright MCP / console access
 	// biome-ignore lint/suspicious/noExplicitAny: debug API on window
@@ -547,7 +565,7 @@ function boot(): void {
 			case "run":
 				destroyLobby(lobbyEl);
 				ws.sendState("running");
-				void main();
+				void main(ws);
 				break;
 			case "stop":
 			case "reload":
