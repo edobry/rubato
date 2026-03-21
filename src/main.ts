@@ -14,6 +14,12 @@ import {
 import { computeDisplayBounds } from "./coords";
 import { detectDevice } from "./device";
 import {
+	getDisplacementTexture,
+	initDisplacement,
+	resetDisplacement,
+	updateDisplacement,
+} from "./displacement";
+import {
 	drawFog,
 	initFog,
 	renderFogToTexture,
@@ -21,7 +27,7 @@ import {
 	setFogCrop,
 } from "./fog";
 import { FpsCounter } from "./fps";
-import { initGui } from "./gui";
+import { initGui, isGuiVisible, toggleGui } from "./gui";
 import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
 import {
 	detectMotion,
@@ -43,13 +49,26 @@ import {
 	createSegmentationPipeline,
 	resolveModelConfig,
 } from "./segmentation-state";
+import { initShadow, renderShadowToTexture, setShadowCrop } from "./shadow";
 import { showStatus } from "./status";
+import {
+	computeVelocityField,
+	getVelocityTexture,
+	initVelocity,
+	resetVelocity,
+} from "./velocity";
 import { WsClient } from "./ws/client.js";
 
 // Exposed so GUI can trigger camera re-acquisition
 let video: HTMLVideoElement | null = null;
 let currentResolution = params.camera.resolution;
 let resolutionChanging = false;
+let hudVisible = true;
+
+function toggleHud(): boolean {
+	hudVisible = !hudVisible;
+	return hudVisible;
+}
 
 async function changeResolution(resolution: string): Promise<void> {
 	if (resolutionChanging) return;
@@ -78,7 +97,7 @@ interface FrameState {
 	readonly generation: number;
 }
 
-async function main(): Promise<void> {
+async function main(ws?: WsClient): Promise<void> {
 	// Auto-apply constrained device defaults on first visit
 	const device = detectDevice();
 	if (
@@ -116,6 +135,13 @@ async function main(): Promise<void> {
 	const compositorGl = getCompositorGl();
 	if (compositorGl) {
 		initGpuTrail(compositorGl);
+	}
+
+	// Shadow fog pipeline — shares compositor GL context
+	if (compositorGl) {
+		initVelocity(compositorGl);
+		initDisplacement(compositorGl);
+		initShadow(compositorGl);
 	}
 
 	// Fog field — shares compositor GL context
@@ -210,6 +236,8 @@ async function main(): Promise<void> {
 			};
 			pipeline.reset();
 			resetMotion();
+			resetVelocity();
+			resetDisplacement();
 		}
 
 		if (section === "segmentation" && (key === "model" || key === "delegate")) {
@@ -231,6 +259,8 @@ async function main(): Promise<void> {
 					generation: currentFrame.generation + 1,
 				};
 				resetMotion();
+				resetVelocity();
+				resetDisplacement();
 
 				const newModelUrl = (SEGMENTATION_MODELS[newModel] ??
 					SEGMENTATION_MODELS.fast)!;
@@ -278,6 +308,10 @@ async function main(): Promise<void> {
 							result.height,
 						);
 						motion = motionMap;
+						// Compute directional velocity for shadow displacement
+						if (params.fog.mode === "shadow") {
+							computeVelocityField(result.mask, result.width, result.height);
+						}
 						// In imprint mode, pass the mask to the trail shader for cultivation
 						const maskForTrail =
 							params.overlay.visualize === "imprint" ? result.mask : null;
@@ -343,12 +377,32 @@ async function main(): Promise<void> {
 				[bounds.x / compositorCanvas.width, bounds.y / compositorCanvas.height],
 				[bounds.w / compositorCanvas.width, bounds.h / compositorCanvas.height],
 			);
+			setShadowCrop(
+				[bounds.x / compositorCanvas.width, bounds.y / compositorCanvas.height],
+				[bounds.w / compositorCanvas.width, bounds.h / compositorCanvas.height],
+			);
 		} else {
 			setFogCrop([0, 0], [0, 0]);
+			setShadowCrop([0, 0], [0, 0]);
 		}
 
-		// Unified WebGL path: compositor blends fog + camera + mask + trail
-		const fogTex = renderFogToTexture();
+		// Render backdrop: classic fog or shadow mode
+		let fogTex: WebGLTexture | null;
+		if (params.fog.mode === "shadow") {
+			// Update displacement field from velocity
+			const velTex = getVelocityTexture();
+			if (velTex) {
+				updateDisplacement(
+					velTex,
+					params.shadow.resolution,
+					params.shadow.resolution,
+				);
+			}
+			const dispTex = getDisplacementTexture();
+			fogTex = renderShadowToTexture(dispTex);
+		} else {
+			fogTex = renderFogToTexture();
+		}
 		// Select which data to pass based on the visualize dropdown
 		const viz = params.overlay.visualize;
 		let compMask: Float32Array | null = null;

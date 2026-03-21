@@ -316,6 +316,20 @@ function makeDraggable(guiInstance: GUI): void {
 	});
 }
 
+/** Toggle the GUI panel and return the new visibility state. */
+export function toggleGui(): boolean {
+	if (gui) {
+		gui.show(gui._hidden);
+		return !gui._hidden;
+	}
+	return false;
+}
+
+/** Check if the GUI panel is currently visible. */
+export function isGuiVisible(): boolean {
+	return gui ? !gui._hidden : false;
+}
+
 export async function initGui(): Promise<void> {
 	// Fetch server presets before building the GUI so the dropdown is complete.
 	await initServerPresets();
@@ -600,6 +614,7 @@ export async function initGui(): Promise<void> {
 	density.close();
 
 	const fog = creative.addFolder("Fog");
+	fog.add(params.fog, "mode", ["classic", "shadow"]).name("Mode");
 	addParam(fog, params.fog, "speed", 0, 0.5, 0.01, "Speed");
 	addParam(fog, params.fog, "scale", 0.5, 10, 0.25, "Scale");
 	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
@@ -608,6 +623,20 @@ export async function initGui(): Promise<void> {
 	addParam(fog, params.fog, "maskInteraction", 0, 2, 0.1, "Mask → Fog");
 	addParam(fog, params.fog, "trailInteraction", 0, 5, 0.1, "Trail → Fog");
 	fog.open();
+
+	const shadow = creative.addFolder("Shadow");
+	addParam(shadow, params.shadow, "forceScale", 0, 2, 0.05, "Force Scale");
+	addParam(shadow, params.shadow, "damping", 0.9, 0.999, 0.001, "Damping");
+	addParam(shadow, params.shadow, "diffusion", 0, 0.5, 0.01, "Diffusion");
+	addParam(shadow, params.shadow, "advection", 0, 1, 0.05, "Advection");
+	addParam(shadow, params.shadow, "noiseScale", 0.5, 10, 0.25, "Noise Scale");
+	addParam(shadow, params.shadow, "noiseSpeed", 0, 0.2, 0.005, "Noise Speed");
+	addParam(shadow, params.shadow, "noiseAmount", 0, 1, 0.05, "Noise Amount");
+	shadow.addColor(params.shadow, "baseColor").name("Base Color");
+	shadow.addColor(params.shadow, "highlightColor").name("Highlight Color");
+	addParam(shadow, params.shadow, "baseDensity", 0, 1, 0.05, "Base Density");
+	addParam(shadow, params.shadow, "creepSpeed", 0, 0.1, 0.005, "Creep Speed");
+	shadow.close();
 
 	const detection = creative.addFolder("Detection");
 	addParam(

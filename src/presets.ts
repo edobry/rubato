@@ -49,11 +49,25 @@ export interface CreativePreset {
 		fillAmount: number;
 	};
 	fog: {
+		mode?: string;
 		speed: number;
 		scale: number;
 		density: number;
 		brightness: number;
 		color: string;
+	};
+	shadow?: {
+		forceScale: number;
+		damping: number;
+		diffusion: number;
+		advection: number;
+		noiseScale: number;
+		noiseSpeed: number;
+		noiseAmount: number;
+		baseColor: string;
+		highlightColor: string;
+		baseDensity: number;
+		creepSpeed: number;
 	};
 }
 
@@ -91,11 +105,25 @@ export function extractPreset(name: string): CreativePreset {
 			fillAmount: params.camera.fillAmount,
 		},
 		fog: {
+			mode: params.fog.mode,
 			speed: params.fog.speed,
 			scale: params.fog.scale,
 			density: params.fog.density,
 			brightness: params.fog.brightness,
 			color: params.fog.color,
+		},
+		shadow: {
+			forceScale: params.shadow.forceScale,
+			damping: params.shadow.damping,
+			diffusion: params.shadow.diffusion,
+			advection: params.shadow.advection,
+			noiseScale: params.shadow.noiseScale,
+			noiseSpeed: params.shadow.noiseSpeed,
+			noiseAmount: params.shadow.noiseAmount,
+			baseColor: params.shadow.baseColor,
+			highlightColor: params.shadow.highlightColor,
+			baseDensity: params.shadow.baseDensity,
+			creepSpeed: params.shadow.creepSpeed,
 		},
 	};
 }
@@ -141,11 +169,29 @@ export function applyPreset(preset: CreativePreset): void {
 		params.camera.fillAmount = preset.camera.fillAmount;
 
 		// Fog
+		if (preset.fog.mode) {
+			params.fog.mode = preset.fog.mode as typeof params.fog.mode;
+		}
 		params.fog.speed = preset.fog.speed;
 		params.fog.scale = preset.fog.scale;
 		params.fog.density = preset.fog.density;
 		params.fog.brightness = preset.fog.brightness;
 		params.fog.color = preset.fog.color ?? "#ffffff";
+
+		// Shadow (optional — older presets won't have this)
+		if (preset.shadow) {
+			params.shadow.forceScale = preset.shadow.forceScale;
+			params.shadow.damping = preset.shadow.damping;
+			params.shadow.diffusion = preset.shadow.diffusion;
+			params.shadow.advection = preset.shadow.advection;
+			params.shadow.noiseScale = preset.shadow.noiseScale;
+			params.shadow.noiseSpeed = preset.shadow.noiseSpeed;
+			params.shadow.noiseAmount = preset.shadow.noiseAmount;
+			params.shadow.baseColor = preset.shadow.baseColor;
+			params.shadow.highlightColor = preset.shadow.highlightColor;
+			params.shadow.baseDensity = preset.shadow.baseDensity;
+			params.shadow.creepSpeed = preset.shadow.creepSpeed;
+		}
 	}); // end batchParamUpdate
 }
 

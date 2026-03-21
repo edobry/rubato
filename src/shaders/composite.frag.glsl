@@ -1,40 +1,94 @@
+/**
+ * composite.frag.glsl — Final compositing stage for the 時痕 Rubato installation.
+ *
+ * This is the last shader in the rendering pipeline and determines everything
+ * the viewer actually sees on the wall-mounted screen. It blends four visual
+ * layers into a single output:
+ *
+ *   1. FOG (always visible)
+ *      A procedural simplex-noise field that fills the screen. This is the
+ *      ambient idle-state visual — when no one is present, the viewer sees
+ *      only fog. The fog is never fully replaced; the body interacts with it
+ *      but never overrides it.
+ *
+ *   2. CAMERA FEED (debug/development only)
+ *      The raw webcam image. Controlled by u_showFeed; always off in the
+ *      gallery. Useful for aligning the camera crop and verifying detection.
+ *
+ *   3. MASK OVERLAY (debug/development only)
+ *      A tinted silhouette derived from the body-segmentation model.
+ *      Controlled by u_showOverlay. In gallery mode this is off; the viewer
+ *      should never see a literal outline of their body.
+ *
+ *   4. TRAIL / DENSITY (the core artistic layer)
+ *      A persistent trace of accumulated movement, stored in an offscreen
+ *      trail FBO. In the default (non-imprint) mode the trail's R channel
+ *      modulates fog brightness. In imprint mode the trail's G channel
+ *      (density) illuminates the fog — areas where a viewer has moved glow
+ *      brighter, as if the fog is being lit from within. The body itself is
+ *      NEVER shown; only its accumulated energy is visible.
+ *
+ * Blending philosophy:
+ *   The installation's aesthetic is subtractive presence — the viewer's body
+ *   is revealed only through its effect on the fog, never as a direct image.
+ *   In classic fog mode the silhouette carves dark clearings; in shadow mode
+ *   it creates bright clearings in dark fog. Trails leave persistent traces
+ *   that slowly fade over time.
+ *
+ * Color modes (u_colorMode) provide different aesthetic treatments for how
+ * the overlay/density is rendered — see computeOverlayColor() below.
+ */
+
 precision mediump float;
 
 varying vec2 v_uv;
 
-// Textures
+// --- Input textures ---
 uniform sampler2D u_fog;
 uniform sampler2D u_camera;
 uniform sampler2D u_mask;    // person mask (R channel, 0-1)
-uniform sampler2D u_trail;   // trail buffer (R channel, 0-1)
+uniform sampler2D u_trail;   // trail buffer — R: cultivation/trail, G: density (imprint mode)
 
-// Camera crop (UV space)
+// --- Camera crop / transform (UV space) ---
+// Maps screen UVs to the sub-region of the camera texture that should be
+// displayed, accounting for aspect-ratio differences and optional mirroring.
 uniform vec2 u_cropOffset;
 uniform vec2 u_cropScale;
-uniform float u_mirror;      // 1.0 = mirror, 0.0 = no mirror
+uniform float u_mirror;      // 1.0 = mirror horizontally (natural selfie view)
 
-// Display controls
-uniform float u_showFeed;    // 1.0 = show camera, 0.0 = hide
-uniform float u_showOverlay; // 1.0 = show overlay, 0.0 = hide
-uniform float u_opacity;
-uniform vec3 u_overlayColor;
-uniform float u_time;
-uniform float u_colorMode;   // 0=solid, 1=rainbow, 2=gradient, 3=contour, 4=invert, 5=aura
-uniform float u_imprint;     // 1.0 = imprint mode (no silhouette, density illuminates fog)
+// --- Display toggles (debug controls, off in gallery) ---
+uniform float u_showFeed;    // 1.0 = show raw camera feed
+uniform float u_showOverlay; // 1.0 = show colored mask overlay
+uniform float u_opacity;     // overlay opacity multiplier
+uniform vec3 u_overlayColor; // base tint for solid / contour / aura modes
+uniform float u_time;        // elapsed seconds, drives animated color modes
+uniform float u_colorMode;   // color treatment — see computeOverlayColor()
+uniform float u_imprint;     // 1.0 = imprint mode (density-only, no silhouette)
 
-// Mask blur
-uniform float u_blur;            // blur radius (0-5)
+// --- Mask blur ---
+// Softens the hard segmentation edges from the ML model to avoid a harsh
+// cut-out look. A 5x5 Gaussian kernel is applied when u_blur > 0.5.
+uniform float u_blur;            // blur radius in texels (0 = off, 1-5 typical)
 uniform vec2 u_maskTexelSize;    // 1.0/maskWidth, 1.0/maskHeight
 
-// Camera fill (0 = mask-only, 1 = full frame)
+// --- Camera fill ---
+// Controls how much of the camera feed is visible beyond the detected body.
+// 0 = camera only where the mask says a person is (artistic/gallery mode)
+// 1 = camera fills the entire frame regardless of mask (debug/alignment mode)
 uniform float u_cameraFill;
 
-// Fog interaction
-uniform float u_fogMaskStrength;   // how much silhouette parts the fog (0-1)
-uniform float u_fogTrailStrength;  // how much trails modulate fog brightness
+// --- Fog interaction ---
+// These uniforms control how the body and its trails affect the fog layer.
+uniform float u_fogMaskStrength;   // how strongly the live silhouette parts the fog (0-1)
+uniform float u_fogTrailStrength;  // how strongly accumulated trails modulate fog brightness
+uniform float u_fogMode;           // 0 = classic (bright fog, body darkens it)
+                                   // 1 = shadow (dark fog, body lightens it)
 
-// Gaussian blur helper: samples a texture in a 5x5 kernel with Gaussian weights
-// Uses exp(-dist^2 / (2*radius^2)) weighting for smooth falloff instead of box blur
+// Gaussian blur helper: samples a texture in a 5x5 kernel with Gaussian weights.
+// The ML segmentation model produces hard-edged masks that look unnatural when
+// composited directly. This blur softens the boundary so the body's interaction
+// with the fog feels organic rather than cut-out. Uses exp(-d^2 / 2r^2) weighting
+// for smooth falloff instead of a box blur.
 float gaussianBlur(sampler2D tex, vec2 uv, vec2 texelSize, float radius) {
     float sum = 0.0;
     float weightSum = 0.0;
@@ -181,12 +235,21 @@ void main() {
     // Base layer: fog
     vec3 color = fog;
 
-    // Fog interaction: silhouette carves through fog
-    float fogSuppression = mask * u_fogMaskStrength;
-    color *= (1.0 - fogSuppression);
-
-    // Fog interaction: trails brighten/modulate fog
-    color += fog * trail * u_fogTrailStrength;
+    // Fog interaction: mode-dependent
+    if (u_fogMode < 0.5) {
+        // Classic: silhouette carves through bright fog (darkens)
+        float fogSuppression = mask * u_fogMaskStrength;
+        color *= (1.0 - fogSuppression);
+        // Trails brighten fog
+        color += fog * trail * u_fogTrailStrength;
+    } else {
+        // Shadow: silhouette creates clearings in dark fog (lightens)
+        // In shadow mode, the displacement handles the primary interaction,
+        // but mask still adds immediate presence clearing
+        color += vec3(mask * u_fogMaskStrength * 0.1);
+        // Trails create subtle light traces in the shadow
+        color += vec3(trail * u_fogTrailStrength * 0.05);
+    }
 
     // Layer camera feed (if enabled).
     // u_cameraFill controls the minimum camera visibility:
