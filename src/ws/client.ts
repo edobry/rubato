@@ -103,6 +103,7 @@ export class WsClient {
 			error?: string;
 			guiVisible?: boolean;
 			hudVisible?: boolean;
+			preset?: string;
 		},
 	): void {
 		this.send({ type: "state", state, ...extra });

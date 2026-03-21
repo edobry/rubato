@@ -7,10 +7,10 @@ import glsl from "vite-plugin-glsl";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import { wsPlugin } from "./src/ws/plugin.js";
 
-/** Read the Tailscale hostname of the current machine, if available. */
-function getTailscaleHostname(): string | null {
+/** Try running a Tailscale CLI command at the given path. */
+function tryTailscaleCli(bin: string): string | null {
 	try {
-		const raw = execSync("tailscale status --self --json", {
+		const raw = execSync(`${bin} status --self --json`, {
 			encoding: "utf-8",
 			timeout: 5000,
 			stdio: ["pipe", "pipe", "pipe"],
@@ -20,6 +20,15 @@ function getTailscaleHostname(): string | null {
 	} catch {
 		return null;
 	}
+}
+
+/** Read the Tailscale hostname of the current machine, if available.
+ *  Tries the PATH-based `tailscale` first, then the macOS app bundle CLI. */
+function getTailscaleHostname(): string | null {
+	return (
+		tryTailscaleCli("tailscale") ??
+		tryTailscaleCli("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+	);
 }
 
 const tailscaleHost = getTailscaleHostname();

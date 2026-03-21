@@ -76,11 +76,23 @@ const STYLES = {
 let overlayEl: HTMLElement | null = null;
 
 function buildAdminUrl(): string {
+	// Always prefer the Tailscale hostname so the URL is reachable from
+	// other devices on the network (e.g. phone scanning QR).
 	const tsHost: string | null = (globalThis as Record<string, unknown>)
 		.__TAILSCALE_HOST__ as string | null;
-	const origin = tsHost
-		? `https://${tsHost}:${location.port}`
-		: window.location.origin;
+	const port = location.port ? `:${location.port}` : "";
+	const origin = tsHost ? `https://${tsHost}${port}` : window.location.origin;
+
+	if (
+		!tsHost &&
+		(location.hostname === "localhost" || location.hostname === "127.0.0.1")
+	) {
+		console.warn(
+			"[rubato] QR code points to localhost — it won't work from other devices. " +
+				"Ensure Tailscale is running and the CLI is in PATH.",
+		);
+	}
+
 	return `${origin}/admin/`;
 }
 

@@ -715,7 +715,7 @@ function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 	if (lobbyEl) destroyLobby(lobbyEl);
 	localStorage.setItem(PIECE_STATE_KEY, "running");
 	appState = "running";
-	ws.sendState("running");
+	ws.sendState("running", { preset: getLastPreset() });
 	void main(ws);
 }
 
@@ -724,7 +724,11 @@ function boot(): void {
 
 	// Resend current state + params when a new admin client connects
 	ws.onRequestState(() => {
-		ws.sendState(appState, { guiVisible: isGuiVisible(), hudVisible });
+		ws.sendState(appState, {
+			guiVisible: isGuiVisible(),
+			hudVisible,
+			preset: getLastPreset(),
+		});
 		if (appState === "running") {
 			ws.sendParamState(serializeParams());
 		}
@@ -736,7 +740,7 @@ function boot(): void {
 		// Auto-resume: skip lobby, go straight to piece
 		appState = "running";
 		ws.onConnectionChange((connected) => {
-			if (connected) ws.sendState("running");
+			if (connected) ws.sendState("running", { preset: getLastPreset() });
 		});
 		ws.onCommand((msg) => {
 			switch (msg.command) {

@@ -21,6 +21,7 @@ export interface StateMessage {
 	error?: string;
 	guiVisible?: boolean;
 	hudVisible?: boolean;
+	preset?: string;
 }
 
 /** Single param change from admin → piece */

@@ -87,13 +87,23 @@ export function showLobby(): HTMLElement {
 	titleBlock.appendChild(titleSub);
 	inner.appendChild(titleBlock);
 
-	// QR code
+	// QR code — always prefer the Tailscale hostname so the URL is
+	// reachable from other devices on the network (e.g. phone scanning QR).
 	const tsHost: string | null = (globalThis as Record<string, unknown>)
 		.__TAILSCALE_HOST__ as string | null;
-	const origin = tsHost
-		? `https://${tsHost}:${location.port}`
-		: window.location.origin;
+	const port = location.port ? `:${location.port}` : "";
+	const origin = tsHost ? `https://${tsHost}${port}` : window.location.origin;
 	const adminUrl = `${origin}/admin/`;
+
+	if (
+		!tsHost &&
+		(location.hostname === "localhost" || location.hostname === "127.0.0.1")
+	) {
+		console.warn(
+			"[rubato] QR code points to localhost — it won't work from other devices. " +
+				"Ensure Tailscale is running and the CLI is in PATH.",
+		);
+	}
 
 	const qrWrapper = document.createElement("div");
 	qrWrapper.style.cssText = STYLES.qrWrapper;
