@@ -37,10 +37,16 @@ export interface ParamStateMessage {
 	params: Record<string, Record<string, number | string | boolean>>;
 }
 
+/** Request from server to piece to resend current state */
+export interface RequestStateMessage {
+	type: "requestState";
+}
+
 /** All possible messages */
 export type WsMessage =
 	| RegisterMessage
 	| CommandMessage
 	| StateMessage
 	| ParamUpdateMessage
-	| ParamStateMessage;
+	| ParamStateMessage
+	| RequestStateMessage;

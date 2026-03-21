@@ -406,7 +406,12 @@ export function createParamsPanel(options: {
 	// Toggle button
 	const toggle = document.createElement("button");
 	toggle.className = "params-toggle";
-	toggle.textContent = "Parameters \u25B8";
+	const toggleLabel = document.createElement("span");
+	toggleLabel.textContent = "Parameters";
+	const toggleChevron = document.createElement("span");
+	toggleChevron.textContent = "\u25B8";
+	toggle.appendChild(toggleLabel);
+	toggle.appendChild(toggleChevron);
 	panel.appendChild(toggle);
 
 	// Content wrapper (hidden by default)
@@ -419,7 +424,7 @@ export function createParamsPanel(options: {
 	toggle.addEventListener("click", () => {
 		expanded = !expanded;
 		content.style.display = expanded ? "" : "none";
-		toggle.textContent = expanded ? "Parameters \u25BE" : "Parameters \u25B8";
+		toggleChevron.textContent = expanded ? "\u25BE" : "\u25B8";
 	});
 
 	// Build sections

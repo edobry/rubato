@@ -139,25 +139,36 @@ body {
 .params-panel {
 	border-top: 1px solid #222;
 	padding-top: 24px;
+	margin-left: -24px;
+	margin-right: -24px;
+	padding-left: 16px;
+	padding-right: 16px;
 }
 
 .params-toggle {
 	appearance: none;
-	background: none;
+	background: #111;
 	border: 1px solid #333;
-	color: #888;
+	color: #aaa;
 	font-family: inherit;
-	font-size: 13px;
-	letter-spacing: 0.1em;
+	font-size: 14px;
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	padding: 12px 24px;
+	padding: 16px 24px;
 	width: 100%;
 	cursor: pointer;
-	text-align: left;
-	transition: color 0.15s ease;
+	text-align: center;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 8px;
 }
 
 .params-toggle:active {
+	background: #1a1a1a;
 	color: #fff;
 }
 
@@ -166,7 +177,7 @@ body {
 }
 
 .param-section {
-	margin-bottom: 8px;
+	margin-bottom: 4px;
 }
 
 .section-header {
@@ -174,6 +185,7 @@ body {
 	background: #111;
 	border: 1px solid #222;
 	border-bottom: none;
+	border-left: 2px solid #444;
 	color: #aaa;
 	font-family: inherit;
 	font-size: 12px;
@@ -254,8 +266,9 @@ body {
 }
 
 .param-control input[type="range"]:active::-webkit-slider-thumb {
-	background: #aaa;
+	background: #bbb;
 	transform: scale(1.15);
+	box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
 }
 
 /* Firefox slider */

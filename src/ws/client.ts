@@ -11,6 +11,7 @@ type CommandHandler = (msg: CommandMessage) => void;
 type StateHandler = (msg: StateMessage) => void;
 type ParamUpdateHandler = (msg: ParamUpdateMessage) => void;
 type ParamStateHandler = (msg: ParamStateMessage) => void;
+type RequestStateHandler = () => void;
 type ConnectionHandler = (connected: boolean) => void;
 
 const MAX_RECONNECT_DELAY = 10_000;
@@ -24,6 +25,7 @@ export class WsClient {
 	private stateHandlers: StateHandler[] = [];
 	private paramUpdateHandlers: ParamUpdateHandler[] = [];
 	private paramStateHandlers: ParamStateHandler[] = [];
+	private requestStateHandlers: RequestStateHandler[] = [];
 	private connectionHandlers: ConnectionHandler[] = [];
 
 	private reconnectDelay = 1000;
@@ -60,6 +62,11 @@ export class WsClient {
 	/** Register handler for param state messages (used by admin). */
 	onParamState(handler: ParamStateHandler): void {
 		this.paramStateHandlers.push(handler);
+	}
+
+	/** Register handler for state request messages (used by piece). */
+	onRequestState(handler: RequestStateHandler): void {
+		this.requestStateHandlers.push(handler);
 	}
 
 	/** Register a handler for connection status changes. */
@@ -143,6 +150,8 @@ export class WsClient {
 					for (const h of this.paramUpdateHandlers) h(msg);
 				} else if (msg.type === "paramState") {
 					for (const h of this.paramStateHandlers) h(msg);
+				} else if (msg.type === "requestState") {
+					for (const h of this.requestStateHandlers) h();
 				}
 			} catch {
 				// Ignore malformed messages

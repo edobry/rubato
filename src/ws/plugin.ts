@@ -5,6 +5,7 @@ import type {
 	CommandMessage,
 	ParamStateMessage,
 	ParamUpdateMessage,
+	RequestStateMessage,
 	StateMessage,
 	WsMessage,
 } from "./protocol.js";
@@ -43,6 +44,10 @@ export function wsPlugin(): Plugin {
 						if (msg.type === "register") {
 							client.role = msg.role;
 							console.log(`[rubato-ws] Client registered as ${msg.role}`);
+							// When a new admin connects, ask piece clients to resend state
+							if (msg.role === "admin") {
+								broadcast(clients, "piece", { type: "requestState" });
+							}
 							return;
 						}
 
@@ -87,7 +92,12 @@ export function wsPlugin(): Plugin {
 function broadcast(
 	clients: Set<TrackedClient>,
 	targetRole: ClientRole,
-	msg: CommandMessage | StateMessage | ParamUpdateMessage | ParamStateMessage,
+	msg:
+		| CommandMessage
+		| StateMessage
+		| ParamUpdateMessage
+		| ParamStateMessage
+		| RequestStateMessage,
 ): void {
 	const payload = JSON.stringify(msg);
 	for (const c of clients) {

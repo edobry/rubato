@@ -574,19 +574,33 @@ window.addEventListener("unhandledrejection", (event) => {
 
 const PIECE_STATE_KEY = "rubato-piece-state";
 
+/** Current app state — updated by startPiece/boot so requestState can resend. */
+let appState: "lobby" | "running" = "lobby";
+
 function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 	if (lobbyEl) destroyLobby(lobbyEl);
 	localStorage.setItem(PIECE_STATE_KEY, "running");
+	appState = "running";
 	ws.sendState("running");
 	void main(ws);
 }
 
 function boot(): void {
 	const ws = new WsClient("piece");
+
+	// Resend current state + params when a new admin client connects
+	ws.onRequestState(() => {
+		ws.sendState(appState, { guiVisible: isGuiVisible(), hudVisible });
+		if (appState === "running") {
+			ws.sendParamState(serializeParams());
+		}
+	});
+
 	const shouldResume = localStorage.getItem(PIECE_STATE_KEY) === "running";
 
 	if (shouldResume) {
 		// Auto-resume: skip lobby, go straight to piece
+		appState = "running";
 		ws.onConnectionChange((connected) => {
 			if (connected) ws.sendState("running");
 		});
