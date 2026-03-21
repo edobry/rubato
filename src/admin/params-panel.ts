@@ -14,6 +14,25 @@ interface ParamSection {
 	controls: ParamControl[];
 }
 
+const PANEL_STATE_KEY = "rubato-admin-panel-state";
+
+interface PanelUiState {
+	panelOpen: boolean;
+	sections: Record<string, boolean>;
+}
+
+function loadPanelState(): PanelUiState {
+	try {
+		const raw = localStorage.getItem(PANEL_STATE_KEY);
+		if (raw) return JSON.parse(raw);
+	} catch {}
+	return { panelOpen: false, sections: {} };
+}
+
+function savePanelState(state: PanelUiState): void {
+	localStorage.setItem(PANEL_STATE_KEY, JSON.stringify(state));
+}
+
 const PARAM_SECTIONS: ParamSection[] = [
 	{
 		name: "Display",
@@ -398,6 +417,7 @@ export function createParamsPanel(options: {
 	) => void;
 } {
 	const controlMap = new Map<string, ControlEntry>();
+	const uiState = loadPanelState();
 
 	// Root container
 	const panel = document.createElement("div");
@@ -409,22 +429,24 @@ export function createParamsPanel(options: {
 	const toggleLabel = document.createElement("span");
 	toggleLabel.textContent = "Parameters";
 	const toggleChevron = document.createElement("span");
-	toggleChevron.textContent = "\u25B8";
+	toggleChevron.textContent = uiState.panelOpen ? "\u25BE" : "\u25B8";
 	toggle.appendChild(toggleLabel);
 	toggle.appendChild(toggleChevron);
 	panel.appendChild(toggle);
 
-	// Content wrapper (hidden by default)
+	// Content wrapper
 	const content = document.createElement("div");
 	content.className = "params-content";
-	content.style.display = "none";
+	content.style.display = uiState.panelOpen ? "" : "none";
 	panel.appendChild(content);
 
-	let expanded = false;
+	let expanded = uiState.panelOpen;
 	toggle.addEventListener("click", () => {
 		expanded = !expanded;
 		content.style.display = expanded ? "" : "none";
 		toggleChevron.textContent = expanded ? "\u25BE" : "\u25B8";
+		uiState.panelOpen = expanded;
+		savePanelState(uiState);
 	});
 
 	// Build sections
@@ -434,19 +456,22 @@ export function createParamsPanel(options: {
 
 		const header = document.createElement("button");
 		header.className = "section-header";
-		header.innerHTML = `<span>${section.name}</span><span>\u25B8</span>`;
+		const sectionSaved = uiState.sections[section.name] === true;
+		header.innerHTML = `<span>${section.name}</span><span>${sectionSaved ? "\u25BE" : "\u25B8"}</span>`;
 		sectionEl.appendChild(header);
 
 		const sectionContent = document.createElement("div");
 		sectionContent.className = "section-content";
-		sectionContent.style.display = "none";
+		sectionContent.style.display = sectionSaved ? "" : "none";
 		sectionEl.appendChild(sectionContent);
 
-		let sectionExpanded = false;
+		let sectionExpanded = sectionSaved;
 		header.addEventListener("click", () => {
 			sectionExpanded = !sectionExpanded;
 			sectionContent.style.display = sectionExpanded ? "" : "none";
 			header.innerHTML = `<span>${section.name}</span><span>${sectionExpanded ? "\u25BE" : "\u25B8"}</span>`;
+			uiState.sections[section.name] = sectionExpanded;
+			savePanelState(uiState);
 		});
 
 		for (const ctrl of section.controls) {
