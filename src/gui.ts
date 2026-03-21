@@ -580,7 +580,7 @@ export async function initGui(): Promise<void> {
 		0.1,
 		"Channel Strength",
 	);
-	addParam(density, params.density, "drainRate", 0.5, 0.99, 0.01, "Drain Rate");
+	addParam(density, params.density, "drainRate", 0, 0.99, 0.01, "Drain Rate");
 	addParam(
 		density,
 		params.density,

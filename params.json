@@ -47,7 +47,7 @@
 	"density": {
 		"cultivationRate": 0.04,
 		"channelStrength": 8.0,
-		"drainRate": 0.7,
+		"drainRate": 0.3,
 		"diffusionRate": 0.15,
 		"decayVariance": 0.2,
 		"disintegrationSpeed": 0.1,

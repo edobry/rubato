@@ -126,25 +126,33 @@ void main() {
     float mask = texture2D(u_mask, v_uv).r;
 
     // --- Phase 1: Cultivation (qi gathering) ---
-    // Energy accumulates only where the body is present AND still.
-    // isStill is 1.0 inside the silhouette with no motion, 0.0 otherwise.
-    // This is invisible — the viewer sees nothing while standing still,
-    // but the vessel is filling with potential energy for later release.
-    float isStill = mask * (1.0 - step(0.01, motion));
-    float newCultivation = prevCultivation + isStill * u_cultivationRate;
+    // Energy accumulates wherever the body IS present — the entire
+    // silhouette interior, not just still regions. The body is a vessel
+    // filling with potential. isPresent is binary: inside body or not.
+    float isPresent = step(0.1, mask);
+    float newCultivation = prevCultivation + isPresent * u_cultivationRate;
 
-    // --- Phase 2: Channeling (meridian flow) ---
-    // Motion converts accumulated cultivation into visible density.
-    // release = cultivation * motion * strength: the trace intensity is
-    // proportional to BOTH how long you stood still (cultivation) AND
-    // how fast you're moving (motion). This creates the dramatic burst
-    // when a long-still viewer suddenly moves.
-    float release = prevCultivation * motion * u_channelStrength;
+    // --- Phase 2: Channeling (departure-based release) ---
+    // Density is deposited where the body WAS but ISN'T anymore.
+    // When the body moves away from a region, all cultivation stored
+    // there converts to visible density — the qi empties from the
+    // vessel into the space left behind. This naturally produces:
+    //   - Slow motion → narrow departure edge → concentrated, blobby pools
+    //   - Fast motion → wide departure sweep → elongated, intense traces
+    // The velocity scaling is implicit: more pixels depart per frame
+    // when moving fast, so more total density appears.
+    float departure = (1.0 - isPresent) * step(0.005, prevCultivation);
+
+    // drainRate controls how quickly cultivation converts to density:
+    //   0.0 = instant release (maximum drama)
+    //   0.9 = slow exponential drain (lingering tail)
+    float retainFactor = mix(1.0, u_drainRate, departure);
+    float drained = prevCultivation * (1.0 - retainFactor);
+    float release = drained * u_channelStrength;
     float newDensity = prevDensity + release;
 
-    // Drain the vessel — cultivation empties as the body moves,
-    // transferring its stored energy into the visible trace
-    newCultivation *= mix(1.0, u_drainRate, step(0.01, motion));
+    // Zero out cultivation where body departed (energy was converted)
+    newCultivation *= retainFactor;
 
     // --- Phase 3: Disintegration (memory corruption) ---
     // Traces don't fade uniformly — they fragment and break apart.
