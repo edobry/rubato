@@ -62,10 +62,13 @@ const STYLES = {
 		color: #555;
 	`,
 	hint: `
-		font-size: 11px;
-		color: #555;
+		font-size: 12px;
+		color: #777;
 		letter-spacing: 0.05em;
-		margin: 0;
+		margin: 8px 0 0 0;
+		padding: 8px 16px;
+		border: 1px solid #333;
+		border-radius: 6px;
 	`,
 } as const;
 
