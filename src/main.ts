@@ -14,11 +14,12 @@ import {
 import { computeDisplayBounds } from "./coords";
 import { detectDevice } from "./device";
 import {
-	getDisplacementTexture,
-	initDisplacement,
-	resetDisplacement,
-	updateDisplacement,
-} from "./displacement";
+	getDensityTexture,
+	getFluidVelocityTexture,
+	initFluid,
+	resetFluid,
+	updateFluid,
+} from "./fluid";
 import {
 	drawFog,
 	initFog,
@@ -51,13 +52,28 @@ import {
 } from "./segmentation-state";
 import { initShadow, renderShadowToTexture, setShadowCrop } from "./shadow";
 import { showStatus } from "./status";
-import {
-	computeVelocityField,
-	getVelocityTexture,
-	initVelocity,
-	resetVelocity,
-} from "./velocity";
 import { WsClient } from "./ws/client.js";
+
+/** Serialize all params to a plain object for WS transmission. */
+function serializeParams(): Record<
+	string,
+	Record<string, number | string | boolean>
+> {
+	const result: Record<string, Record<string, number | string | boolean>> = {};
+	for (const [section, values] of Object.entries(params)) {
+		result[section] = {};
+		for (const [key, value] of Object.entries(values)) {
+			if (
+				typeof value === "number" ||
+				typeof value === "string" ||
+				typeof value === "boolean"
+			) {
+				result[section][key] = value;
+			}
+		}
+	}
+	return result;
+}
 
 // Exposed so GUI can trigger camera re-acquisition
 let video: HTMLVideoElement | null = null;
@@ -139,8 +155,7 @@ async function main(ws?: WsClient): Promise<void> {
 
 	// Shadow fog pipeline — shares compositor GL context
 	if (compositorGl) {
-		initVelocity(compositorGl);
-		initDisplacement(compositorGl);
+		initFluid(compositorGl);
 		initShadow(compositorGl);
 	}
 
@@ -236,8 +251,7 @@ async function main(ws?: WsClient): Promise<void> {
 			};
 			pipeline.reset();
 			resetMotion();
-			resetVelocity();
-			resetDisplacement();
+			resetFluid();
 		}
 
 		if (section === "segmentation" && (key === "model" || key === "delegate")) {
@@ -259,8 +273,7 @@ async function main(ws?: WsClient): Promise<void> {
 					generation: currentFrame.generation + 1,
 				};
 				resetMotion();
-				resetVelocity();
-				resetDisplacement();
+				resetFluid();
 
 				const newModelUrl = (SEGMENTATION_MODELS[newModel] ??
 					SEGMENTATION_MODELS.fast)!;
@@ -285,7 +298,8 @@ async function main(ws?: WsClient): Promise<void> {
 		const needsMask =
 			params.overlay.showOverlay ||
 			params.fog.maskInteraction > 0 ||
-			params.fog.trailInteraction > 0;
+			params.fog.trailInteraction > 0 ||
+			params.fog.mode === "shadow";
 		if (video && isReady && needsMask) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
@@ -308,9 +322,9 @@ async function main(ws?: WsClient): Promise<void> {
 							result.height,
 						);
 						motion = motionMap;
-						// Compute directional velocity for shadow displacement
+						// Update fluid sim with mask and motion data
 						if (params.fog.mode === "shadow") {
-							computeVelocityField(result.mask, result.width, result.height);
+							updateFluid(result.mask, motionMap, result.width, result.height);
 						}
 						// In imprint mode, pass the mask to the trail shader for cultivation
 						const maskForTrail =
@@ -389,17 +403,9 @@ async function main(ws?: WsClient): Promise<void> {
 		// Render backdrop: classic fog or shadow mode
 		let fogTex: WebGLTexture | null;
 		if (params.fog.mode === "shadow") {
-			// Update displacement field from velocity
-			const velTex = getVelocityTexture();
-			if (velTex) {
-				updateDisplacement(
-					velTex,
-					params.shadow.resolution,
-					params.shadow.resolution,
-				);
-			}
-			const dispTex = getDisplacementTexture();
-			fogTex = renderShadowToTexture(dispTex);
+			const denTex = getDensityTexture();
+			const velTex = getFluidVelocityTexture();
+			fogTex = renderShadowToTexture(denTex, velTex);
 		} else {
 			fogTex = renderFogToTexture();
 		}
@@ -447,7 +453,7 @@ async function main(ws?: WsClient): Promise<void> {
 
 	requestAnimationFrame(loop);
 
-	// Handle admin toggle commands
+	// Handle admin toggle commands and param sync
 	if (ws) {
 		ws.onCommand((msg) => {
 			if (msg.command === "toggleGui") {
@@ -460,6 +466,29 @@ async function main(ws?: WsClient): Promise<void> {
 					hudVisible: visible,
 				});
 			}
+		});
+
+		// --- Param sync ---
+
+		// Send initial param state
+		ws.sendParamState(serializeParams());
+
+		// Receive param updates from admin and apply
+		ws.onParamUpdate((msg) => {
+			const section = params[msg.section as keyof typeof params];
+			if (section && msg.key in section) {
+				(section as Record<string, unknown>)[msg.key] = msg.value;
+			}
+		});
+
+		// Broadcast param state to admin on any change (debounced)
+		let paramSyncTimer: ReturnType<typeof setTimeout> | null = null;
+		onParamChange(() => {
+			if (paramSyncTimer) clearTimeout(paramSyncTimer);
+			paramSyncTimer = setTimeout(() => {
+				paramSyncTimer = null;
+				ws.sendParamState(serializeParams());
+			}, 100);
 		});
 	}
 

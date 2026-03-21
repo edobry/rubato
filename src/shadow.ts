@@ -1,6 +1,6 @@
 /**
  * Shadow fog renderer.
- * Renders a dark ichor shadow field driven by the displacement texture.
+ * Renders a dark ichor shadow field driven by the fluid density + velocity textures.
  * Mirrors the fog.ts pattern — init, crop, render-to-texture — but for
  * the shadow mode's dark fluid aesthetic.
  */
@@ -17,14 +17,14 @@ let startTime = 0;
 let frameCounter = 0;
 
 // Uniform locations
-let uDisplacement: WebGLUniformLocation | null = null;
+let uDensity: WebGLUniformLocation | null = null;
+let uVelocity: WebGLUniformLocation | null = null;
 let uTime: WebGLUniformLocation | null = null;
 let uNoiseScale: WebGLUniformLocation | null = null;
 let uNoiseSpeed: WebGLUniformLocation | null = null;
 let uNoiseAmount: WebGLUniformLocation | null = null;
 let uBaseColor: WebGLUniformLocation | null = null;
 let uHighlightColor: WebGLUniformLocation | null = null;
-let uBaseDensity: WebGLUniformLocation | null = null;
 let uCropOffset: WebGLUniformLocation | null = null;
 let uCropScale: WebGLUniformLocation | null = null;
 
@@ -71,14 +71,14 @@ export function initShadow(externalGl: WebGLRenderingContext): void {
 	gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
 	// Cache uniform locations
-	uDisplacement = gl.getUniformLocation(program, "u_displacement");
+	uDensity = gl.getUniformLocation(program, "u_density");
+	uVelocity = gl.getUniformLocation(program, "u_velocity");
 	uTime = gl.getUniformLocation(program, "u_time");
 	uNoiseScale = gl.getUniformLocation(program, "u_noiseScale");
 	uNoiseSpeed = gl.getUniformLocation(program, "u_noiseSpeed");
 	uNoiseAmount = gl.getUniformLocation(program, "u_noiseAmount");
 	uBaseColor = gl.getUniformLocation(program, "u_baseColor");
 	uHighlightColor = gl.getUniformLocation(program, "u_highlightColor");
-	uBaseDensity = gl.getUniformLocation(program, "u_baseDensity");
 	uCropOffset = gl.getUniformLocation(program, "u_cropOffset");
 	uCropScale = gl.getUniformLocation(program, "u_cropScale");
 
@@ -100,11 +100,12 @@ export function setShadowCrop(
 
 /**
  * Render the shadow fog to a framebuffer texture and return it.
- * The displacement texture drives the shadow's fluid dynamics.
+ * The fluid density + velocity textures drive the shadow's appearance.
  * Supports fog.frameSkip for performance (reuses the FBO texture when skipping).
  */
 export function renderShadowToTexture(
-	displacementTex: WebGLTexture | null,
+	densityTex: WebGLTexture | null,
+	velocityTex: WebGLTexture | null,
 ): WebGLTexture | null {
 	if (!gl || !program || !canvas) return null;
 
@@ -157,7 +158,6 @@ export function renderShadowToTexture(
 	gl.uniform1f(uNoiseScale, params.shadow.noiseScale);
 	gl.uniform1f(uNoiseSpeed, params.shadow.noiseSpeed);
 	gl.uniform1f(uNoiseAmount, params.shadow.noiseAmount);
-	gl.uniform1f(uBaseDensity, params.shadow.baseDensity);
 
 	const [br, bg, bb] = hexToRgbNorm(params.shadow.baseColor);
 	gl.uniform3f(uBaseColor, br, bg, bb);
@@ -168,12 +168,19 @@ export function renderShadowToTexture(
 	gl.uniform2f(uCropOffset, cropOffset[0], cropOffset[1]);
 	gl.uniform2f(uCropScale, cropScale[0], cropScale[1]);
 
-	// Bind displacement texture to TEXTURE0
+	// Bind density texture to TEXTURE0
 	gl.activeTexture(gl.TEXTURE0);
-	if (displacementTex) {
-		gl.bindTexture(gl.TEXTURE_2D, displacementTex);
+	if (densityTex) {
+		gl.bindTexture(gl.TEXTURE_2D, densityTex);
 	}
-	gl.uniform1i(uDisplacement, 0);
+	gl.uniform1i(uDensity, 0);
+
+	// Bind velocity texture to TEXTURE1
+	gl.activeTexture(gl.TEXTURE1);
+	if (velocityTex) {
+		gl.bindTexture(gl.TEXTURE_2D, velocityTex);
+	}
+	gl.uniform1i(uVelocity, 1);
 
 	// Render into the FBO
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);

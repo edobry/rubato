@@ -2,14 +2,14 @@ precision mediump float;
 
 varying vec2 v_uv;
 
-uniform sampler2D u_displacement;  // displacement field (RG, 0.5-centered signed)
+uniform sampler2D u_density;       // fluid density field (R channel, 0-1)
+uniform sampler2D u_velocity;      // fluid velocity field (RG, 0.5-centered)
 uniform float u_time;
 uniform float u_noiseScale;        // base noise scale (4.0)
 uniform float u_noiseSpeed;        // noise animation speed (0.03)
 uniform float u_noiseAmount;       // how much noise texture (0-1, 0.3)
 uniform vec3 u_baseColor;          // shadow color RGB (dark, e.g., 0.067, 0.067, 0.067)
 uniform vec3 u_highlightColor;     // dithered highlight color RGB (e.g., 0.165, 0.165, 0.165)
-uniform float u_baseDensity;       // how dark the base state is (0-1, 0.9)
 uniform vec2 u_cropOffset;         // visible region top-left (0-1 UV space)
 uniform vec2 u_cropScale;          // visible region size (0-1 UV space)
 
@@ -73,7 +73,7 @@ float fbm(vec2 p) {
 }
 
 void main() {
-    // Crop shadow to the camera's visible region (black outside)
+    // Crop check (keep existing crop logic exactly as-is)
     if (u_cropScale.x > 0.0 && u_cropScale.y > 0.0) {
         bool inRegion = v_uv.x >= u_cropOffset.x &&
                         v_uv.x <= u_cropOffset.x + u_cropScale.x &&
@@ -85,41 +85,33 @@ void main() {
         }
     }
 
-    // Read displacement field (0.5-centered signed encoding)
-    vec2 disp = texture2D(u_displacement, v_uv).rg * 2.0 - 1.0;
-    float dispMag = length(disp);
+    // Read fluid sim outputs
+    float density = texture2D(u_density, v_uv).r;
+    vec2 vel = texture2D(u_velocity, v_uv).rg * 2.0 - 1.0;
+    float velMag = length(vel);
 
-    // Displace UV for noise sampling — displacement warps the shadow field
-    vec2 displacedUV = v_uv * u_noiseScale + disp * 3.0;
-
+    // Use velocity to distort noise sampling — creates fluid texture movement
     float t = u_time * u_noiseSpeed;
+    vec2 noiseUV = v_uv * u_noiseScale + vel * 0.5;
 
-    // Single-layer noise for subtle internal texture — NOT fbm fog
-    // Use displaced UV so the shadow texture moves with the displacement
-    float n1 = snoise(displacedUV + vec2(t * 0.2, t * 0.07));
-    // Very subtle second layer for slow organic drift
-    float n2 = snoise(displacedUV * 0.5 + vec2(-t * 0.1, t * 0.08) + vec2(3.7, 1.9));
-    float noise = (n1 + n2) * 0.5; // stays in roughly -1..1 range
+    // Subtle noise for internal texture (not fog-like, just slight variation)
+    float n = snoise(noiseUV + vec2(t * 0.2, t * 0.07));
+    float n2 = snoise(noiseUV * 0.6 + vec2(-t * 0.1, t * 0.05) + vec2(3.7, 1.9));
+    float noise = (n + n2) * 0.5;
 
-    // Compute shadow density — dramatic response to displacement
-    float density = u_baseDensity;
+    // Shadow = fluid density + subtle noise texture
+    float shadow = density;
+    shadow += noise * u_noiseAmount * density;  // noise only where dense
+    shadow = clamp(shadow, 0.0, 1.0);
 
-    // Displacement creates voids — nonlinear falloff for viscous feel
-    // smoothstep creates a soft boundary between shadow and void
-    float voidAmount = smoothstep(0.0, 0.4, dispMag);
-    density *= (1.0 - voidAmount);
+    // Dithered highlights — shimmer on dense flowing areas
+    float highlightNoise = snoise(v_uv * u_noiseScale * 2.5 + vel * 1.0 + vec2(t * 0.3, -t * 0.2));
+    float highlight = smoothstep(0.4, 0.8, highlightNoise) * 0.08 * shadow * shadow;
+    // Extra highlight where velocity is strong (fluid is actively moving)
+    highlight += velMag * 0.05 * shadow;
 
-    // Add very subtle noise texture (dark variation, not fog)
-    density += noise * u_noiseAmount * density;
-    density = clamp(density, 0.0, 1.0);
-
-    // Dithered highlights — only in dense areas, very subtle
-    // Uses the displacement to modulate highlight position for fluid feel
-    float highlightNoise = snoise(v_uv * u_noiseScale * 2.5 + disp * 1.5 + vec2(t * 0.3, -t * 0.2));
-    float highlight = smoothstep(0.4, 0.8, highlightNoise) * 0.1 * density * density;
-
-    // Final color: dense dark shadow with viscous highlights
-    vec3 color = u_baseColor * density;
+    // Final color
+    vec3 color = u_baseColor * shadow;
     color += u_highlightColor * highlight;
 
     gl_FragColor = vec4(color, 1.0);

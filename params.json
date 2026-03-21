@@ -38,7 +38,8 @@
 		"baseDensity": 0.95,
 		"creepSpeed": 0.015,
 		"resolution": 64,
-		"velocityGrid": 16
+		"velocityGrid": 16,
+		"pressureIterations": 20
 	},
 	"motion": {
 		"deposition": 5.0,

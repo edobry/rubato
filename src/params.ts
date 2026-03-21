@@ -126,6 +126,7 @@ export const params = {
 		creepSpeed: d.shadow.creepSpeed,
 		resolution: d.shadow.resolution,
 		velocityGrid: d.shadow.velocityGrid,
+		pressureIterations: d.shadow.pressureIterations,
 	}),
 	motion: reactive("motion", {
 		// How strongly motion deposits into the trail buffer (0-5)

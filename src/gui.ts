@@ -636,6 +636,15 @@ export async function initGui(): Promise<void> {
 	shadow.addColor(params.shadow, "highlightColor").name("Highlight Color");
 	addParam(shadow, params.shadow, "baseDensity", 0, 1, 0.05, "Base Density");
 	addParam(shadow, params.shadow, "creepSpeed", 0, 0.1, 0.005, "Creep Speed");
+	addParam(
+		shadow,
+		params.shadow,
+		"pressureIterations",
+		5,
+		40,
+		1,
+		"Pressure Iters",
+	);
 	shadow.close();
 
 	const detection = creative.addFolder("Detection");
