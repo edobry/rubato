@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import basicSsl from "@vitejs/plugin-basic-ssl";
@@ -5,6 +6,26 @@ import { defineConfig, type Plugin } from "vite";
 import glsl from "vite-plugin-glsl";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import { wsPlugin } from "./src/ws/plugin.js";
+
+/** Read the Tailscale hostname of the current machine, if available. */
+function getTailscaleHostname(): string | null {
+	try {
+		const raw = execSync("tailscale status --self --json", {
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+		const data = JSON.parse(raw);
+		return data.Self?.HostName ?? null;
+	} catch {
+		return null;
+	}
+}
+
+const tailscaleHost = getTailscaleHostname();
+if (tailscaleHost) {
+	console.log(`[rubato] Tailscale hostname: ${tailscaleHost}`);
+}
 
 /** Vite plugin that serves a simple preset sync API during development. */
 function presetSyncPlugin(): Plugin {
@@ -78,6 +99,9 @@ function presetSyncPlugin(): Plugin {
 }
 
 export default defineConfig({
+	define: {
+		__TAILSCALE_HOST__: JSON.stringify(tailscaleHost),
+	},
 	build: {
 		rollupOptions: {
 			input: {
@@ -95,7 +119,7 @@ export default defineConfig({
 		hmr: {
 			// Use the Tailscale hostname so LAN/tailnet clients can connect
 			// to the HMR WebSocket via the same resolvable name.
-			host: "linkslate",
+			host: tailscaleHost ?? "localhost",
 			protocol: "wss",
 			clientPort: 5173,
 		},

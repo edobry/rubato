@@ -87,7 +87,12 @@ export function showLobby(): HTMLElement {
 	inner.appendChild(titleBlock);
 
 	// QR code
-	const adminUrl = window.location.origin + "/admin/";
+	const tsHost: string | null = (globalThis as Record<string, unknown>)
+		.__TAILSCALE_HOST__ as string | null;
+	const origin = tsHost
+		? `https://${tsHost}:${location.port}`
+		: window.location.origin;
+	const adminUrl = `${origin}/admin/`;
 
 	const qrWrapper = document.createElement("div");
 	qrWrapper.style.cssText = STYLES.qrWrapper;
