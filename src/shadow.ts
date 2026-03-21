@@ -25,6 +25,7 @@ let uNoiseSpeed: WebGLUniformLocation | null = null;
 let uNoiseAmount: WebGLUniformLocation | null = null;
 let uBaseColor: WebGLUniformLocation | null = null;
 let uHighlightColor: WebGLUniformLocation | null = null;
+let uBaseDensity: WebGLUniformLocation | null = null;
 let uCropOffset: WebGLUniformLocation | null = null;
 let uCropScale: WebGLUniformLocation | null = null;
 
@@ -79,6 +80,7 @@ export function initShadow(externalGl: WebGLRenderingContext): void {
 	uNoiseAmount = gl.getUniformLocation(program, "u_noiseAmount");
 	uBaseColor = gl.getUniformLocation(program, "u_baseColor");
 	uHighlightColor = gl.getUniformLocation(program, "u_highlightColor");
+	uBaseDensity = gl.getUniformLocation(program, "u_baseDensity");
 	uCropOffset = gl.getUniformLocation(program, "u_cropOffset");
 	uCropScale = gl.getUniformLocation(program, "u_cropScale");
 
@@ -164,6 +166,7 @@ export function renderShadowToTexture(
 
 	const [hr, hg, hb] = hexToRgbNorm(params.shadow.highlightColor);
 	gl.uniform3f(uHighlightColor, hr, hg, hb);
+	gl.uniform1f(uBaseDensity, params.shadow.baseDensity);
 
 	gl.uniform2f(uCropOffset, cropOffset[0], cropOffset[1]);
 	gl.uniform2f(uCropScale, cropScale[0], cropScale[1]);

@@ -9,7 +9,8 @@ uniform float u_noiseScale;        // base noise scale (4.0)
 uniform float u_noiseSpeed;        // noise animation speed (0.03)
 uniform float u_noiseAmount;       // how much noise texture (0-1, 0.3)
 uniform vec3 u_baseColor;          // shadow color RGB (dark, e.g., 0.067, 0.067, 0.067)
-uniform vec3 u_highlightColor;     // dithered highlight color RGB (e.g., 0.165, 0.165, 0.165)
+uniform vec3 u_highlightColor;     // energy glow color RGB
+uniform float u_baseDensity;       // equilibrium density (used to compute energy amount)
 uniform vec2 u_cropOffset;         // visible region top-left (0-1 UV space)
 uniform vec2 u_cropScale;          // visible region size (0-1 UV space)
 
@@ -104,15 +105,22 @@ void main() {
     shadow += noise * u_noiseAmount * density;  // noise only where dense
     shadow = clamp(shadow, 0.0, 1.0);
 
-    // Dithered highlights — shimmer on dense flowing areas
-    float highlightNoise = snoise(v_uv * u_noiseScale * 2.5 + vel * 1.0 + vec2(t * 0.3, -t * 0.2));
-    float highlight = smoothstep(0.4, 0.8, highlightNoise) * 0.08 * shadow * shadow;
-    // Extra highlight where velocity is strong (fluid is actively moving)
-    highlight += velMag * 0.05 * shadow;
+    // Energy = inverse of density (where body cultivated light)
+    // baseDensity is the equilibrium — anything below it is gathered energy
+    float energy = clamp(1.0 - density / u_baseDensity, 0.0, 1.0);
 
-    // Final color
+    // Energy glow: brighten where energy has gathered or is flowing
+    // Velocity-distorted noise gives the glow a fluid texture
+    float glowNoise = snoise(v_uv * u_noiseScale * 2.0 + vel * 1.5 + vec2(t * 0.4, -t * 0.25));
+    float glowTexture = 0.7 + 0.3 * glowNoise;  // subtle variation in glow
+
+    // Flowing energy gets extra brightness from velocity
+    float flowGlow = velMag * 0.4;
+
+    // Final color: dark shadow + luminous energy
     vec3 color = u_baseColor * shadow;
-    color += u_highlightColor * highlight;
+    color += u_highlightColor * energy * glowTexture * 1.5;
+    color += u_highlightColor * flowGlow * (energy + 0.1);
 
     gl_FragColor = vec4(color, 1.0);
 }

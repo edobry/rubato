@@ -481,10 +481,9 @@ export function updateFluid(
 		denPing = !denPing;
 	}
 
-	// --- Step 7: Drain density where body is (obstacle treatment) ---
-	// The body is a solid obstacle — density is zeroed inside it.
-	// This is the primary "pushing" mechanism: body creates voids,
-	// and fluid dynamics handle how shadow flows back in.
+	// --- Step 7: Energy cultivation ---
+	// Body presence slowly gathers light energy (reduces shadow density).
+	// Stillness cultivates faster; motion lets velocity disperse it outward.
 	if (mask && maskW > 0 && maskH > 0 && drainProgram) {
 		const readDen = denPing ? denTexB : denTexA;
 		const writeFbo = denPing ? denFboA : denFboB;
@@ -498,7 +497,14 @@ export function updateFluid(
 			gl!.bindTexture(gl!.TEXTURE_2D, maskTexture);
 			gl!.uniform1i(getUniformLoc(drainProgram!, "u_mask"), 1);
 
-			gl!.uniform1f(getUniformLoc(drainProgram!, "u_drainStrength"), 0.9);
+			gl!.activeTexture(gl!.TEXTURE2);
+			gl!.bindTexture(gl!.TEXTURE_2D, motionTexture);
+			gl!.uniform1i(getUniformLoc(drainProgram!, "u_motion"), 2);
+
+			gl!.uniform1f(
+				getUniformLoc(drainProgram!, "u_cultivationRate"),
+				params.shadow.creepSpeed * 2.0,
+			);
 		});
 		denPing = !denPing;
 	}
