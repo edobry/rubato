@@ -322,10 +322,6 @@ async function main(ws?: WsClient): Promise<void> {
 							result.height,
 						);
 						motion = motionMap;
-						// Update fluid sim with mask and motion data
-						if (params.fog.mode === "shadow") {
-							updateFluid(result.mask, motionMap, result.width, result.height);
-						}
 						// In imprint mode, pass the mask to the trail shader for cultivation
 						const maskForTrail =
 							params.overlay.visualize === "imprint" ? result.mask : null;
@@ -403,6 +399,8 @@ async function main(ws?: WsClient): Promise<void> {
 		// Render backdrop: classic fog or shadow mode
 		let fogTex: WebGLTexture | null;
 		if (params.fog.mode === "shadow") {
+			// Run fluid sim every frame for continuous momentum
+			updateFluid(data.mask, data.motion, data.maskW, data.maskH);
 			const denTex = getDensityTexture();
 			const velTex = getFluidVelocityTexture();
 			fogTex = renderShadowToTexture(denTex, velTex);

@@ -613,8 +613,10 @@ export async function initGui(): Promise<void> {
 	);
 	density.close();
 
-	const fog = creative.addFolder("Fog");
-	fog.add(params.fog, "mode", ["classic", "shadow"]).name("Mode");
+	const backdrop = creative.addFolder("Backdrop");
+	backdrop.add(params.fog, "mode", ["classic", "shadow"]).name("Mode");
+
+	const fog = backdrop.addFolder("Fog");
 	addParam(fog, params.fog, "speed", 0, 0.5, 0.01, "Speed");
 	addParam(fog, params.fog, "scale", 0.5, 10, 0.25, "Scale");
 	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
@@ -624,7 +626,7 @@ export async function initGui(): Promise<void> {
 	addParam(fog, params.fog, "trailInteraction", 0, 15, 0.1, "Trail → Fog");
 	fog.open();
 
-	const shadow = creative.addFolder("Shadow");
+	const shadow = backdrop.addFolder("Shadow");
 	addParam(shadow, params.shadow, "forceScale", 0, 2, 0.05, "Force Scale");
 	addParam(shadow, params.shadow, "damping", 0.9, 0.999, 0.001, "Damping");
 	addParam(shadow, params.shadow, "diffusion", 0, 0.5, 0.01, "Diffusion");
@@ -646,6 +648,8 @@ export async function initGui(): Promise<void> {
 		"Pressure Iters",
 	);
 	shadow.close();
+
+	backdrop.open();
 
 	const detection = creative.addFolder("Detection");
 	addParam(

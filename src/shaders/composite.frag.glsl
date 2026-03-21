@@ -279,12 +279,13 @@ void main() {
         color *= (1.0 - fogSuppression);
         color += fog * trail * u_fogTrailStrength;
     } else {
-        // Shadow mode: dark ambient fog. The body creates subtle bright
-        // clearings rather than dark ones. The effect is more understated —
-        // the fog displacement shader handles the primary visual interaction,
-        // while the mask adds a gentle immediate-presence brightening.
-        color += vec3(mask * u_fogMaskStrength * 0.1);
-        color += vec3(trail * u_fogTrailStrength * 0.05);
+        // Shadow: silhouette creates immediate clearings in dark fog
+        // The fluid sim handles momentum-based displacement; this handles
+        // the instantaneous "where you ARE, shadow isn't" effect
+        float clearing = mask * u_fogMaskStrength;
+        color *= (1.0 - clearing * 0.8);
+        // Trails create subtle velocity-like traces
+        color += vec3(trail * u_fogTrailStrength * 0.03);
     }
 
     // Layer camera feed (if enabled).
