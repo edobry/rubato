@@ -55,6 +55,13 @@ const STYLES = {
 		letter-spacing: 0.02em;
 		margin: 0;
 	`,
+	version: `
+		font-size: 11px;
+		color: #555;
+		font-family: "SF Mono", Menlo, Consolas, monospace;
+		letter-spacing: 0.02em;
+		margin: 0;
+	`,
 	hint: `
 		font-size: 12px;
 		color: #777;
@@ -124,6 +131,12 @@ function createOverlay(): HTMLElement {
 	urlText.textContent = adminUrl;
 
 	panel.appendChild(urlText);
+
+	// Version
+	const version = document.createElement("p");
+	version.style.cssText = STYLES.version;
+	version.textContent = `v: ${__GIT_HASH__}`;
+	panel.appendChild(version);
 
 	// Dismiss hint
 	const hint = document.createElement("p");

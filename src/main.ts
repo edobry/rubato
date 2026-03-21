@@ -57,6 +57,18 @@ import {
 	perfMark,
 } from "./perf";
 import {
+	applyPreset,
+	deletePreset,
+	deletePresetFromServer,
+	extractPreset,
+	getBuiltInPresets,
+	getLastPreset,
+	getSavedPresets,
+	savePreset,
+	setLastPreset,
+	syncPresetToServer,
+} from "./presets.js";
+import {
 	createSegmentationPipeline,
 	resolveModelConfig,
 } from "./segmentation-state";
@@ -188,6 +200,11 @@ async function main(ws?: WsClient): Promise<void> {
 	});
 	hudCanvas.width = window.innerWidth;
 	hudCanvas.height = window.innerHeight;
+
+	// Hide cursor in fullscreen mode (gallery display)
+	document.addEventListener("fullscreenchange", () => {
+		document.body.style.cursor = document.fullscreenElement ? "none" : "";
+	});
 
 	// Dev GUI — toggle with G key (loads presets which may override params)
 	if (import.meta.env.VITE_DEV_GUI === "true") {

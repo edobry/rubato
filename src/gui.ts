@@ -815,6 +815,9 @@ export async function initGui(): Promise<void> {
 	// Initial highlight
 	updateHighlight();
 
+	// Start hidden — user toggles with G key
+	gui.hide();
+
 	// Keyboard controls
 	window.addEventListener("keydown", (e) => {
 		// If any interactive element inside the GUI panel has focus (e.g. after

@@ -12,7 +12,7 @@ container.className = "admin-container";
 // Header
 const header = document.createElement("header");
 header.className = "admin-header";
-header.innerHTML = `<h1>時痕 Rubato</h1><div class="subtitle">admin</div>`;
+header.innerHTML = `<h1>時痕 Rubato</h1><div class="subtitle">admin</div><div class="version">v: ${__GIT_HASH__}</div>`;
 container.appendChild(header);
 
 // Connection status
@@ -77,6 +77,43 @@ toggles.appendChild(toggleGuiBtn);
 toggles.appendChild(toggleHudBtn);
 container.appendChild(toggles);
 
+// Preset management
+const presetSection = document.createElement("div");
+presetSection.className = "controls presets";
+
+const presetLabel = document.createElement("div");
+presetLabel.className = "section-label";
+presetLabel.textContent = "Presets";
+presetSection.appendChild(presetLabel);
+
+const presetSelect = document.createElement("select");
+presetSelect.className = "preset-select";
+presetSelect.disabled = true;
+presetSection.appendChild(presetSelect);
+
+const presetButtons = document.createElement("div");
+presetButtons.className = "preset-buttons";
+
+const applyBtn = document.createElement("button");
+applyBtn.textContent = "Apply";
+applyBtn.disabled = true;
+
+const saveBtn = document.createElement("button");
+saveBtn.textContent = "Save";
+saveBtn.disabled = true;
+
+const deleteBtn = document.createElement("button");
+deleteBtn.textContent = "Delete";
+deleteBtn.className = "danger";
+deleteBtn.disabled = true;
+
+presetButtons.appendChild(applyBtn);
+presetButtons.appendChild(saveBtn);
+presetButtons.appendChild(deleteBtn);
+presetSection.appendChild(presetButtons);
+
+container.appendChild(presetSection);
+
 // Params panel (hidden by default, expandable)
 const paramsPanel = createParamsPanel({
 	onParamChange: (section, key, value) => {
@@ -92,6 +129,21 @@ document.body.appendChild(container);
 let currentPieceState: string = "unknown";
 let connected = false;
 
+// Track preset state
+let presetList: Array<{ name: string; isBuiltIn: boolean }> = [];
+let activePreset = "";
+
+function updatePresetButtons(): void {
+	const selected = presetSelect.value;
+	const isBuiltIn =
+		presetList.find((p) => p.name === selected)?.isBuiltIn ?? true;
+	applyBtn.disabled =
+		!connected || currentPieceState !== "running" || selected === activePreset;
+	saveBtn.disabled = !connected || currentPieceState !== "running";
+	deleteBtn.disabled =
+		!connected || currentPieceState !== "running" || isBuiltIn;
+}
+
 function updateButtons(): void {
 	const isLobby = currentPieceState === "lobby";
 	const isRunning = currentPieceState === "running";
@@ -103,6 +155,8 @@ function updateButtons(): void {
 	// Toggle buttons only work when piece is running
 	toggleGuiBtn.disabled = !connected || !isRunning;
 	toggleHudBtn.disabled = !connected || !isRunning;
+
+	updatePresetButtons();
 }
 
 // --- Wire up controls ---
@@ -112,6 +166,38 @@ stopBtn.addEventListener("click", () => ws.sendCommand("stop"));
 reloadBtn.addEventListener("click", () => ws.sendCommand("reload"));
 toggleGuiBtn.addEventListener("click", () => ws.sendCommand("toggleGui"));
 toggleHudBtn.addEventListener("click", () => ws.sendCommand("toggleHud"));
+
+// --- Preset controls ---
+
+presetSelect.addEventListener("change", updatePresetButtons);
+
+applyBtn.addEventListener("click", () => {
+	ws.sendPresetCommand("apply", presetSelect.value);
+});
+
+saveBtn.addEventListener("click", () => {
+	const selected = presetSelect.value;
+	const isBuiltIn =
+		presetList.find((p) => p.name === selected)?.isBuiltIn ?? true;
+	let name: string;
+	if (isBuiltIn) {
+		// Can't overwrite built-in, prompt for new name
+		const input = prompt("Save preset as:");
+		if (!input?.trim()) return;
+		name = input.trim();
+	} else {
+		// Overwrite current user preset
+		name = selected;
+	}
+	ws.sendPresetCommand("save", name);
+});
+
+deleteBtn.addEventListener("click", () => {
+	const selected = presetSelect.value;
+	if (confirm(`Delete preset "${selected}"?`)) {
+		ws.sendPresetCommand("delete", selected);
+	}
+});
 
 // --- Wire up WS events ---
 
@@ -137,6 +223,23 @@ ws.onState((state: StateMessage) => {
 
 ws.onParamState((msg) => {
 	paramsPanel.updateParams(msg.params);
+});
+
+ws.onPresetList((msg) => {
+	presetList = msg.presets;
+	activePreset = msg.active;
+
+	// Rebuild dropdown
+	presetSelect.innerHTML = "";
+	for (const p of msg.presets) {
+		const opt = document.createElement("option");
+		opt.value = p.name;
+		opt.textContent = p.isBuiltIn ? p.name : `★ ${p.name}`;
+		presetSelect.appendChild(opt);
+	}
+	presetSelect.value = msg.active;
+	presetSelect.disabled = false;
+	updatePresetButtons();
 });
 
 ws.onConnectionChange((isConnected: boolean) => {

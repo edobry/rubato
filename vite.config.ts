@@ -104,6 +104,9 @@ export default defineConfig(({ mode }) => {
 	return {
 		define: {
 			__TAILSCALE_HOST__: JSON.stringify(tailscaleHost),
+			__GIT_HASH__: JSON.stringify(
+				execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim(),
+			),
 		},
 		build: {
 			rollupOptions: {
