@@ -4,7 +4,6 @@ set -euo pipefail
 REF="${1:-origin/master}"
 HOST="rubato-mini"
 REMOTE_DIR="~/Projects/rubato"
-LOG_FILE="~/rubato.log"
 
 echo "Deploying rubato @ ${REF} to ${HOST}..."
 
@@ -23,14 +22,21 @@ export PATH="$HOME/.local/node/bin:$PATH"
 REF="$1"
 cd ~/Projects/rubato
 
-# Kill existing server on port 5173, if any
+PLIST_NAME="com.rubato.server.plist"
+PLIST_DEST="$HOME/Library/LaunchAgents/$PLIST_NAME"
+SERVICE_TARGET="gui/$(id -u)/com.rubato.server"
+
+# Stop existing service (launchd or legacy process)
+echo "Stopping existing server..."
+launchctl bootout "$SERVICE_TARGET" 2>/dev/null || true
+
+# Fallback: kill any lingering process on port 5173
 EXISTING_PID=$(lsof -i :5173 -t 2>/dev/null || true)
 if [ -n "$EXISTING_PID" ]; then
-    echo "Stopping existing server (PID $EXISTING_PID)..."
+    echo "Killing lingering process on :5173 (PID $EXISTING_PID)..."
     kill "$EXISTING_PID" 2>/dev/null || true
     sleep 2
     if lsof -i :5173 -t &>/dev/null; then
-        echo "Server didn't stop gracefully, sending SIGKILL..."
         kill -9 "$EXISTING_PID" 2>/dev/null || true
     fi
 fi
@@ -39,22 +45,24 @@ echo "Fetching latest from origin..."
 git fetch origin
 
 echo "Checking out $REF..."
+git stash --quiet 2>/dev/null || true
 git checkout "$REF" --
 
 echo "Installing dependencies..."
 npm install --no-audit --no-fund
 
-echo "Starting server (live mode, no HMR)..."
-nohup bash -c 'export PATH="$HOME/.local/node/bin:$PATH" && cd ~/Projects/rubato && npm run serve:live' > ~/rubato.log 2>&1 &
-SERVER_PID=$!
-echo "Server started (PID $SERVER_PID), logging to ~/rubato.log"
+# Install and start the launchd service
+echo "Installing launchd service..."
+cp "scripts/$PLIST_NAME" "$PLIST_DEST"
+launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
+echo "Service started via launchd"
 
 # Wait and verify
 sleep 4
 if lsof -i :5173 -t &>/dev/null; then
     echo "Server is running on :5173"
 else
-    echo "WARNING: Server may not have started. Check ~/rubato.log"
+    echo "WARNING: Server may not have started. Check ~/rubato-stdout.log"
 fi
 REMOTE_SCRIPT
 

@@ -19,7 +19,13 @@
 		"interact": "INTERACT=1 HEADED=1 npx playwright test e2e/preview.spec.ts --grep interact",
 		"prepare": "husky",
 		"deploy": "scripts/deploy.sh",
-		"deploy:status": "ssh rubato-mini 'export PATH=$HOME/.local/node/bin:$PATH && cd ~/Projects/rubato && echo \"Commit: $(git log --oneline -1)\" && echo \"Server: $(lsof -i :5173 -t 2>/dev/null && echo running || echo stopped)\"'"
+		"deploy:status": "ssh rubato-mini 'export PATH=$HOME/.local/node/bin:$PATH && cd ~/Projects/rubato && echo \"Commit: $(git log --oneline -1)\" && echo \"Server: $(lsof -i :5173 -t 2>/dev/null && echo running || echo stopped)\"'",
+		"service:install": "scripts/service.sh install",
+		"service:start": "scripts/service.sh start",
+		"service:stop": "scripts/service.sh stop",
+		"service:restart": "scripts/service.sh restart",
+		"service:status": "scripts/service.sh status",
+		"service:logs": "tail -f ~/rubato-stdout.log ~/rubato-stderr.log"
 	},
 	"lint-staged": {
 		"*.{ts,js,json,jsonc,glsl}": [

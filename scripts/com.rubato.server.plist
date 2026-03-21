@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.rubato.server</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/zsh</string>
+		<string>-l</string>
+		<string>-c</string>
+		<string>cd ~/Projects/rubato &amp;&amp; npm run serve:live</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>/Users/edobry/Projects/rubato</string>
+
+	<key>KeepAlive</key>
+	<true/>
+
+	<key>RunAtLoad</key>
+	<true/>
+
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+
+	<key>StandardOutPath</key>
+	<string>/Users/edobry/rubato-stdout.log</string>
+
+	<key>StandardErrorPath</key>
+	<string>/Users/edobry/rubato-stderr.log</string>
+
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>VITE_DEV_GUI</key>
+		<string>true</string>
+	</dict>
+</dict>
+</plist>
