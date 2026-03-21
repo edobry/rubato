@@ -5,7 +5,6 @@ REF="${1:-origin/master}"
 HOST="rubato-mini"
 REMOTE_DIR="~/Projects/rubato"
 LOG_FILE="~/rubato.log"
-PORT=5173
 
 echo "Deploying rubato @ ${REF} to ${HOST}..."
 
@@ -46,7 +45,7 @@ echo "Installing dependencies..."
 npm install --no-audit --no-fund
 
 echo "Starting server (live mode, no HMR)..."
-nohup bash -c 'export PATH="$HOME/.local/node/bin:$PATH" && cd ~/Projects/rubato && VITE_DEV_GUI=true npx vite --host --port 5173 --mode live' > ~/rubato.log 2>&1 &
+nohup bash -c 'export PATH="$HOME/.local/node/bin:$PATH" && cd ~/Projects/rubato && npm run serve:live' > ~/rubato.log 2>&1 &
 SERVER_PID=$!
 echo "Server started (PID $SERVER_PID), logging to ~/rubato.log"
 
@@ -61,4 +60,4 @@ REMOTE_SCRIPT
 
 echo ""
 echo "Deploy complete. Access the app at:"
-echo "  https://${HOST}:${PORT}"
+echo "  https://${HOST}:5173"
