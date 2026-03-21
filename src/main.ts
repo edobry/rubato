@@ -34,6 +34,11 @@ import {
 } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui, isGuiVisible, toggleGui } from "./gui";
+import {
+	hideHelpOverlay,
+	isHelpOverlayVisible,
+	toggleHelpOverlay,
+} from "./help-overlay";
 import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
 import {
 	detectMotion,
@@ -206,8 +211,14 @@ async function main(ws?: WsClient): Promise<void> {
 
 		if (e.key === "a" || e.key === "A") {
 			toggleAdminOverlay();
-		} else if (e.key === "Escape" && isAdminOverlayVisible()) {
-			hideAdminOverlay();
+		} else if (e.key === "?") {
+			toggleHelpOverlay();
+		} else if (e.key === "Escape") {
+			if (isHelpOverlayVisible()) {
+				hideHelpOverlay();
+			} else if (isAdminOverlayVisible()) {
+				hideAdminOverlay();
+			}
 		}
 	});
 
