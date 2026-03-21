@@ -557,7 +557,7 @@ export async function initGui(): Promise<void> {
 	overlayStyle.open();
 
 	const trails = creative.addFolder("Trails");
-	addParam(trails, params.motion, "deposition", 0, 50, 0.5, "Deposition");
+	addParam(trails, params.motion, "deposition", 0, 100, 1, "Deposition");
 	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
 	trails.open();
 
@@ -567,8 +567,8 @@ export async function initGui(): Promise<void> {
 		params.density,
 		"cultivationRate",
 		0.001,
-		1.0,
-		0.005,
+		5.0,
+		0.01,
 		"Cultivation Rate",
 	);
 	addParam(
@@ -576,7 +576,7 @@ export async function initGui(): Promise<void> {
 		params.density,
 		"channelStrength",
 		0,
-		200.0,
+		500.0,
 		1.0,
 		"Channel Strength",
 	);

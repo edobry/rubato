@@ -140,7 +140,7 @@ void main() {
     // --- Phase 2b: Cultivation leakage ---
     // Cultivation slowly bleeds into density while body is present,
     // creating a faint glow that builds during stillness.
-    newDensity += prevCultivation * isPresent * u_cultivationRate * 0.5;
+    newDensity += prevCultivation * isPresent * u_cultivationRate;
 
     // --- Phase 2c: Channeling (departure-based release) ---
     // When the body moves away, cultivation converts to visible density.
