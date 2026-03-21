@@ -1,4 +1,9 @@
 import {
+	hideAdminOverlay,
+	isAdminOverlayVisible,
+	toggleAdminOverlay,
+} from "./admin-overlay";
+import {
 	autoTuneState,
 	autoTuneTick,
 	onLogChange,
@@ -189,6 +194,22 @@ async function main(ws?: WsClient): Promise<void> {
 	if (device.isConstrained) {
 		if (params.overlay.downsample < 2) params.overlay.downsample = 2;
 	}
+
+	// Admin overlay — press A to toggle, Escape to dismiss
+	window.addEventListener("keydown", (e) => {
+		// Don't intercept if user is typing in an input field
+		if (
+			e.target instanceof HTMLInputElement ||
+			e.target instanceof HTMLTextAreaElement
+		)
+			return;
+
+		if (e.key === "a" || e.key === "A") {
+			toggleAdminOverlay();
+		} else if (e.key === "Escape" && isAdminOverlayVisible()) {
+			hideAdminOverlay();
+		}
+	});
 
 	const fps = new FpsCounter();
 
