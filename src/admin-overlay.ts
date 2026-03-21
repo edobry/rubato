@@ -18,43 +18,46 @@ const STYLES = {
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 		color: #fff;
 		-webkit-font-smoothing: antialiased;
-		background: rgba(0, 0, 0, 0.85);
+		background: rgba(0, 0, 0, 0.6);
 	`,
 	panel: `
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 24px;
-		padding: 36px 48px;
+		padding: 40px 56px;
+		background: #111;
+		border-radius: 12px;
+		border: 1px solid #333;
 	`,
 	presetLabel: `
-		font-size: 11px;
-		font-weight: 400;
-		letter-spacing: 0.2em;
-		text-transform: uppercase;
-		color: #666;
+		font-size: 13px;
+		font-weight: 500;
+		letter-spacing: 0.08em;
+		color: #999;
 		margin: 0;
 	`,
 	presetName: `
-		font-size: 28px;
-		font-weight: 300;
-		letter-spacing: 0.05em;
+		font-size: 24px;
+		font-weight: 400;
+		letter-spacing: 0.03em;
 		margin: 4px 0 0 0;
 		text-align: center;
+		color: #fff;
 	`,
 	qrCanvas: `
 		display: block;
 	`,
 	urlText: `
 		font-size: 12px;
-		color: #555;
+		color: #888;
 		font-family: "SF Mono", Menlo, Consolas, monospace;
 		letter-spacing: 0.02em;
 		margin: 0;
 	`,
 	hint: `
 		font-size: 11px;
-		color: #333;
+		color: #555;
 		letter-spacing: 0.05em;
 		margin: 0;
 	`,
@@ -106,7 +109,7 @@ function createOverlay(): HTMLElement {
 		margin: 0,
 		color: {
 			dark: "#ffffff",
-			light: "#000000",
+			light: "#111111",
 		},
 	});
 

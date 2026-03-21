@@ -14,7 +14,7 @@ const STYLES = {
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 		color: #fff;
 		-webkit-font-smoothing: antialiased;
-		background: rgba(0, 0, 0, 0.85);
+		background: rgba(0, 0, 0, 0.6);
 	`,
 	panel: `
 		display: flex;
@@ -22,6 +22,9 @@ const STYLES = {
 		align-items: center;
 		gap: 20px;
 		padding: 36px 48px;
+		background: #111;
+		border-radius: 12px;
+		border: 1px solid #333;
 	`,
 	title: `
 		font-size: 14px;
@@ -60,7 +63,7 @@ const STYLES = {
 	`,
 	hint: `
 		font-size: 11px;
-		color: #333;
+		color: #555;
 		letter-spacing: 0.05em;
 		margin: 0;
 	`,
