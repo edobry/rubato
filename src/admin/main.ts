@@ -9,6 +9,11 @@ const ws = new WsClient("admin");
 const container = document.createElement("div");
 container.className = "admin-container";
 
+// Update banner (hidden by default)
+const updateBanner = document.createElement("div");
+updateBanner.className = "update-banner hidden";
+container.appendChild(updateBanner);
+
 // Header
 const header = document.createElement("header");
 header.className = "admin-header";
@@ -389,3 +394,42 @@ ws.onConnectionChange((isConnected: boolean) => {
 
 	updateButtons();
 });
+
+// --- Version check polling ---
+
+let bannerDismissedForHash: string | null = null;
+
+async function checkVersion(): Promise<void> {
+	try {
+		const res = await fetch("/api/version");
+		if (!res.ok) return;
+		const data = (await res.json()) as {
+			current: string;
+			latest: string | null;
+			updateAvailable: boolean;
+		};
+		if (data.updateAvailable && data.latest) {
+			if (bannerDismissedForHash === data.latest) return;
+			updateBanner.innerHTML = "";
+			const msg = document.createElement("span");
+			msg.textContent = `New version available (${data.latest}). Deploy and reload to update.`;
+			const dismissBtn = document.createElement("button");
+			dismissBtn.textContent = "\u00d7";
+			dismissBtn.className = "update-dismiss";
+			dismissBtn.addEventListener("click", () => {
+				bannerDismissedForHash = data.latest;
+				updateBanner.classList.add("hidden");
+			});
+			updateBanner.appendChild(msg);
+			updateBanner.appendChild(dismissBtn);
+			updateBanner.classList.remove("hidden");
+		} else {
+			updateBanner.classList.add("hidden");
+		}
+	} catch {
+		// Version check failed — silently ignore
+	}
+}
+
+void checkVersion();
+setInterval(() => void checkVersion(), 30_000);
