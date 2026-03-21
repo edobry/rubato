@@ -16,7 +16,9 @@
 		"check": "biome check . && tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && vite build",
 		"screenshot": "npx playwright test e2e/preview.spec.ts --grep screenshot",
 		"interact": "INTERACT=1 HEADED=1 npx playwright test e2e/preview.spec.ts --grep interact",
-		"prepare": "husky"
+		"prepare": "husky",
+		"deploy": "scripts/deploy.sh",
+		"deploy:status": "ssh rubato-mini 'export PATH=$HOME/.local/node/bin:$PATH && cd ~/Projects/rubato && echo \"Commit: $(git log --oneline -1)\" && echo \"Server: $(lsof -i :5173 -t 2>/dev/null && echo running || echo stopped)\"'"
 	},
 	"lint-staged": {
 		"*.{ts,js,json,jsonc,glsl}": [
