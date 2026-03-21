@@ -567,7 +567,7 @@ export async function initGui(): Promise<void> {
 		params.density,
 		"cultivationRate",
 		0.001,
-		0.05,
+		0.15,
 		0.001,
 		"Cultivation Rate",
 	);
@@ -576,11 +576,11 @@ export async function initGui(): Promise<void> {
 		params.density,
 		"channelStrength",
 		0.5,
-		5.0,
+		20.0,
 		0.1,
 		"Channel Strength",
 	);
-	addParam(density, params.density, "drainRate", 0.8, 0.99, 0.01, "Drain Rate");
+	addParam(density, params.density, "drainRate", 0.5, 0.99, 0.01, "Drain Rate");
 	addParam(
 		density,
 		params.density,
@@ -621,7 +621,7 @@ export async function initGui(): Promise<void> {
 	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
 	fog.addColor(params.fog, "color").name("Color");
 	addParam(fog, params.fog, "maskInteraction", 0, 2, 0.1, "Mask → Fog");
-	addParam(fog, params.fog, "trailInteraction", 0, 5, 0.1, "Trail → Fog");
+	addParam(fog, params.fog, "trailInteraction", 0, 15, 0.1, "Trail → Fog");
 	fog.open();
 
 	const shadow = creative.addFolder("Shadow");

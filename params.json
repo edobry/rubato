@@ -23,7 +23,7 @@
 		"renderScale": 1.0,
 		"frameSkip": 1,
 		"maskInteraction": 0.8,
-		"trailInteraction": 2.0
+		"trailInteraction": 6.0
 	},
 	"shadow": {
 		"forceScale": 0.5,
@@ -41,21 +41,21 @@
 		"velocityGrid": 16
 	},
 	"motion": {
-		"deposition": 2.0,
+		"deposition": 5.0,
 		"decay": 0.97
 	},
 	"density": {
-		"cultivationRate": 0.01,
-		"channelStrength": 2.0,
-		"drainRate": 0.9,
-		"diffusionRate": 0.05,
+		"cultivationRate": 0.04,
+		"channelStrength": 8.0,
+		"drainRate": 0.7,
+		"diffusionRate": 0.15,
 		"decayVariance": 0.2,
 		"disintegrationSpeed": 0.1,
 		"diffusionMode": "isotropic"
 	},
 	"overlay": {
 		"showOverlay": true,
-		"visualize": "mask",
+		"visualize": "imprint",
 		"opacity": 0.5,
 		"color": "#00ffff",
 		"colorMode": "solid",
