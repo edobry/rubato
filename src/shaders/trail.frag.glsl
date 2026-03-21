@@ -133,13 +133,13 @@ void main() {
     float newCultivation = prevCultivation + isPresent * u_cultivationRate;
 
     // --- Phase 2a: Direct motion deposition ---
-    // Motion at body edges deposits density immediately (like legacy trail).
-    // Guarantees visible traces even if cultivation pipeline has issues.
-    float newDensity = prevDensity + motion * u_deposition;
+    // Motion deposits density only where the body has DEPARTED (not arrived),
+    // preventing bright edges from outlining the current body position.
+    float newDensity = prevDensity + motion * u_deposition * (1.0 - isPresent);
 
     // --- Phase 2b: Cultivation leakage ---
-    // Cultivation slowly bleeds into density while body is present,
-    // creating a faint glow that builds during stillness.
+    // Cultivation continuously bleeds into density while body is present,
+    // filling the body interior with a visible glow that builds during stillness.
     newDensity += prevCultivation * isPresent * u_cultivationRate;
 
     // --- Phase 2c: Channeling (departure-based release) ---
