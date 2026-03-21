@@ -37,6 +37,19 @@ stateValue.className = "value";
 stateValue.textContent = "—";
 stateSection.appendChild(stateLabel);
 stateSection.appendChild(stateValue);
+
+const presetInfo = document.createElement("div");
+presetInfo.className = "preset-info";
+const presetInfoLabel = document.createElement("span");
+presetInfoLabel.className = "label";
+presetInfoLabel.textContent = "Preset";
+const presetInfoValue = document.createElement("span");
+presetInfoValue.className = "value";
+presetInfoValue.textContent = "—";
+presetInfo.appendChild(presetInfoLabel);
+presetInfo.appendChild(presetInfoValue);
+stateSection.appendChild(presetInfo);
+
 container.appendChild(stateSection);
 
 // Controls
@@ -91,6 +104,13 @@ presetSelect.className = "preset-select";
 presetSelect.disabled = true;
 presetSection.appendChild(presetSelect);
 
+const presetNameInput = document.createElement("input");
+presetNameInput.type = "text";
+presetNameInput.className = "preset-name-input";
+presetNameInput.placeholder = "Preset name...";
+presetNameInput.disabled = true;
+presetSection.appendChild(presetNameInput);
+
 const presetButtons = document.createElement("div");
 presetButtons.className = "preset-buttons";
 
@@ -139,7 +159,11 @@ function updatePresetButtons(): void {
 		presetList.find((p) => p.name === selected)?.isBuiltIn ?? true;
 	applyBtn.disabled =
 		!connected || currentPieceState !== "running" || selected === activePreset;
-	saveBtn.disabled = !connected || currentPieceState !== "running";
+	presetNameInput.disabled = !connected || currentPieceState !== "running";
+	saveBtn.disabled =
+		!connected ||
+		currentPieceState !== "running" ||
+		!presetNameInput.value.trim();
 	deleteBtn.disabled =
 		!connected || currentPieceState !== "running" || isBuiltIn;
 }
@@ -169,26 +193,20 @@ toggleHudBtn.addEventListener("click", () => ws.sendCommand("toggleHud"));
 
 // --- Preset controls ---
 
-presetSelect.addEventListener("change", updatePresetButtons);
+presetSelect.addEventListener("change", () => {
+	presetNameInput.value = presetSelect.value;
+	updatePresetButtons();
+});
+
+presetNameInput.addEventListener("input", updatePresetButtons);
 
 applyBtn.addEventListener("click", () => {
 	ws.sendPresetCommand("apply", presetSelect.value);
 });
 
 saveBtn.addEventListener("click", () => {
-	const selected = presetSelect.value;
-	const isBuiltIn =
-		presetList.find((p) => p.name === selected)?.isBuiltIn ?? true;
-	let name: string;
-	if (isBuiltIn) {
-		// Can't overwrite built-in, prompt for new name
-		const input = prompt("Save preset as:");
-		if (!input?.trim()) return;
-		name = input.trim();
-	} else {
-		// Overwrite current user preset
-		name = selected;
-	}
+	const name = presetNameInput.value.trim();
+	if (!name) return;
 	ws.sendPresetCommand("save", name);
 });
 
@@ -211,6 +229,10 @@ ws.onState((state: StateMessage) => {
 	};
 	stateValue.textContent = labels[state.state] ?? state.state;
 
+	if (state.preset) {
+		presetInfoValue.textContent = state.preset;
+	}
+
 	if (state.guiVisible !== undefined) {
 		toggleGuiBtn.textContent = state.guiVisible ? "Hide Params" : "Show Params";
 	}
@@ -228,6 +250,7 @@ ws.onParamState((msg) => {
 ws.onPresetList((msg) => {
 	presetList = msg.presets;
 	activePreset = msg.active;
+	presetInfoValue.textContent = msg.active;
 
 	// Rebuild dropdown
 	presetSelect.innerHTML = "";
@@ -239,6 +262,8 @@ ws.onPresetList((msg) => {
 	}
 	presetSelect.value = msg.active;
 	presetSelect.disabled = false;
+	presetNameInput.value = msg.active;
+	presetNameInput.disabled = !connected || currentPieceState !== "running";
 	updatePresetButtons();
 });
 
