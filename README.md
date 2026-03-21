@@ -2,13 +2,17 @@
 
 *Time Scar*
 
-A screen hangs on a gallery wall. When you step in front of it, your silhouette appears -- not as a mirror image, but as a ghostly imprint that lingers after you move. Walk, gesture, be still: every motion leaves a trace that slowly dissolves into drifting fog. When no one is present, only the fog remains.
+A screen hangs on a gallery wall. Drifting fog fills its surface. When you step in front of it, nothing visible happens -- no mirror, no outline, no silhouette. But when you *move*, the space you moved through retains a trace. Not of your body, but of the movement's energy -- an impressionistic residue of force that lingers where motion occurred.
 
-The piece lives in the space between presence and absence -- the marks we leave simply by being somewhere, and how quickly they fade.
+Stand still, and energy slowly cultivates within your form -- invisible, gathering, like qi pooling before it flows. Begin to move, and the accumulated density channels along your path, draining from where you lingered and elongating through the space you traverse. The longer you were still, the more dramatic the release. The faster you move, the more intensely the trace blazes.
+
+Over time, these traces don't simply fade -- they disintegrate. The memory of movement corrupts and fragments, like misfiring neurons, breaking apart unevenly before dissolving back into the fog. The viewer can read the history: where the dancer lingered (dense pools), how they moved (elongated channels), how long ago (degree of disintegration).
+
+The piece draws from butoh (舞踏, the dance of darkness) -- the body as a vessel for internal forces rather than a form to be displayed -- and from tai chi quan's concepts of qi cultivation and meridian channeling. Sarah Lin performs a butoh piece during the opening, her body becoming the first instrument to inscribe the system.
 
 ### How it works
 
-A camera watches the space in front of the screen. It detects your body in real time, and your movement deposits dark trails onto the display. The trails decay over time, sinking back into an ambient fog field that fills the screen when the space is empty. Everything runs locally in the browser -- no server, no data leaves the room.
+A camera watches the space in front of the screen. It detects the human body in real time, but the body itself is never shown. Instead, the system tracks *motion* -- where the body moves and how intensely -- and deposits density into a persistent field that accumulates, channels, and slowly disintegrates back into an ambient procedural fog. Everything runs locally in the browser -- no server, no data leaves the room.
 
 ---
 
