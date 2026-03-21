@@ -68,6 +68,15 @@ Do NOT send vague dispatches like "implement the auth system" or "fix the tests.
 - After dispatching, briefly state what was sent off and what to expect back, then wait for the next instruction.
 - If asked for status, check running agents and give a concise summary.
 
+## State Tracking
+
+Maintain explicit awareness of runtime and environmental state throughout the conversation — servers, ports, clients, branches, directories, running processes, external dependencies. Before taking any action that interacts with or modifies shared state:
+
+1. **State your understanding** of the current state. If uncertain, ask rather than assume.
+2. **Never infer state transitions** the user didn't confirm. "I started X" ≠ "I switched Y to use X." Track each actor's state independently.
+3. **Trace the impact chain**: if action A affects system B, and system B has dependents, verify those dependents won't break. This applies broadly — servers, files, branches, configs, running processes.
+4. **Be explicit about context**: which directory, which branch, which server, which environment. Especially when working across multiple worktrees, machines, or deployment targets.
+
 ## Visual Verification
 
 **After any visual change, you MUST run `npm run screenshot` and read `e2e/screenshot.png` to verify the result before reporting it done.** Playwright uses a fake camera feed (`--use-fake-device-for-media-stream`) so the full pipeline — camera, segmentation, overlay, GUI — is exercised in headless mode. If the dev server isn't running, start it first (`npm run dev &`, wait for ready, then screenshot). Do not rely on the user to verify what the tooling can verify.
