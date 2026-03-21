@@ -212,6 +212,8 @@ async function main(ws?: WsClient): Promise<void> {
 		if (e.key === "a" || e.key === "A") {
 			if (isHelpOverlayVisible()) hideHelpOverlay();
 			toggleAdminOverlay();
+		} else if (e.key === "s" || e.key === "S") {
+			toggleHud();
 		} else if (e.key === "?") {
 			if (isAdminOverlayVisible()) hideAdminOverlay();
 			toggleHelpOverlay();
