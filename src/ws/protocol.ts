@@ -23,5 +23,24 @@ export interface StateMessage {
 	hudVisible?: boolean;
 }
 
+/** Single param change from admin → piece */
+export interface ParamUpdateMessage {
+	type: "paramUpdate";
+	section: string;
+	key: string;
+	value: number | string | boolean;
+}
+
+/** Full param state snapshot from piece → admin */
+export interface ParamStateMessage {
+	type: "paramState";
+	params: Record<string, Record<string, number | string | boolean>>;
+}
+
 /** All possible messages */
-export type WsMessage = RegisterMessage | CommandMessage | StateMessage;
+export type WsMessage =
+	| RegisterMessage
+	| CommandMessage
+	| StateMessage
+	| ParamUpdateMessage
+	| ParamStateMessage;

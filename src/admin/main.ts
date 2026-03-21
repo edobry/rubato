@@ -1,5 +1,6 @@
 import { WsClient } from "../ws/client.js";
 import type { StateMessage } from "../ws/protocol.js";
+import { createParamsPanel } from "./params-panel.js";
 
 const ws = new WsClient("admin");
 
@@ -76,6 +77,14 @@ toggles.appendChild(toggleGuiBtn);
 toggles.appendChild(toggleHudBtn);
 container.appendChild(toggles);
 
+// Params panel (hidden by default, expandable)
+const paramsPanel = createParamsPanel({
+	onParamChange: (section, key, value) => {
+		ws.sendParamUpdate(section, key, value);
+	},
+});
+container.appendChild(paramsPanel.element);
+
 document.body.appendChild(container);
 
 // --- State tracking ---
@@ -124,6 +133,10 @@ ws.onState((state: StateMessage) => {
 	}
 
 	updateButtons();
+});
+
+ws.onParamState((msg) => {
+	paramsPanel.updateParams(msg.params);
 });
 
 ws.onConnectionChange((isConnected: boolean) => {

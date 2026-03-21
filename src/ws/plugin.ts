@@ -3,6 +3,8 @@ import { type WebSocket, WebSocketServer } from "ws";
 import type {
 	ClientRole,
 	CommandMessage,
+	ParamStateMessage,
+	ParamUpdateMessage,
 	StateMessage,
 	WsMessage,
 } from "./protocol.js";
@@ -55,6 +57,18 @@ export function wsPlugin(): Plugin {
 							broadcast(clients, "admin", msg);
 							return;
 						}
+
+						if (msg.type === "paramUpdate") {
+							// Forward param updates to piece clients (admin → piece)
+							broadcast(clients, "piece", msg);
+							return;
+						}
+
+						if (msg.type === "paramState") {
+							// Forward param state to admin clients (piece → admin)
+							broadcast(clients, "admin", msg);
+							return;
+						}
 					} catch (err) {
 						console.error("[rubato-ws] Invalid message:", err);
 					}
@@ -73,7 +87,7 @@ export function wsPlugin(): Plugin {
 function broadcast(
 	clients: Set<TrackedClient>,
 	targetRole: ClientRole,
-	msg: CommandMessage | StateMessage,
+	msg: CommandMessage | StateMessage | ParamUpdateMessage | ParamStateMessage,
 ): void {
 	const payload = JSON.stringify(msg);
 	for (const c of clients) {

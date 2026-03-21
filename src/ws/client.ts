@@ -1,12 +1,16 @@
 import type {
 	ClientRole,
 	CommandMessage,
+	ParamStateMessage,
+	ParamUpdateMessage,
 	StateMessage,
 	WsMessage,
 } from "./protocol.js";
 
 type CommandHandler = (msg: CommandMessage) => void;
 type StateHandler = (msg: StateMessage) => void;
+type ParamUpdateHandler = (msg: ParamUpdateMessage) => void;
+type ParamStateHandler = (msg: ParamStateMessage) => void;
 type ConnectionHandler = (connected: boolean) => void;
 
 const MAX_RECONNECT_DELAY = 10_000;
@@ -18,6 +22,8 @@ export class WsClient {
 
 	private commandHandlers: CommandHandler[] = [];
 	private stateHandlers: StateHandler[] = [];
+	private paramUpdateHandlers: ParamUpdateHandler[] = [];
+	private paramStateHandlers: ParamStateHandler[] = [];
 	private connectionHandlers: ConnectionHandler[] = [];
 
 	private reconnectDelay = 1000;
@@ -46,6 +52,16 @@ export class WsClient {
 		this.stateHandlers.push(handler);
 	}
 
+	/** Register handler for param update messages (used by piece). */
+	onParamUpdate(handler: ParamUpdateHandler): void {
+		this.paramUpdateHandlers.push(handler);
+	}
+
+	/** Register handler for param state messages (used by admin). */
+	onParamState(handler: ParamStateHandler): void {
+		this.paramStateHandlers.push(handler);
+	}
+
 	/** Register a handler for connection status changes. */
 	onConnectionChange(handler: ConnectionHandler): void {
 		this.connectionHandlers.push(handler);
@@ -67,6 +83,22 @@ export class WsClient {
 		},
 	): void {
 		this.send({ type: "state", state, ...extra });
+	}
+
+	/** Send a single param update (used by admin). */
+	sendParamUpdate(
+		section: string,
+		key: string,
+		value: number | string | boolean,
+	): void {
+		this.send({ type: "paramUpdate", section, key, value });
+	}
+
+	/** Send full param state snapshot (used by piece). */
+	sendParamState(
+		params: Record<string, Record<string, number | string | boolean>>,
+	): void {
+		this.send({ type: "paramState", params });
 	}
 
 	/** Tear down the client and stop reconnecting. */
@@ -107,6 +139,10 @@ export class WsClient {
 					for (const h of this.commandHandlers) h(msg);
 				} else if (msg.type === "state") {
 					for (const h of this.stateHandlers) h(msg);
+				} else if (msg.type === "paramUpdate") {
+					for (const h of this.paramUpdateHandlers) h(msg);
+				} else if (msg.type === "paramState") {
+					for (const h of this.paramStateHandlers) h(msg);
 				}
 			} catch {
 				// Ignore malformed messages

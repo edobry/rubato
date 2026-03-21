@@ -79,7 +79,7 @@ function serializeParams(): Record<
 let video: HTMLVideoElement | null = null;
 let currentResolution = params.camera.resolution;
 let resolutionChanging = false;
-let hudVisible = true;
+let hudVisible = false;
 
 function toggleHud(): boolean {
 	hudVisible = !hudVisible;
