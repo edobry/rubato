@@ -17,6 +17,7 @@ import type { Controller } from "lil-gui";
 import GUI from "lil-gui";
 import { autoTuneState, onLogChange } from "./autotune";
 import { detectDevice } from "./device";
+import { CREATIVE_PARAMS, type ParamControlDef } from "./param-schema.js";
 import { onParamChange, params } from "./params";
 import { getPerfSummary } from "./perf";
 import {
@@ -78,6 +79,39 @@ function addParam(
 		min,
 		max,
 	});
+}
+
+/** Add a control to a lil-gui folder based on a ParamControlDef from the shared schema. */
+function addControl(folder: GUI, control: ParamControlDef): void {
+	const section = params[control.section as keyof typeof params] as Record<
+		string,
+		unknown
+	>;
+
+	switch (control.type) {
+		case "slider":
+			addParam(
+				folder,
+				section,
+				control.key,
+				control.min ?? 0,
+				control.max ?? 1,
+				control.step ?? 0.01,
+				control.label,
+			);
+			break;
+		case "toggle":
+			folder.add(section, control.key).name(control.label);
+			break;
+		case "dropdown":
+			folder
+				.add(section, control.key, control.options ?? [])
+				.name(control.label);
+			break;
+		case "color":
+			folder.addColor(section, control.key).name(control.label);
+			break;
+	}
 }
 
 /** Detect control type from a lil-gui Controller instance. */
@@ -522,164 +556,20 @@ export async function initGui(): Promise<void> {
 
 	presetsFolder.open();
 
-	// ── Creative section ─────────────────────────────────────────────
+	// ── Creative section (driven by shared param schema) ────────────
 	const creative = gui.addFolder("Creative");
 
-	const display = creative.addFolder("Display");
-	display.add(params.camera, "showFeed").name("Show Feed");
-	addParam(display, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
-	display.add(params.overlay, "showOverlay").name("Show Overlay");
-	display
-		.add(params.overlay, "visualize", [
-			"mask",
-			"motion",
-			"trail",
-			"both",
-			"imprint",
-		])
-		.name("Visualize");
-	display.open();
-
-	const overlayStyle = creative.addFolder("Overlay Style");
-	addParam(overlayStyle, params.overlay, "opacity", 0, 1, 0.05, "Opacity");
-	overlayStyle.addColor(params.overlay, "color").name("Color");
-	overlayStyle
-		.add(params.overlay, "colorMode", [
-			"solid",
-			"rainbow",
-			"gradient",
-			"contour",
-			"invert",
-			"aura",
-		])
-		.name("Color Mode");
-	addParam(overlayStyle, params.overlay, "blur", 0, 5, 1, "Blur");
-	overlayStyle.open();
-
-	const trails = creative.addFolder("Trails");
-	addParam(trails, params.motion, "deposition", 0, 100, 1, "Deposition");
-	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
-	trails.open();
-
-	const density = creative.addFolder("Density (Imprint)");
-	addParam(
-		density,
-		params.density,
-		"cultivationRate",
-		0.001,
-		5.0,
-		0.01,
-		"Cultivation Rate",
-	);
-	addParam(
-		density,
-		params.density,
-		"channelStrength",
-		0,
-		500.0,
-		1.0,
-		"Channel Strength",
-	);
-	addParam(density, params.density, "drainRate", 0, 0.99, 0.01, "Drain Rate");
-	addParam(
-		density,
-		params.density,
-		"diffusionRate",
-		0,
-		1.0,
-		0.01,
-		"Diffusion Rate",
-	);
-	density
-		.add(params.density, "diffusionMode", ["isotropic", "anisotropic"])
-		.name("Diffusion Mode");
-	addParam(
-		density,
-		params.density,
-		"decayVariance",
-		0,
-		0.5,
-		0.01,
-		"Decay Variance",
-	);
-	addParam(
-		density,
-		params.density,
-		"disintegrationSpeed",
-		0.01,
-		0.5,
-		0.01,
-		"Disintegration Speed",
-	);
-	density.close();
-
-	const backdrop = creative.addFolder("Backdrop");
-	backdrop.add(params.fog, "mode", ["classic", "shadow"]).name("Mode");
-
-	const fog = backdrop.addFolder("Fog");
-	addParam(fog, params.fog, "speed", 0, 0.5, 0.01, "Speed");
-	addParam(fog, params.fog, "scale", 0.5, 10, 0.25, "Scale");
-	addParam(fog, params.fog, "density", 0.5, 3, 0.1, "Density");
-	addParam(fog, params.fog, "brightness", 0, 1, 0.05, "Brightness");
-	fog.addColor(params.fog, "color").name("Color");
-	addParam(fog, params.fog, "maskInteraction", 0, 2, 0.1, "Mask → Fog");
-	addParam(fog, params.fog, "trailInteraction", 0, 50, 0.5, "Trail → Fog");
-	fog.open();
-
-	const shadow = backdrop.addFolder("Shadow");
-	addParam(shadow, params.shadow, "forceScale", 0, 2, 0.05, "Force Scale");
-	addParam(shadow, params.shadow, "damping", 0.9, 0.999, 0.001, "Damping");
-	addParam(shadow, params.shadow, "diffusion", 0, 0.5, 0.01, "Diffusion");
-	addParam(shadow, params.shadow, "advection", 0, 1, 0.05, "Advection");
-	addParam(shadow, params.shadow, "noiseScale", 0.5, 10, 0.25, "Noise Scale");
-	addParam(shadow, params.shadow, "noiseSpeed", 0, 0.2, 0.005, "Noise Speed");
-	addParam(shadow, params.shadow, "noiseAmount", 0, 1, 0.05, "Noise Amount");
-	shadow.addColor(params.shadow, "baseColor").name("Base Color");
-	shadow.addColor(params.shadow, "highlightColor").name("Highlight Color");
-	addParam(shadow, params.shadow, "baseDensity", 0, 1, 0.05, "Base Density");
-	addParam(shadow, params.shadow, "creepSpeed", 0, 0.1, 0.005, "Creep Speed");
-	addParam(
-		shadow,
-		params.shadow,
-		"pressureIterations",
-		5,
-		40,
-		1,
-		"Pressure Iters",
-	);
-	shadow.close();
-
-	backdrop.open();
-
-	const detection = creative.addFolder("Detection");
-	addParam(
-		detection,
-		params.segmentation,
-		"confidenceThreshold",
-		0,
-		1,
-		0.05,
-		"Confidence Threshold",
-	);
-	addParam(
-		detection,
-		params.segmentation,
-		"temporalSmoothing",
-		0,
-		0.95,
-		0.05,
-		"Temporal Smoothing",
-	);
-	addParam(
-		detection,
-		params.segmentation,
-		"motionThreshold",
-		0,
-		1.0,
-		0.05,
-		"Motion Threshold",
-	);
-	detection.open();
+	for (const section of CREATIVE_PARAMS) {
+		const folder = creative.addFolder(section.name);
+		for (const control of section.controls) {
+			addControl(folder, control);
+		}
+		if (section.defaultOpen !== false) {
+			folder.open();
+		} else {
+			folder.close();
+		}
+	}
 
 	creative.open();
 

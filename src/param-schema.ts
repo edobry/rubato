@@ -17,6 +17,7 @@ export interface ParamControlDef {
 export interface ParamSectionDef {
 	name: string;
 	controls: ParamControlDef[];
+	defaultOpen?: boolean; // defaults to true if not specified
 }
 
 /**
@@ -116,6 +117,7 @@ export const CREATIVE_PARAMS: ParamSectionDef[] = [
 	},
 	{
 		name: "Density (Imprint)",
+		defaultOpen: false,
 		controls: [
 			{
 				section: "density",
@@ -254,6 +256,7 @@ export const CREATIVE_PARAMS: ParamSectionDef[] = [
 	},
 	{
 		name: "Shadow",
+		defaultOpen: false,
 		controls: [
 			{
 				section: "shadow",
