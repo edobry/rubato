@@ -90,7 +90,7 @@ const SHORTCUTS: ShortcutSection[] = [
 		],
 	},
 	{
-		label: "When GUI is open",
+		label: "When params panel is open (G)",
 		entries: [
 			{ key: "\u2191 / \u2193", desc: "Navigate controls" },
 			{ key: "\u2190 / \u2192", desc: "Adjust values / collapse folders" },
