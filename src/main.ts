@@ -279,9 +279,16 @@ async function main(): Promise<void> {
 							result.height,
 						);
 						motion = motionMap;
+						// In imprint mode, pass the mask to the trail shader for cultivation
+						const maskForTrail =
+							params.overlay.visualize === "imprint" ? result.mask : null;
 						trailTex =
-							updateGpuTrail(motionMap, result.width, result.height) ??
-							trailTex;
+							updateGpuTrail(
+								motionMap,
+								result.width,
+								result.height,
+								maskForTrail,
+							) ?? trailTex;
 						trail = null; // not used in GPU path
 					} else {
 						// Legacy CPU trail path
@@ -360,6 +367,10 @@ async function main(): Promise<void> {
 				break;
 			case "both":
 				compMask = data.mask;
+				compTrail = data.trailTex ?? data.trail;
+				break;
+			case "imprint":
+				// No mask overlay — only density (G channel) via trail texture
 				compTrail = data.trailTex ?? data.trail;
 				break;
 		}

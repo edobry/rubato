@@ -516,7 +516,13 @@ export async function initGui(): Promise<void> {
 	addParam(display, params.camera, "fillAmount", 0, 1, 0.05, "Fill / Fit");
 	display.add(params.overlay, "showOverlay").name("Show Overlay");
 	display
-		.add(params.overlay, "visualize", ["mask", "motion", "trail", "both"])
+		.add(params.overlay, "visualize", [
+			"mask",
+			"motion",
+			"trail",
+			"both",
+			"imprint",
+		])
 		.name("Visualize");
 	display.open();
 
@@ -540,6 +546,55 @@ export async function initGui(): Promise<void> {
 	addParam(trails, params.motion, "deposition", 0, 8, 0.1, "Deposition");
 	addParam(trails, params.motion, "decay", 0.9, 0.999, 0.001, "Decay");
 	trails.open();
+
+	const density = creative.addFolder("Density (Imprint)");
+	addParam(
+		density,
+		params.density,
+		"cultivationRate",
+		0.001,
+		0.05,
+		0.001,
+		"Cultivation Rate",
+	);
+	addParam(
+		density,
+		params.density,
+		"channelStrength",
+		0.5,
+		5.0,
+		0.1,
+		"Channel Strength",
+	);
+	addParam(density, params.density, "drainRate", 0.8, 0.99, 0.01, "Drain Rate");
+	addParam(
+		density,
+		params.density,
+		"diffusionRate",
+		0,
+		0.3,
+		0.01,
+		"Diffusion Rate",
+	);
+	addParam(
+		density,
+		params.density,
+		"decayVariance",
+		0,
+		0.5,
+		0.01,
+		"Decay Variance",
+	);
+	addParam(
+		density,
+		params.density,
+		"disintegrationSpeed",
+		0.01,
+		0.5,
+		0.01,
+		"Disintegration Speed",
+	);
+	density.close();
 
 	const fog = creative.addFolder("Fog");
 	addParam(fog, params.fog, "speed", 0, 0.5, 0.01, "Speed");

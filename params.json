@@ -28,6 +28,14 @@
 		"deposition": 2.0,
 		"decay": 0.97
 	},
+	"density": {
+		"cultivationRate": 0.01,
+		"channelStrength": 2.0,
+		"drainRate": 0.9,
+		"diffusionRate": 0.05,
+		"decayVariance": 0.2,
+		"disintegrationSpeed": 0.1
+	},
 	"overlay": {
 		"showOverlay": true,
 		"visualize": "mask",

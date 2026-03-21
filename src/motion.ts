@@ -42,11 +42,26 @@ let pingPongState = true;
 // Motion map texture — uploaded each frame
 let motionTexture: WebGLTexture | null = null;
 
+// Mask texture — uploaded each frame for imprint mode
+let maskTexture: WebGLTexture | null = null;
+
 // Uniform locations
 let uPrevTrail: WebGLUniformLocation | null = null;
 let uMotion: WebGLUniformLocation | null = null;
+let uMask: WebGLUniformLocation | null = null;
 let uDeposition: WebGLUniformLocation | null = null;
 let uDecay: WebGLUniformLocation | null = null;
+
+// Imprint mode uniforms
+let uMode: WebGLUniformLocation | null = null;
+let uCultivationRate: WebGLUniformLocation | null = null;
+let uChannelStrength: WebGLUniformLocation | null = null;
+let uDrainRate: WebGLUniformLocation | null = null;
+let uDiffusionRate: WebGLUniformLocation | null = null;
+let uDecayVariance: WebGLUniformLocation | null = null;
+let uDisintSpeed: WebGLUniformLocation | null = null;
+let uTime: WebGLUniformLocation | null = null;
+let uTexelSize: WebGLUniformLocation | null = null;
 
 /**
  * Initialize the GPU trail accumulator on a shared WebGL context.
@@ -75,11 +90,26 @@ export function initGpuTrail(sharedGl: WebGLRenderingContext): void {
 	// Uniform locations
 	uPrevTrail = gl.getUniformLocation(trailProgram, "u_prevTrail");
 	uMotion = gl.getUniformLocation(trailProgram, "u_motion");
+	uMask = gl.getUniformLocation(trailProgram, "u_mask");
 	uDeposition = gl.getUniformLocation(trailProgram, "u_deposition");
 	uDecay = gl.getUniformLocation(trailProgram, "u_decay");
 
+	// Imprint mode uniform locations
+	uMode = gl.getUniformLocation(trailProgram, "u_mode");
+	uCultivationRate = gl.getUniformLocation(trailProgram, "u_cultivationRate");
+	uChannelStrength = gl.getUniformLocation(trailProgram, "u_channelStrength");
+	uDrainRate = gl.getUniformLocation(trailProgram, "u_drainRate");
+	uDiffusionRate = gl.getUniformLocation(trailProgram, "u_diffusionRate");
+	uDecayVariance = gl.getUniformLocation(trailProgram, "u_decayVariance");
+	uDisintSpeed = gl.getUniformLocation(trailProgram, "u_disintSpeed");
+	uTime = gl.getUniformLocation(trailProgram, "u_time");
+	uTexelSize = gl.getUniformLocation(trailProgram, "u_texelSize");
+
 	// Motion map texture — allocated once, resized as needed
 	motionTexture = createTexture(gl);
+
+	// Mask texture — for imprint mode
+	maskTexture = createTexture(gl);
 }
 
 /** Whether the GPU trail path is active. */
@@ -144,16 +174,22 @@ function ensureFBOs(w: number, h: number): void {
  * Run one GPU trail accumulation step.
  * Reads the motion map, blends with the previous trail, writes to the output FBO.
  * Returns the trail texture for the compositor to sample directly.
+ *
+ * When `mask` is provided and visualize is "imprint", runs the imprint density
+ * pipeline (cultivation → channeling → disintegration) instead of the legacy trail.
  */
 export function updateGpuTrail(
 	motionMap: Float32Array,
 	w: number,
 	h: number,
+	mask?: Float32Array | null,
 ): WebGLTexture | null {
 	if (!gl || !trailProgram || !quadBuffer || !motionTexture) return null;
 
 	ensureFBOs(w, h);
 	if (!fboA || !fboB || !fboTexA || !fboTexB) return null;
+
+	const isImprint = params.overlay.visualize === "imprint";
 
 	// Determine which FBO to read from (previous trail) and write to (new trail)
 	const readTex = pingPongState ? fboTexB : fboTexA;
@@ -178,9 +214,29 @@ export function updateGpuTrail(
 	gl.bindTexture(gl.TEXTURE_2D, readTex);
 	gl.uniform1i(uPrevTrail, 1);
 
-	// Set uniforms
+	// Upload mask texture for imprint mode
+	if (isImprint && mask && maskTexture) {
+		gl.activeTexture(gl.TEXTURE2);
+		uploadFloatTexture(gl, maskTexture, mask, w, h);
+		gl.uniform1i(uMask, 2);
+	}
+
+	// Set common uniforms
 	gl.uniform1f(uDeposition, params.motion.deposition);
 	gl.uniform1f(uDecay, params.motion.decay);
+
+	// Set imprint mode uniforms
+	gl.uniform1f(uMode, isImprint ? 1.0 : 0.0);
+	if (isImprint) {
+		gl.uniform1f(uCultivationRate, params.density.cultivationRate);
+		gl.uniform1f(uChannelStrength, params.density.channelStrength);
+		gl.uniform1f(uDrainRate, params.density.drainRate);
+		gl.uniform1f(uDiffusionRate, params.density.diffusionRate);
+		gl.uniform1f(uDecayVariance, params.density.decayVariance);
+		gl.uniform1f(uDisintSpeed, params.density.disintegrationSpeed);
+		gl.uniform1f(uTime, performance.now() / 1000);
+		gl.uniform2f(uTexelSize, w > 0 ? 1.0 / w : 0, h > 0 ? 1.0 / h : 0);
+	}
 
 	// Render into the target FBO
 	gl.bindFramebuffer(gl.FRAMEBUFFER, writeFbo);

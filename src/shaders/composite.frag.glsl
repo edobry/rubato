@@ -20,6 +20,7 @@ uniform float u_opacity;
 uniform vec3 u_overlayColor;
 uniform float u_time;
 uniform float u_colorMode;   // 0=solid, 1=rainbow, 2=gradient, 3=contour, 4=invert, 5=aura
+uniform float u_imprint;     // 1.0 = imprint mode (no silhouette, density illuminates fog)
 
 // Mask blur
 uniform float u_blur;            // blur radius (0-5)
@@ -146,6 +147,35 @@ void main() {
     } else {
         mask = texture2D(u_mask, camUV).r;
         trail = texture2D(u_trail, camUV).r;
+    }
+
+    // Imprint mode: density illuminates fog, no person outline visible
+    if (u_imprint > 0.5) {
+        // In imprint mode, trail texture has R=cultivation, G=density
+        // Sample the G channel for the density value
+        float density;
+        if (!inBounds) {
+            density = 0.0;
+        } else {
+            density = texture2D(u_trail, camUV).g;
+        }
+
+        // Base layer: fog
+        vec3 color = fog;
+
+        // Density illuminates the fog — brighter where energy has been channeled
+        color += fog * density * u_fogTrailStrength;
+
+        // Layer camera feed (if enabled)
+        if (u_showFeed > 0.5) {
+            float camBlend = u_cameraFill * 0.8;
+            color = mix(color, camera, camBlend);
+        }
+
+        // No overlay tint — person outline is never visible in imprint mode
+
+        gl_FragColor = vec4(color, 1.0);
+        return;
     }
 
     // Base layer: fog

@@ -117,10 +117,23 @@ export const params = {
 		// Per-frame decay multiplier (0.9 = fast fade, 0.99 = slow fade)
 		decay: d.motion.decay,
 	}),
+	density: reactive("density", {
+		cultivationRate: d.density.cultivationRate,
+		channelStrength: d.density.channelStrength,
+		drainRate: d.density.drainRate,
+		diffusionRate: d.density.diffusionRate,
+		decayVariance: d.density.decayVariance,
+		disintegrationSpeed: d.density.disintegrationSpeed,
+	}),
 	overlay: reactive("overlay", {
 		showOverlay: d.overlay.showOverlay,
 		// What to visualize: "mask", "motion" (raw diff), "trail" (accumulated), "both" (mask+trail)
-		visualize: d.overlay.visualize as "mask" | "motion" | "trail" | "both",
+		visualize: d.overlay.visualize as
+			| "mask"
+			| "motion"
+			| "trail"
+			| "both"
+			| "imprint",
 		opacity: d.overlay.opacity,
 		color: d.overlay.color,
 		colorMode: d.overlay.colorMode as

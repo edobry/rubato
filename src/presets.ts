@@ -31,6 +31,14 @@ export interface CreativePreset {
 		deposition: number;
 		decay: number;
 	};
+	density?: {
+		cultivationRate: number;
+		channelStrength: number;
+		drainRate: number;
+		diffusionRate: number;
+		decayVariance: number;
+		disintegrationSpeed: number;
+	};
 	segmentation: {
 		confidenceThreshold: number;
 		temporalSmoothing: number;
@@ -64,6 +72,14 @@ export function extractPreset(name: string): CreativePreset {
 		motion: {
 			deposition: params.motion.deposition,
 			decay: params.motion.decay,
+		},
+		density: {
+			cultivationRate: params.density.cultivationRate,
+			channelStrength: params.density.channelStrength,
+			drainRate: params.density.drainRate,
+			diffusionRate: params.density.diffusionRate,
+			decayVariance: params.density.decayVariance,
+			disintegrationSpeed: params.density.disintegrationSpeed,
 		},
 		segmentation: {
 			confidenceThreshold: params.segmentation.confidenceThreshold,
@@ -102,6 +118,16 @@ export function applyPreset(preset: CreativePreset): void {
 		// Motion
 		params.motion.deposition = preset.motion.deposition;
 		params.motion.decay = preset.motion.decay;
+
+		// Density (optional — older presets may not have this section)
+		if (preset.density) {
+			params.density.cultivationRate = preset.density.cultivationRate;
+			params.density.channelStrength = preset.density.channelStrength;
+			params.density.drainRate = preset.density.drainRate;
+			params.density.diffusionRate = preset.density.diffusionRate;
+			params.density.decayVariance = preset.density.decayVariance;
+			params.density.disintegrationSpeed = preset.density.disintegrationSpeed;
+		}
 
 		// Segmentation
 		params.segmentation.confidenceThreshold =

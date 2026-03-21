@@ -256,6 +256,10 @@ export function compositeFrame(
 	);
 	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
 	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
+	gl.uniform1f(
+		getUniform("u_imprint"),
+		params.overlay.visualize === "imprint" ? 1.0 : 0.0,
+	);
 	gl.uniform1f(getUniform("u_blur"), params.overlay.blur);
 	gl.uniform2f(
 		getUniform("u_maskTexelSize"),
