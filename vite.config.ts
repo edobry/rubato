@@ -4,6 +4,7 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defineConfig, type Plugin } from "vite";
 import glsl from "vite-plugin-glsl";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import { wsPlugin } from "./src/ws/plugin.js";
 
 /** Vite plugin that serves a simple preset sync API during development. */
 function presetSyncPlugin(): Plugin {
@@ -77,6 +78,14 @@ function presetSyncPlugin(): Plugin {
 }
 
 export default defineConfig({
+	build: {
+		rollupOptions: {
+			input: {
+				main: resolve(__dirname, "index.html"),
+				admin: resolve(__dirname, "admin/index.html"),
+			},
+		},
+	},
 	worker: {
 		format: "es",
 		plugins: () => [glsl()],
@@ -98,6 +107,7 @@ export default defineConfig({
 		basicSsl(),
 		glsl(),
 		presetSyncPlugin(),
+		wsPlugin(),
 		viteStaticCopy({
 			targets: [
 				{

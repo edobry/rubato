@@ -22,6 +22,7 @@ import {
 } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui } from "./gui";
+import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
 import {
 	detectMotion,
 	detectMotionMap,
@@ -43,6 +44,7 @@ import {
 	resolveModelConfig,
 } from "./segmentation-state";
 import { showStatus } from "./status";
+import { WsClient } from "./ws/client.js";
 
 // Exposed so GUI can trigger camera re-acquisition
 let video: HTMLVideoElement | null = null;
@@ -461,4 +463,34 @@ window.addEventListener("unhandledrejection", (event) => {
 	scheduleRecoveryReload("promise rejection", event.reason);
 });
 
-void main();
+function boot(): void {
+	const lobbyEl = showLobby();
+	document.body.appendChild(lobbyEl);
+
+	const ws = new WsClient("piece");
+
+	ws.onConnectionChange((connected) => {
+		if (connected) {
+			ws.sendState("lobby");
+			updateLobbyStatus(lobbyEl, "Ready");
+		} else {
+			updateLobbyStatus(lobbyEl, "Reconnecting...");
+		}
+	});
+
+	ws.onCommand((msg) => {
+		switch (msg.command) {
+			case "run":
+				destroyLobby(lobbyEl);
+				ws.sendState("running");
+				void main();
+				break;
+			case "stop":
+			case "reload":
+				location.reload();
+				break;
+		}
+	});
+}
+
+void boot();
