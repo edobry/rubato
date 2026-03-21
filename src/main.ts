@@ -201,10 +201,19 @@ async function main(ws?: WsClient): Promise<void> {
 	hudCanvas.width = window.innerWidth;
 	hudCanvas.height = window.innerHeight;
 
-	// Hide cursor in fullscreen mode (gallery display)
-	document.addEventListener("fullscreenchange", () => {
-		document.body.style.cursor = document.fullscreenElement ? "none" : "";
-	});
+	// Hide cursor after inactivity (gallery display).
+	// Note: Chrome's F11 / kiosk fullscreen does NOT trigger the Fullscreen API,
+	// so we use a mouse-inactivity timer instead of fullscreenchange.
+	let cursorTimeout: ReturnType<typeof setTimeout>;
+	function resetCursorTimer(): void {
+		document.body.style.cursor = "";
+		clearTimeout(cursorTimeout);
+		cursorTimeout = setTimeout(() => {
+			document.body.style.cursor = "none";
+		}, 3000);
+	}
+	document.addEventListener("mousemove", resetCursorTimer);
+	resetCursorTimer();
 
 	// Dev GUI — toggle with G key (loads presets which may override params)
 	if (import.meta.env.VITE_DEV_GUI === "true") {
@@ -509,12 +518,17 @@ async function main(ws?: WsClient): Promise<void> {
 		ws.onCommand((msg) => {
 			if (msg.command === "toggleGui") {
 				const visible = toggleGui();
-				ws.sendState("running", { guiVisible: visible, hudVisible });
+				ws.sendState("running", {
+					guiVisible: visible,
+					hudVisible,
+					preset: getLastPreset(),
+				});
 			} else if (msg.command === "toggleHud") {
 				const visible = toggleHud();
 				ws.sendState("running", {
 					guiVisible: isGuiVisible(),
 					hudVisible: visible,
+					preset: getLastPreset(),
 				});
 			}
 		});
