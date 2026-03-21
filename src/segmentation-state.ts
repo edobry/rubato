@@ -236,7 +236,6 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			try {
 				await this.initWorker(modelUrl, delegate);
 				this.state = { status: "ready", mode: "worker" };
-				console.log("[rubato] worker re-initialized successfully");
 				showStatus("Segmentation model reloaded", 2000);
 				return;
 			} catch {

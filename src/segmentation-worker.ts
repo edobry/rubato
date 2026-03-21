@@ -13,7 +13,6 @@
 // preserve the global scope side effects that MediaPipe expects.
 // biome-ignore lint/suspicious/noExplicitAny: polyfill on global scope
 (self as any).import ??= async (url: string) => {
-	console.log("[worker] self.import polyfill called with:", url);
 	const resp = await fetch(url);
 	if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
 	const code = await resp.text();

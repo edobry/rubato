@@ -210,7 +210,6 @@ async function main(): Promise<void> {
 			};
 			pipeline.reset();
 			resetMotion();
-			console.log(`[rubato] cleared cached mask data (${key} changed)`);
 		}
 
 		if (section === "segmentation" && (key === "model" || key === "delegate")) {
