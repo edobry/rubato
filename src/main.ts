@@ -74,6 +74,7 @@ import {
 } from "./segmentation-state";
 import { initShadow, renderShadowToTexture, setShadowCrop } from "./shadow";
 import { showStatus } from "./status";
+import { initStreaming } from "./stream.js";
 import { WsClient } from "./ws/client.js";
 
 /** Serialize all params to a plain object for WS transmission. */
@@ -515,6 +516,8 @@ async function main(ws?: WsClient): Promise<void> {
 
 	// Handle admin toggle commands and param sync
 	if (ws) {
+		initStreaming(ws, compositorCanvas);
+
 		ws.onCommand((msg) => {
 			if (msg.command === "toggleGui") {
 				const visible = toggleGui();

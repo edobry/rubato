@@ -52,6 +52,34 @@ stateSection.appendChild(presetInfo);
 
 container.appendChild(stateSection);
 
+// Live Preview
+const previewSection = document.createElement("div");
+previewSection.className = "live-preview";
+
+const previewLabel = document.createElement("div");
+previewLabel.className = "section-label";
+previewLabel.textContent = "Live Preview";
+previewSection.appendChild(previewLabel);
+
+const previewVideo = document.createElement("video");
+previewVideo.className = "preview-video";
+previewVideo.muted = true;
+previewVideo.autoplay = true;
+previewVideo.playsInline = true;
+previewSection.appendChild(previewVideo);
+
+const previewStatus = document.createElement("div");
+previewStatus.className = "preview-status";
+previewStatus.textContent = "Disconnected";
+previewSection.appendChild(previewStatus);
+
+const previewBtn = document.createElement("button");
+previewBtn.textContent = "Connect";
+previewBtn.disabled = true;
+previewSection.appendChild(previewBtn);
+
+container.appendChild(previewSection);
+
 // Controls
 const controls = document.createElement("div");
 controls.className = "controls";
@@ -148,6 +176,65 @@ document.body.appendChild(container);
 
 let currentPieceState: string = "unknown";
 let connected = false;
+let pc: RTCPeerConnection | null = null;
+let streamActive = false;
+
+function setPreviewState(state: "disconnected" | "connecting" | "live"): void {
+	previewStatus.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+	previewStatus.className = `preview-status ${state}`;
+	previewBtn.textContent = state === "disconnected" ? "Connect" : "Disconnect";
+	previewVideo.style.display = state === "live" ? "block" : "none";
+	streamActive = state !== "disconnected";
+}
+
+function startStream(): void {
+	setPreviewState("connecting");
+
+	pc = new RTCPeerConnection({
+		iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+	});
+
+	pc.ontrack = (event) => {
+		previewVideo.srcObject = event.streams[0] ?? new MediaStream([event.track]);
+		setPreviewState("live");
+	};
+
+	pc.onicecandidate = (event) => {
+		if (event.candidate) {
+			ws.sendRtcIceCandidate(ws.adminId!, event.candidate.toJSON());
+		}
+	};
+
+	pc.onconnectionstatechange = () => {
+		if (
+			pc?.connectionState === "failed" ||
+			pc?.connectionState === "disconnected"
+		) {
+			stopStream();
+		}
+	};
+
+	// Request the piece to start streaming
+	ws.sendStreamRequest();
+}
+
+function stopStream(): void {
+	if (pc) {
+		pc.close();
+		pc = null;
+	}
+	previewVideo.srcObject = null;
+	ws.sendStreamStop();
+	setPreviewState("disconnected");
+}
+
+previewBtn.addEventListener("click", () => {
+	if (streamActive) {
+		stopStream();
+	} else {
+		startStream();
+	}
+});
 
 // Track preset state
 let presetList: Array<{ name: string; isBuiltIn: boolean }> = [];
@@ -179,6 +266,9 @@ function updateButtons(): void {
 	// Toggle buttons only work when piece is running
 	toggleGuiBtn.disabled = !connected || !isRunning;
 	toggleHudBtn.disabled = !connected || !isRunning;
+
+	// Preview button enabled when connected
+	previewBtn.disabled = !connected;
 
 	updatePresetButtons();
 }
@@ -267,6 +357,22 @@ ws.onPresetList((msg) => {
 	updatePresetButtons();
 });
 
+// --- Wire up WebRTC signaling ---
+
+ws.onRtcOffer(async (msg) => {
+	if (!pc) return;
+	await pc.setRemoteDescription(msg.offer);
+	const answer = await pc.createAnswer();
+	await pc.setLocalDescription(answer);
+	ws.sendRtcAnswer(ws.adminId!, pc.localDescription!);
+});
+
+ws.onRtcIceCandidate((msg) => {
+	if (pc) {
+		void pc.addIceCandidate(msg.candidate);
+	}
+});
+
 ws.onConnectionChange((isConnected: boolean) => {
 	connected = isConnected;
 
@@ -276,6 +382,9 @@ ws.onConnectionChange((isConnected: boolean) => {
 	} else {
 		dot.classList.remove("connected");
 		statusText.textContent = "Disconnected";
+		if (streamActive) {
+			stopStream();
+		}
 	}
 
 	updateButtons();
