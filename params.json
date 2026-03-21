@@ -39,7 +39,7 @@
 		"creepSpeed": 0.015,
 		"resolution": 64,
 		"velocityGrid": 16,
-		"pressureIterations": 20
+		"pressureIterations": 8
 	},
 	"motion": {
 		"deposition": 20.0,

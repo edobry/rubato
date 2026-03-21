@@ -19,6 +19,7 @@
 import { params } from "./params";
 import advectFrag from "./shaders/fluid-advect.frag.glsl";
 import divergenceFrag from "./shaders/fluid-divergence.frag.glsl";
+import drainFrag from "./shaders/fluid-drain.frag.glsl";
 import forceFrag from "./shaders/fluid-force.frag.glsl";
 import gradientFrag from "./shaders/fluid-gradient.frag.glsl";
 import pressureFrag from "./shaders/fluid-pressure.frag.glsl";
@@ -39,6 +40,7 @@ let forceProgram: WebGLProgram | null = null;
 let divergenceProgram: WebGLProgram | null = null;
 let pressureProgram: WebGLProgram | null = null;
 let gradientProgram: WebGLProgram | null = null;
+let drainProgram: WebGLProgram | null = null;
 
 // Shared fullscreen quad
 let quadBuffer: WebGLBuffer | null = null;
@@ -112,6 +114,7 @@ export function initFluid(sharedGl: WebGLRenderingContext): void {
 		divergenceProgram = createProgram(gl, vertSrc, divergenceFrag);
 		pressureProgram = createProgram(gl, vertSrc, pressureFrag);
 		gradientProgram = createProgram(gl, vertSrc, gradientFrag);
+		drainProgram = createProgram(gl, vertSrc, drainFrag);
 	} catch (err) {
 		console.error("Fluid shader compilation failed:", err);
 		gl = null;
@@ -474,6 +477,28 @@ export function updateFluid(
 				getUniformLoc(advectProgram!, "u_source"),
 				params.shadow.baseDensity,
 			);
+		});
+		denPing = !denPing;
+	}
+
+	// --- Step 7: Drain density where body is (obstacle treatment) ---
+	// The body is a solid obstacle — density is zeroed inside it.
+	// This is the primary "pushing" mechanism: body creates voids,
+	// and fluid dynamics handle how shadow flows back in.
+	if (mask && maskW > 0 && maskH > 0 && drainProgram) {
+		const readDen = denPing ? denTexB : denTexA;
+		const writeFbo = denPing ? denFboA : denFboB;
+
+		runPass(drainProgram, writeFbo!, res, () => {
+			gl!.activeTexture(gl!.TEXTURE0);
+			gl!.bindTexture(gl!.TEXTURE_2D, readDen);
+			gl!.uniform1i(getUniformLoc(drainProgram!, "u_density"), 0);
+
+			gl!.activeTexture(gl!.TEXTURE1);
+			gl!.bindTexture(gl!.TEXTURE_2D, maskTexture);
+			gl!.uniform1i(getUniformLoc(drainProgram!, "u_mask"), 1);
+
+			gl!.uniform1f(getUniformLoc(drainProgram!, "u_drainStrength"), 0.9);
 		});
 		denPing = !denPing;
 	}
