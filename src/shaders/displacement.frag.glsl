@@ -17,7 +17,7 @@ void main() {
 
     // 2. Self-advection: sample previous displacement at offset UV
     //    This creates swirling/flowing momentum — displacement carries itself
-    vec2 advectUV = v_uv - disp * u_advection * u_texelSize;
+    vec2 advectUV = v_uv - disp * u_advection;
     disp = texture2D(u_prevDisp, advectUV).rg * 2.0 - 1.0;
 
     // 3. Decode velocity input

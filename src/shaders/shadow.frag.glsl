@@ -89,30 +89,38 @@ void main() {
     vec2 disp = texture2D(u_displacement, v_uv).rg * 2.0 - 1.0;
     float dispMag = length(disp);
 
-    // Displace UV for noise sampling
-    vec2 displacedUV = v_uv * u_noiseScale + disp * 2.0;
+    // Displace UV for noise sampling — displacement warps the shadow field
+    vec2 displacedUV = v_uv * u_noiseScale + disp * 3.0;
 
     float t = u_time * u_noiseSpeed;
 
-    // Two layers of FBM with different drift directions for organic movement
-    float n1 = fbm(displacedUV + vec2(t * 0.3, t * 0.1));
-    float n2 = fbm(displacedUV + vec2(-t * 0.2, t * 0.15) + vec2(5.2, 1.3));
-    float noise = (n1 + n2) * 0.5 + 0.5; // normalize to 0-1
+    // Single-layer noise for subtle internal texture — NOT fbm fog
+    // Use displaced UV so the shadow texture moves with the displacement
+    float n1 = snoise(displacedUV + vec2(t * 0.2, t * 0.07));
+    // Very subtle second layer for slow organic drift
+    float n2 = snoise(displacedUV * 0.5 + vec2(-t * 0.1, t * 0.08) + vec2(3.7, 1.9));
+    float noise = (n1 + n2) * 0.5; // stays in roughly -1..1 range
 
-    // Compute shadow density
+    // Compute shadow density — dramatic response to displacement
     float density = u_baseDensity;
-    // Displacement creates voids — stronger displacement = less shadow
-    density -= dispMag * 2.0;
-    // Add noise texture (subtle variation in the darkness)
-    density += (noise - 0.5) * u_noiseAmount;
+
+    // Displacement creates voids — nonlinear falloff for viscous feel
+    // smoothstep creates a soft boundary between shadow and void
+    float voidAmount = smoothstep(0.0, 0.4, dispMag);
+    density *= (1.0 - voidAmount);
+
+    // Add very subtle noise texture (dark variation, not fog)
+    density += noise * u_noiseAmount * density;
     density = clamp(density, 0.0, 1.0);
 
-    // Dithered fluid highlights — second noise layer at different scale/speed
-    float highlight = snoise(v_uv * u_noiseScale * 3.0 + vec2(t * 0.5, -t * 0.3));
-    highlight = smoothstep(0.3, 0.7, highlight) * 0.15 * density;
+    // Dithered highlights — only in dense areas, very subtle
+    // Uses the displacement to modulate highlight position for fluid feel
+    float highlightNoise = snoise(v_uv * u_noiseScale * 2.5 + disp * 1.5 + vec2(t * 0.3, -t * 0.2));
+    float highlight = smoothstep(0.4, 0.8, highlightNoise) * 0.1 * density * density;
 
-    // Final color: dense dark shadow with subtle highlight shimmer
-    vec3 color = mix(vec3(0.0), u_baseColor, density);
-    color = mix(color, u_highlightColor, highlight);
+    // Final color: dense dark shadow with viscous highlights
+    vec3 color = u_baseColor * density;
+    color += u_highlightColor * highlight;
+
     gl_FragColor = vec4(color, 1.0);
 }

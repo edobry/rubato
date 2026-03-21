@@ -100,7 +100,7 @@ export function computeVelocityField(
 
 	// Maximum expected displacement per frame for normalization (in pixels).
 	// Velocities beyond this are clamped to ±1 in normalized space.
-	const maxDisplacement = Math.max(cellW, cellH) * 2;
+	const maxDisplacement = Math.max(cellW, cellH) * 0.5;
 
 	const hasPrev =
 		prevCentroids !== null &&
