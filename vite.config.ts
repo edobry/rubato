@@ -98,47 +98,53 @@ function presetSyncPlugin(): Plugin {
 	};
 }
 
-export default defineConfig({
-	define: {
-		__TAILSCALE_HOST__: JSON.stringify(tailscaleHost),
-	},
-	build: {
-		rollupOptions: {
-			input: {
-				main: resolve(__dirname, "index.html"),
-				admin: resolve(__dirname, "admin/index.html"),
+export default defineConfig(({ mode }) => {
+	const isLive = mode === "live";
+
+	return {
+		define: {
+			__TAILSCALE_HOST__: JSON.stringify(tailscaleHost),
+		},
+		build: {
+			rollupOptions: {
+				input: {
+					main: resolve(__dirname, "index.html"),
+					admin: resolve(__dirname, "admin/index.html"),
+				},
 			},
 		},
-	},
-	worker: {
-		format: "es",
-		plugins: () => [glsl()],
-	},
-	server: {
-		host: true,
-		hmr: {
-			// Use the Tailscale hostname so LAN/tailnet clients can connect
-			// to the HMR WebSocket via the same resolvable name.
-			host: tailscaleHost ?? "localhost",
-			protocol: "wss",
-			clientPort: 5173,
+		worker: {
+			format: "es",
+			plugins: () => [glsl()],
 		},
-		headers: {
-			"Cache-Control": "no-store",
+		server: {
+			host: true,
+			// Live mode: no HMR, no file watching — stable server for gallery
+			hmr: isLive
+				? false
+				: {
+						host: tailscaleHost ?? "localhost",
+						protocol: "wss",
+						clientPort: 5173,
+					},
+			watch: isLive ? { ignored: ["**"] } : undefined,
+			headers: {
+				"Cache-Control": "no-store",
+			},
 		},
-	},
-	plugins: [
-		basicSsl(),
-		glsl(),
-		presetSyncPlugin(),
-		wsPlugin(),
-		viteStaticCopy({
-			targets: [
-				{
-					src: "node_modules/@mediapipe/tasks-vision/wasm/*",
-					dest: "mediapipe/wasm",
-				},
-			],
-		}),
-	],
+		plugins: [
+			basicSsl(),
+			glsl(),
+			presetSyncPlugin(),
+			wsPlugin(),
+			viteStaticCopy({
+				targets: [
+					{
+						src: "node_modules/@mediapipe/tasks-vision/wasm/*",
+						dest: "mediapipe/wasm",
+					},
+				],
+			}),
+		],
+	};
 });
