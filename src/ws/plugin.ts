@@ -5,6 +5,8 @@ import type {
 	CommandMessage,
 	ParamStateMessage,
 	ParamUpdateMessage,
+	PresetCommandMessage,
+	PresetListMessage,
 	RequestStateMessage,
 	StateMessage,
 	WsMessage,
@@ -74,6 +76,18 @@ export function wsPlugin(): Plugin {
 							broadcast(clients, "admin", msg);
 							return;
 						}
+
+						if (msg.type === "presetCommand") {
+							// Forward preset commands to piece clients (admin → piece)
+							broadcast(clients, "piece", msg);
+							return;
+						}
+
+						if (msg.type === "presetList") {
+							// Forward preset list to admin clients (piece → admin)
+							broadcast(clients, "admin", msg);
+							return;
+						}
 					} catch (err) {
 						console.error("[rubato-ws] Invalid message:", err);
 					}
@@ -97,7 +111,9 @@ function broadcast(
 		| StateMessage
 		| ParamUpdateMessage
 		| ParamStateMessage
-		| RequestStateMessage,
+		| RequestStateMessage
+		| PresetCommandMessage
+		| PresetListMessage,
 ): void {
 	const payload = JSON.stringify(msg);
 	for (const c of clients) {

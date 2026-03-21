@@ -42,6 +42,20 @@ export interface RequestStateMessage {
 	type: "requestState";
 }
 
+/** Preset list from piece → admin */
+export interface PresetListMessage {
+	type: "presetList";
+	presets: Array<{ name: string; isBuiltIn: boolean }>;
+	active: string;
+}
+
+/** Preset command from admin → piece */
+export interface PresetCommandMessage {
+	type: "presetCommand";
+	action: "apply" | "save" | "delete";
+	name: string;
+}
+
 /** All possible messages */
 export type WsMessage =
 	| RegisterMessage
@@ -49,4 +63,6 @@ export type WsMessage =
 	| StateMessage
 	| ParamUpdateMessage
 	| ParamStateMessage
-	| RequestStateMessage;
+	| RequestStateMessage
+	| PresetListMessage
+	| PresetCommandMessage;

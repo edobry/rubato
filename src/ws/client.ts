@@ -3,6 +3,8 @@ import type {
 	CommandMessage,
 	ParamStateMessage,
 	ParamUpdateMessage,
+	PresetCommandMessage,
+	PresetListMessage,
 	StateMessage,
 	WsMessage,
 } from "./protocol.js";
@@ -12,6 +14,8 @@ type StateHandler = (msg: StateMessage) => void;
 type ParamUpdateHandler = (msg: ParamUpdateMessage) => void;
 type ParamStateHandler = (msg: ParamStateMessage) => void;
 type RequestStateHandler = () => void;
+type PresetListHandler = (msg: PresetListMessage) => void;
+type PresetCommandHandler = (msg: PresetCommandMessage) => void;
 type ConnectionHandler = (connected: boolean) => void;
 
 const MAX_RECONNECT_DELAY = 10_000;
@@ -26,6 +30,8 @@ export class WsClient {
 	private paramUpdateHandlers: ParamUpdateHandler[] = [];
 	private paramStateHandlers: ParamStateHandler[] = [];
 	private requestStateHandlers: RequestStateHandler[] = [];
+	private presetListHandlers: PresetListHandler[] = [];
+	private presetCommandHandlers: PresetCommandHandler[] = [];
 	private connectionHandlers: ConnectionHandler[] = [];
 
 	private reconnectDelay = 1000;
@@ -69,6 +75,16 @@ export class WsClient {
 		this.requestStateHandlers.push(handler);
 	}
 
+	/** Register handler for preset list messages (used by admin). */
+	onPresetList(handler: PresetListHandler): void {
+		this.presetListHandlers.push(handler);
+	}
+
+	/** Register handler for preset command messages (used by piece). */
+	onPresetCommand(handler: PresetCommandHandler): void {
+		this.presetCommandHandlers.push(handler);
+	}
+
 	/** Register a handler for connection status changes. */
 	onConnectionChange(handler: ConnectionHandler): void {
 		this.connectionHandlers.push(handler);
@@ -106,6 +122,22 @@ export class WsClient {
 		params: Record<string, Record<string, number | string | boolean>>,
 	): void {
 		this.send({ type: "paramState", params });
+	}
+
+	/** Send preset list to admin clients (used by piece). */
+	sendPresetList(
+		presets: Array<{ name: string; isBuiltIn: boolean }>,
+		active: string,
+	): void {
+		this.send({ type: "presetList", presets, active });
+	}
+
+	/** Send a preset command to piece clients (used by admin). */
+	sendPresetCommand(
+		action: PresetCommandMessage["action"],
+		name: string,
+	): void {
+		this.send({ type: "presetCommand", action, name });
 	}
 
 	/** Tear down the client and stop reconnecting. */
@@ -152,6 +184,10 @@ export class WsClient {
 					for (const h of this.paramStateHandlers) h(msg);
 				} else if (msg.type === "requestState") {
 					for (const h of this.requestStateHandlers) h();
+				} else if (msg.type === "presetList") {
+					for (const h of this.presetListHandlers) h(msg);
+				} else if (msg.type === "presetCommand") {
+					for (const h of this.presetCommandHandlers) h(msg);
 				}
 			} catch {
 				// Ignore malformed messages

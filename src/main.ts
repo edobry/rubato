@@ -541,6 +541,73 @@ async function main(ws?: WsClient): Promise<void> {
 				ws.sendParamState(serializeParams());
 			}, 100);
 		});
+
+		// --- Preset management ---
+
+		// Helper to build and send the preset list
+		function sendPresetList(): void {
+			const builtIn = Object.keys(getBuiltInPresets());
+			const saved = Object.keys(getSavedPresets());
+			const all: Array<{ name: string; isBuiltIn: boolean }> = [
+				...builtIn.map((name) => ({ name, isBuiltIn: true })),
+				...saved.map((name) => ({ name, isBuiltIn: false })),
+			];
+			// Deduplicate (saved can include custom-presets.json entries)
+			const seen = new Set<string>();
+			const deduped = all.filter((p) => {
+				if (seen.has(p.name)) return false;
+				seen.add(p.name);
+				return true;
+			});
+			ws!.sendPresetList(deduped, getLastPreset());
+		}
+
+		// Send initial preset list
+		sendPresetList();
+
+		// Handle preset commands from admin
+		ws.onPresetCommand((msg) => {
+			switch (msg.action) {
+				case "apply": {
+					// Find the preset - check saved first, then built-in
+					const saved = getSavedPresets();
+					const builtIn = getBuiltInPresets();
+					const preset = saved[msg.name] ?? builtIn[msg.name];
+					if (preset) {
+						applyPreset(preset);
+						setLastPreset(msg.name);
+						// Param sync will broadcast updated values automatically
+						sendPresetList();
+					}
+					break;
+				}
+				case "save": {
+					const preset = extractPreset(msg.name);
+					savePreset(msg.name, preset);
+					void syncPresetToServer(msg.name, preset);
+					setLastPreset(msg.name);
+					sendPresetList();
+					break;
+				}
+				case "delete": {
+					deletePreset(msg.name);
+					void deletePresetFromServer(msg.name);
+					// If we deleted the active preset, switch to default
+					if (getLastPreset() === msg.name) {
+						setLastPreset("default");
+						const defaultPreset = getBuiltInPresets().default;
+						if (defaultPreset) applyPreset(defaultPreset);
+					}
+					sendPresetList();
+					break;
+				}
+			}
+		});
+
+		// Send preset list when admin requests state
+		ws.onRequestState(() => {
+			sendPresetList();
+		});
 	}
 
 	// Expose debug API for Playwright MCP / console access
