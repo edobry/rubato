@@ -18,48 +18,71 @@ body {
 .admin-container {
 	max-width: 400px;
 	margin: 0 auto;
-	padding: 48px 24px;
+	padding: 20px 24px;
 	min-height: 100dvh;
 	display: flex;
 	flex-direction: column;
-	gap: 40px;
+	gap: 16px;
 }
 
-/* --- Update Banner --- */
+/* --- Shared button base --- */
 
-.update-banner {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 10px 16px;
-	background: #2a2518;
-	border: 1px solid #4a3e28;
-	font-size: 12px;
-	color: #d4a940;
-	letter-spacing: 0.02em;
-	line-height: 1.4;
-}
-
-.update-banner.hidden {
-	display: none;
-}
-
-.update-dismiss {
+.admin-container button {
 	appearance: none;
-	background: transparent;
-	border: none;
-	color: #8a7430;
-	font-size: 18px;
+	border: 1px solid #333;
+	background: #222;
+	color: #fff;
+	font-family: inherit;
+	font-size: 13px;
+	letter-spacing: 0.05em;
+	padding: 12px 8px;
+	min-height: 44px;
 	cursor: pointer;
-	padding: 0 4px;
-	line-height: 1;
-	flex-shrink: 0;
-	transition: color 0.15s ease;
+	transition:
+		background 0.15s ease,
+		border-color 0.15s ease;
 }
 
-.update-dismiss:active {
+.admin-container button:active {
+	background: #444;
+}
+
+.admin-container button:disabled {
+	color: #555;
+	border-color: #222;
+	background: #111;
+	cursor: not-allowed;
+}
+
+.admin-container button.danger {
+	border-color: #442222;
+}
+
+.admin-container button.danger:active {
+	background: #442222;
+}
+
+.admin-container button.danger:disabled {
+	border-color: #222;
+	background: #111;
+}
+
+/* --- Update Available indicator on Reload button --- */
+
+.admin-container button.update-available {
+	border-color: #4a3e28;
+	background: #2a2518;
 	color: #d4a940;
+}
+
+.admin-container button.update-available:active {
+	background: #3a3020;
+}
+
+.admin-container button.update-available:disabled {
+	border-color: #3a2e18;
+	background: #1a1508;
+	color: #8a7430;
 }
 
 .admin-header {
@@ -110,7 +133,7 @@ body {
 
 .piece-state {
 	text-align: center;
-	padding: 32px 0;
+	padding: 16px 0;
 }
 
 .piece-state .label {
@@ -122,7 +145,7 @@ body {
 }
 
 .piece-state .value {
-	font-size: 36px;
+	font-size: 24px;
 	font-weight: 300;
 	letter-spacing: 0.02em;
 }
@@ -150,6 +173,28 @@ body {
 	font-weight: 400;
 }
 
+/* --- Section Card --- */
+
+.section-card {
+	background: #111;
+	border: 1px solid #222;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+/* --- Section Labels --- */
+
+.section-label {
+	font-size: 11px;
+	color: #666;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	margin-bottom: 0;
+	text-align: left;
+}
+
 /* --- Live Preview --- */
 
 .live-preview {
@@ -158,19 +203,26 @@ body {
 	gap: 12px;
 }
 
+.preview-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
 .preview-video {
 	width: 100%;
-	max-height: 300px;
+	aspect-ratio: 16 / 9;
+	max-height: none;
 	object-fit: contain;
-	background: #000;
-	border: 1px solid #333;
-	border-radius: 4px;
+	background: #0a0a0a;
+	border: 1px solid #222;
+	border-radius: 2px;
 	display: none;
 }
 
 .preview-status {
-	font-size: 12px;
-	text-align: center;
+	font-size: 11px;
+	text-align: right;
 }
 
 .preview-status.disconnected {
@@ -185,98 +237,28 @@ body {
 	color: #4caf50;
 }
 
-.live-preview button {
-	appearance: none;
-	border: 1px solid #333;
-	background: #222;
-	color: #fff;
-	font-family: inherit;
-	font-size: 14px;
-	letter-spacing: 0.05em;
-	padding: 14px 24px;
-	min-height: 48px;
-	cursor: pointer;
-	transition:
-		background 0.15s ease,
-		border-color 0.15s ease;
-}
-
-.live-preview button:active {
-	background: #444;
-}
-
-.live-preview button:disabled {
-	color: #555;
-	border-color: #222;
-	background: #111;
-	cursor: not-allowed;
-}
+/* --- Controls --- */
 
 .controls {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-}
-
-.controls button {
-	appearance: none;
-	border: 1px solid #333;
-	background: #222;
-	color: #fff;
-	font-family: inherit;
-	font-size: 14px;
-	letter-spacing: 0.05em;
-	padding: 14px 24px;
-	min-height: 48px;
-	cursor: pointer;
-	transition:
-		background 0.15s ease,
-		border-color 0.15s ease;
-}
-
-.controls button:active {
-	background: #444;
-}
-
-.controls button:disabled {
-	color: #555;
-	border-color: #222;
-	background: #111;
-	cursor: not-allowed;
-}
-
-.controls button.danger {
-	border-color: #442222;
-}
-
-.controls button.danger:active {
-	background: #442222;
-}
-
-.controls button.danger:disabled {
-	border-color: #222;
-	background: #111;
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 8px;
 }
 
 .controls.toggles {
+	grid-template-columns: 1fr 1fr;
 	border-top: 1px solid #222;
-	padding-top: 24px;
+	padding-top: 16px;
 }
 
 /* --- Presets --- */
 
-.controls.presets {
-	border-top: 1px solid #222;
-	padding-top: 24px;
+.presets .preset-select {
+	margin-bottom: 0;
 }
 
-.section-label {
-	font-size: 10px;
-	color: #555;
-	text-transform: uppercase;
-	letter-spacing: 0.15em;
-	margin-bottom: 12px;
-	text-align: center;
+.presets .preset-name-input {
+	margin-bottom: 0;
 }
 
 .preset-select {

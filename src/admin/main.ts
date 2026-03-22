@@ -9,11 +9,6 @@ const ws = new WsClient("admin");
 const container = document.createElement("div");
 container.className = "admin-container";
 
-// Update banner (hidden by default)
-const updateBanner = document.createElement("div");
-updateBanner.className = "update-banner hidden";
-container.appendChild(updateBanner);
-
 // Header
 const header = document.createElement("header");
 header.className = "admin-header";
@@ -59,12 +54,21 @@ container.appendChild(stateSection);
 
 // Live Preview
 const previewSection = document.createElement("div");
-previewSection.className = "live-preview";
+previewSection.className = "live-preview section-card";
 
 const previewLabel = document.createElement("div");
 previewLabel.className = "section-label";
 previewLabel.textContent = "Live Preview";
-previewSection.appendChild(previewLabel);
+
+const previewStatus = document.createElement("div");
+previewStatus.className = "preview-status";
+previewStatus.textContent = "Disconnected";
+
+const previewHeader = document.createElement("div");
+previewHeader.className = "preview-header";
+previewHeader.appendChild(previewLabel);
+previewHeader.appendChild(previewStatus);
+previewSection.appendChild(previewHeader);
 
 const previewVideo = document.createElement("video");
 previewVideo.className = "preview-video";
@@ -72,11 +76,6 @@ previewVideo.muted = true;
 previewVideo.autoplay = true;
 previewVideo.playsInline = true;
 previewSection.appendChild(previewVideo);
-
-const previewStatus = document.createElement("div");
-previewStatus.className = "preview-status";
-previewStatus.textContent = "Disconnected";
-previewSection.appendChild(previewStatus);
 
 const previewBtn = document.createElement("button");
 previewBtn.textContent = "Connect";
@@ -125,7 +124,7 @@ container.appendChild(toggles);
 
 // Preset management
 const presetSection = document.createElement("div");
-presetSection.className = "controls presets";
+presetSection.className = "presets section-card";
 
 const presetLabel = document.createElement("div");
 presetLabel.className = "section-label";
@@ -397,8 +396,6 @@ ws.onConnectionChange((isConnected: boolean) => {
 
 // --- Version check polling ---
 
-let bannerDismissedForHash: string | null = null;
-
 async function checkVersion(): Promise<void> {
 	try {
 		const res = await fetch("/api/version");
@@ -409,22 +406,11 @@ async function checkVersion(): Promise<void> {
 			updateAvailable: boolean;
 		};
 		if (data.updateAvailable && data.latest) {
-			if (bannerDismissedForHash === data.latest) return;
-			updateBanner.innerHTML = "";
-			const msg = document.createElement("span");
-			msg.textContent = `New version available (${data.latest}). Deploy and reload to update.`;
-			const dismissBtn = document.createElement("button");
-			dismissBtn.textContent = "\u00d7";
-			dismissBtn.className = "update-dismiss";
-			dismissBtn.addEventListener("click", () => {
-				bannerDismissedForHash = data.latest;
-				updateBanner.classList.add("hidden");
-			});
-			updateBanner.appendChild(msg);
-			updateBanner.appendChild(dismissBtn);
-			updateBanner.classList.remove("hidden");
+			reloadBtn.textContent = "Reload ●";
+			reloadBtn.classList.add("update-available");
 		} else {
-			updateBanner.classList.add("hidden");
+			reloadBtn.textContent = "Reload";
+			reloadBtn.classList.remove("update-available");
 		}
 	} catch {
 		// Version check failed — silently ignore
