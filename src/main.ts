@@ -716,6 +716,7 @@ let appState: "lobby" | "running" = "lobby";
 
 function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 	if (lobbyEl) destroyLobby(lobbyEl);
+	document.body.style.cursor = "none";
 	localStorage.setItem(PIECE_STATE_KEY, "running");
 	appState = "running";
 	ws.sendState("running", { preset: getLastPreset() });
@@ -742,6 +743,7 @@ function boot(): void {
 	if (shouldResume) {
 		// Auto-resume: skip lobby, go straight to piece
 		appState = "running";
+		document.body.style.cursor = "none";
 		ws.onConnectionChange((connected) => {
 			if (connected) ws.sendState("running", { preset: getLastPreset() });
 		});
