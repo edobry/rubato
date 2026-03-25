@@ -24,17 +24,14 @@ import {
 	applyPreset,
 	type CreativePreset,
 	deletePreset,
-	deletePresetFromServer,
 	exportAllPresets,
 	extractPreset,
-	getBuiltInPresets,
+	getBundledPresets,
 	getLastPreset,
-	getSavedPresets,
+	getUserPresets,
 	importPresets,
-	initServerPresets,
 	savePreset,
 	setLastPreset,
-	syncPresetToServer,
 } from "./presets";
 
 let gui: GUI | null = null;
@@ -364,10 +361,7 @@ export function isGuiVisible(): boolean {
 	return gui ? !gui._hidden : false;
 }
 
-export async function initGui(): Promise<void> {
-	// Fetch server presets before building the GUI so the dropdown is complete.
-	await initServerPresets();
-
+export function initGui(): void {
 	gui = new GUI({ title: "rubato params", width: 350 });
 	gui.domElement.style.zIndex = "10000";
 
@@ -415,20 +409,20 @@ export async function initGui(): Promise<void> {
 
 	/** Build the list of all available preset names. */
 	function allPresetNames(): string[] {
-		const builtIn = Object.keys(getBuiltInPresets());
-		const saved = Object.keys(getSavedPresets());
-		return [...saved.map((n) => `* ${n}`), ...builtIn];
+		const bundled = Object.keys(getBundledPresets());
+		const user = Object.keys(getUserPresets());
+		return [...user.map((n) => `* ${n}`), ...bundled];
 	}
 
 	/** Look up a preset by display name. */
 	function resolvePreset(displayName: string): CreativePreset | null {
-		const builtIns = getBuiltInPresets();
-		if (displayName in builtIns) return builtIns[displayName]!;
+		const bundled = getBundledPresets();
+		if (displayName in bundled) return bundled[displayName]!;
 		// User presets are prefixed with "* "
 		if (displayName.startsWith("* ")) {
 			const name = displayName.slice(2);
-			const saved = getSavedPresets();
-			if (name in saved) return saved[name]!;
+			const user = getUserPresets();
+			if (name in user) return user[name]!;
 		}
 		return null;
 	}
@@ -472,7 +466,6 @@ export async function initGui(): Promise<void> {
 					if (!name) return;
 					const preset = extractPreset(name);
 					savePreset(name, preset);
-					void syncPresetToServer(name, preset);
 					// Refresh the dropdown options
 					presetDropdown.options(allPresetNames());
 					presetState.selected = `* ${name}`;
@@ -500,7 +493,6 @@ export async function initGui(): Promise<void> {
 					if (!sel.startsWith("* ")) return; // can't delete built-ins
 					const name = sel.slice(2);
 					deletePreset(name);
-					void deletePresetFromServer(name);
 					presetState.selected = "default";
 					setLastPreset("default");
 					presetDropdown.options(allPresetNames());

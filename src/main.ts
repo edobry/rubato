@@ -59,14 +59,12 @@ import {
 import {
 	applyPreset,
 	deletePreset,
-	deletePresetFromServer,
 	extractPreset,
-	getBuiltInPresets,
+	getBundledPresets,
 	getLastPreset,
-	getSavedPresets,
+	getUserPresets,
 	savePreset,
 	setLastPreset,
-	syncPresetToServer,
 } from "./presets.js";
 import {
 	createSegmentationPipeline,
@@ -218,7 +216,7 @@ async function main(ws?: WsClient): Promise<void> {
 
 	// Dev GUI — toggle with G key (loads presets which may override params)
 	if (import.meta.env.VITE_DEV_GUI === "true") {
-		await initGui();
+		initGui();
 	}
 
 	// Enforce performance floors AFTER presets load (presets are creative-only
@@ -563,13 +561,12 @@ async function main(ws?: WsClient): Promise<void> {
 
 		// Helper to build and send the preset list
 		function sendPresetList(): void {
-			const builtIn = Object.keys(getBuiltInPresets());
-			const saved = Object.keys(getSavedPresets());
+			const bundled = Object.keys(getBundledPresets());
+			const user = Object.keys(getUserPresets());
 			const all: Array<{ name: string; isBuiltIn: boolean }> = [
-				...builtIn.map((name) => ({ name, isBuiltIn: true })),
-				...saved.map((name) => ({ name, isBuiltIn: false })),
+				...bundled.map((name) => ({ name, isBuiltIn: true })),
+				...user.map((name) => ({ name, isBuiltIn: false })),
 			];
-			// Deduplicate (saved can include custom-presets.json entries)
 			const seen = new Set<string>();
 			const deduped = all.filter((p) => {
 				if (seen.has(p.name)) return false;
@@ -586,10 +583,9 @@ async function main(ws?: WsClient): Promise<void> {
 		ws.onPresetCommand((msg) => {
 			switch (msg.action) {
 				case "apply": {
-					// Find the preset - check saved first, then built-in
-					const saved = getSavedPresets();
-					const builtIn = getBuiltInPresets();
-					const preset = saved[msg.name] ?? builtIn[msg.name];
+					const user = getUserPresets();
+					const bundled = getBundledPresets();
+					const preset = user[msg.name] ?? bundled[msg.name];
 					if (preset) {
 						applyPreset(preset);
 						setLastPreset(msg.name);
@@ -601,18 +597,16 @@ async function main(ws?: WsClient): Promise<void> {
 				case "save": {
 					const preset = extractPreset(msg.name);
 					savePreset(msg.name, preset);
-					void syncPresetToServer(msg.name, preset);
 					setLastPreset(msg.name);
 					sendPresetList();
 					break;
 				}
 				case "delete": {
 					deletePreset(msg.name);
-					void deletePresetFromServer(msg.name);
 					// If we deleted the active preset, switch to default
 					if (getLastPreset() === msg.name) {
 						setLastPreset("default");
-						const defaultPreset = getBuiltInPresets().default;
+						const defaultPreset = getBundledPresets().default;
 						if (defaultPreset) applyPreset(defaultPreset);
 					}
 					sendPresetList();
