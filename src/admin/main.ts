@@ -1,3 +1,4 @@
+import { encodePresetHash } from "../preset-url.js";
 import { WsClient } from "../ws/client.js";
 import type { StateMessage } from "../ws/protocol.js";
 import { createParamsPanel } from "./params-panel.js";
@@ -164,6 +165,35 @@ presetButtons.appendChild(saveBtn);
 presetButtons.appendChild(deleteBtn);
 presetSection.appendChild(presetButtons);
 
+const shareBtn = document.createElement("button");
+shareBtn.textContent = "Share Current Look";
+shareBtn.className = "share-btn";
+shareBtn.disabled = true;
+presetSection.appendChild(shareBtn);
+
+shareBtn.addEventListener("click", () => {
+	// Build a CreativePreset-like object from current params
+	const preset = { name: "shared", ...currentParams };
+	const hash = encodePresetHash(
+		preset as unknown as import("../presets.js").CreativePreset,
+	);
+	const url = `${window.location.origin}/#${hash}`;
+
+	// Copy to clipboard
+	navigator.clipboard.writeText(url).then(
+		() => {
+			shareBtn.textContent = "Copied!";
+			setTimeout(() => {
+				shareBtn.textContent = "Share Current Look";
+			}, 2000);
+		},
+		() => {
+			// Fallback: show the URL in a prompt
+			prompt("Share URL:", url);
+		},
+	);
+});
+
 container.appendChild(presetSection);
 
 // Params panel (hidden by default, expandable)
@@ -178,6 +208,10 @@ document.body.appendChild(container);
 
 // --- State tracking ---
 
+let currentParams: Record<
+	string,
+	Record<string, number | string | boolean>
+> = {};
 let currentPieceState: string = "unknown";
 let connected = false;
 let pc: RTCPeerConnection | null = null;
@@ -257,6 +291,10 @@ function updatePresetButtons(): void {
 		!presetNameInput.value.trim();
 	deleteBtn.disabled =
 		!connected || currentPieceState !== "running" || isBuiltIn;
+	shareBtn.disabled =
+		!connected ||
+		currentPieceState !== "running" ||
+		Object.keys(currentParams).length === 0;
 }
 
 function updateButtons(): void {
@@ -338,6 +376,7 @@ ws.onState((state: StateMessage) => {
 });
 
 ws.onParamState((msg) => {
+	currentParams = msg.params;
 	paramsPanel.updateParams(msg.params);
 });
 

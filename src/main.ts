@@ -56,6 +56,7 @@ import {
 	perfFrameStart,
 	perfMark,
 } from "./perf";
+import { getPresetFromUrl } from "./preset-url.js";
 import {
 	applyPreset,
 	deletePreset,
@@ -508,6 +509,13 @@ async function main(ws?: WsClient): Promise<void> {
 
 		frameCount++;
 		requestAnimationFrame(loop);
+	}
+
+	// Apply preset from URL hash if present
+	const urlPreset = getPresetFromUrl();
+	if (urlPreset) {
+		applyPreset(urlPreset);
+		console.log("[rubato] Applied preset from URL");
 	}
 
 	requestAnimationFrame(loop);

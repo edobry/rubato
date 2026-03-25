@@ -324,6 +324,38 @@ body {
 	font-size: 13px;
 }
 
+/* --- Share Button --- */
+
+.share-btn {
+	appearance: none;
+	border: 1px solid #333;
+	background: #1a1a2a;
+	color: #88aaff;
+	font-family: inherit;
+	font-size: 13px;
+	letter-spacing: 0.05em;
+	padding: 12px 24px;
+	width: 100%;
+	min-height: 44px;
+	cursor: pointer;
+	margin-top: 12px;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.share-btn:active {
+	background: #2a2a4a;
+	color: #aaccff;
+}
+
+.share-btn:disabled {
+	color: #555;
+	border-color: #222;
+	background: #111;
+	cursor: not-allowed;
+}
+
 /* --- Params Panel --- */
 
 .params-panel {
