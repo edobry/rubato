@@ -6,6 +6,7 @@
  * shared JSON file so they are automatically available across all devices.
  */
 
+import bundledPresets from "../bundled-presets.json";
 import defaults from "../params.json";
 import customPresets from "./custom-presets.json";
 import { batchParamUpdate, params } from "./params";
@@ -195,10 +196,9 @@ export function applyPreset(preset: CreativePreset): void {
 	}); // end batchParamUpdate
 }
 
-const d = defaults;
-
 /** Ship a handful of built-in presets. */
 export function getBuiltInPresets(): Record<string, CreativePreset> {
+	const d = defaults;
 	return {
 		default: {
 			name: "default",
@@ -231,130 +231,7 @@ export function getBuiltInPresets(): Record<string, CreativePreset> {
 				color: d.fog.color,
 			},
 		},
-		dramatic: {
-			name: "dramatic",
-			overlay: {
-				showOverlay: true,
-				visualize: "trail",
-				opacity: 0.9,
-				color: "#ff4400",
-				colorMode: "aura",
-				blur: 0,
-			},
-			motion: {
-				deposition: 12,
-				decay: 0.995,
-			},
-			segmentation: {
-				confidenceThreshold: 0.6,
-				temporalSmoothing: 0.7,
-				motionThreshold: 0.05,
-			},
-			camera: {
-				showFeed: true,
-				fillAmount: 1.0,
-			},
-			fog: {
-				speed: 0.08,
-				scale: 5.0,
-				density: 2.0,
-				brightness: 0.6,
-				color: "#ff6633",
-			},
-		},
-		subtle: {
-			name: "subtle",
-			overlay: {
-				showOverlay: true,
-				visualize: "mask",
-				opacity: 0.25,
-				color: "#88ccff",
-				colorMode: "solid",
-				blur: 0,
-			},
-			motion: {
-				deposition: 0.8,
-				decay: 0.93,
-			},
-			segmentation: {
-				confidenceThreshold: 0.5,
-				temporalSmoothing: 0.4,
-				motionThreshold: 0.15,
-			},
-			camera: {
-				showFeed: true,
-				fillAmount: 1.0,
-			},
-			fog: {
-				speed: 0.2,
-				scale: 4.0,
-				density: 0.8,
-				brightness: 0.3,
-				color: "#aaccff",
-			},
-		},
-		silhouette: {
-			name: "silhouette",
-			overlay: {
-				showOverlay: true,
-				visualize: "both",
-				opacity: 0.85,
-				color: "#ffffff",
-				colorMode: "solid",
-				blur: 0,
-			},
-			motion: {
-				deposition: 6,
-				decay: 0.98,
-			},
-			segmentation: {
-				confidenceThreshold: 0.7,
-				temporalSmoothing: 0.6,
-				motionThreshold: 0.08,
-			},
-			camera: {
-				showFeed: false,
-				fillAmount: 1.0,
-			},
-			fog: {
-				speed: 0.05,
-				scale: 6.0,
-				density: 1.5,
-				brightness: 0.2,
-				color: "#ffffff",
-			},
-		},
-		rainbow: {
-			name: "rainbow",
-			overlay: {
-				showOverlay: true,
-				visualize: "both",
-				opacity: 0.75,
-				color: "#ffffff",
-				colorMode: "rainbow",
-				blur: 0,
-			},
-			motion: {
-				deposition: 4,
-				decay: 0.96,
-			},
-			segmentation: {
-				confidenceThreshold: 0.5,
-				temporalSmoothing: 0.5,
-				motionThreshold: 0.1,
-			},
-			camera: {
-				showFeed: true,
-				fillAmount: 1.0,
-			},
-			fog: {
-				speed: 0.15,
-				scale: 3.0,
-				density: 1.2,
-				brightness: 0.5,
-				color: "#ff88ff",
-			},
-		},
+		...(bundledPresets as Record<string, CreativePreset>),
 	};
 }
 
