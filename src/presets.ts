@@ -6,6 +6,7 @@
 
 import bundledPresets from "../bundled-presets.json";
 import defaults from "../params.json";
+import { CREATIVE_PARAMS } from "./param-schema.js";
 import { batchParamUpdate, params } from "./params";
 
 const STORAGE_KEY = "rubato-presets";
@@ -68,59 +69,18 @@ export interface CreativePreset {
 
 /** Snapshot the current creative params into a preset. */
 export function extractPreset(name: string): CreativePreset {
-	return {
-		name,
-		overlay: {
-			showOverlay: params.overlay.showOverlay,
-			visualize: params.overlay.visualize,
-			opacity: params.overlay.opacity,
-			color: params.overlay.color,
-			colorMode: params.overlay.colorMode,
-			blur: params.overlay.blur,
-		},
-		motion: {
-			deposition: params.motion.deposition,
-			decay: params.motion.decay,
-		},
-		density: {
-			cultivationRate: params.density.cultivationRate,
-			channelStrength: params.density.channelStrength,
-			drainRate: params.density.drainRate,
-			diffusionRate: params.density.diffusionRate,
-			decayVariance: params.density.decayVariance,
-			disintegrationSpeed: params.density.disintegrationSpeed,
-		},
-		segmentation: {
-			confidenceThreshold: params.segmentation.confidenceThreshold,
-			temporalSmoothing: params.segmentation.temporalSmoothing,
-			motionThreshold: params.segmentation.motionThreshold,
-		},
-		camera: {
-			showFeed: params.camera.showFeed,
-			fillAmount: params.camera.fillAmount,
-		},
-		fog: {
-			mode: params.fog.mode,
-			speed: params.fog.speed,
-			scale: params.fog.scale,
-			density: params.fog.density,
-			brightness: params.fog.brightness,
-			color: params.fog.color,
-		},
-		shadow: {
-			forceScale: params.shadow.forceScale,
-			damping: params.shadow.damping,
-			diffusion: params.shadow.diffusion,
-			advection: params.shadow.advection,
-			noiseScale: params.shadow.noiseScale,
-			noiseSpeed: params.shadow.noiseSpeed,
-			noiseAmount: params.shadow.noiseAmount,
-			baseColor: params.shadow.baseColor,
-			highlightColor: params.shadow.highlightColor,
-			baseDensity: params.shadow.baseDensity,
-			creepSpeed: params.shadow.creepSpeed,
-		},
-	};
+	const result: Record<string, Record<string, unknown>> = {};
+	for (const section of CREATIVE_PARAMS) {
+		for (const control of section.controls) {
+			const paramSection = params[control.section as keyof typeof params];
+			if (paramSection && control.key in paramSection) {
+				if (!result[control.section]) result[control.section] = {};
+				result[control.section]![control.key] =
+					paramSection[control.key as keyof typeof paramSection];
+			}
+		}
+	}
+	return { name, ...result } as CreativePreset;
 }
 
 /** Apply a preset by writing its values back into the reactive params.
@@ -128,66 +88,23 @@ export function extractPreset(name: string): CreativePreset {
  *  preventing intermediate-state bugs. */
 export function applyPreset(preset: CreativePreset): void {
 	batchParamUpdate(() => {
-		// Overlay
-		params.overlay.showOverlay = preset.overlay.showOverlay;
-		params.overlay.visualize = preset.overlay
-			.visualize as typeof params.overlay.visualize;
-		params.overlay.opacity = preset.overlay.opacity;
-		params.overlay.color = preset.overlay.color;
-		params.overlay.colorMode = preset.overlay
-			.colorMode as typeof params.overlay.colorMode;
-		params.overlay.blur = preset.overlay.blur ?? 0;
+		for (const section of CREATIVE_PARAMS) {
+			for (const control of section.controls) {
+				const presetSection = (
+					preset as unknown as Record<string, Record<string, unknown>>
+				)[control.section];
+				if (!presetSection || !(control.key in presetSection)) continue;
 
-		// Motion
-		params.motion.deposition = preset.motion.deposition;
-		params.motion.decay = preset.motion.decay;
+				const paramSection = params[control.section as keyof typeof params];
+				if (!paramSection || !(control.key in paramSection)) continue;
 
-		// Density (optional — older presets may not have this section)
-		if (preset.density) {
-			params.density.cultivationRate = preset.density.cultivationRate;
-			params.density.channelStrength = preset.density.channelStrength;
-			params.density.drainRate = preset.density.drainRate;
-			params.density.diffusionRate = preset.density.diffusionRate;
-			params.density.decayVariance = preset.density.decayVariance;
-			params.density.disintegrationSpeed = preset.density.disintegrationSpeed;
+				const value = presetSection[control.key];
+				if (value !== undefined) {
+					(paramSection as Record<string, unknown>)[control.key] = value;
+				}
+			}
 		}
-
-		// Segmentation
-		params.segmentation.confidenceThreshold =
-			preset.segmentation.confidenceThreshold;
-		params.segmentation.temporalSmoothing =
-			preset.segmentation.temporalSmoothing;
-		params.segmentation.motionThreshold = preset.segmentation.motionThreshold;
-
-		// Camera
-		params.camera.showFeed = preset.camera.showFeed;
-		params.camera.fillAmount = preset.camera.fillAmount;
-
-		// Fog
-		if (preset.fog.mode) {
-			params.fog.mode = preset.fog.mode as typeof params.fog.mode;
-		}
-		params.fog.speed = preset.fog.speed;
-		params.fog.scale = preset.fog.scale;
-		params.fog.density = preset.fog.density;
-		params.fog.brightness = preset.fog.brightness;
-		params.fog.color = preset.fog.color ?? "#ffffff";
-
-		// Shadow (optional — older presets won't have this)
-		if (preset.shadow) {
-			params.shadow.forceScale = preset.shadow.forceScale;
-			params.shadow.damping = preset.shadow.damping;
-			params.shadow.diffusion = preset.shadow.diffusion;
-			params.shadow.advection = preset.shadow.advection;
-			params.shadow.noiseScale = preset.shadow.noiseScale;
-			params.shadow.noiseSpeed = preset.shadow.noiseSpeed;
-			params.shadow.noiseAmount = preset.shadow.noiseAmount;
-			params.shadow.baseColor = preset.shadow.baseColor;
-			params.shadow.highlightColor = preset.shadow.highlightColor;
-			params.shadow.baseDensity = preset.shadow.baseDensity;
-			params.shadow.creepSpeed = preset.shadow.creepSpeed;
-		}
-	}); // end batchParamUpdate
+	});
 }
 
 /** Ship a handful of bundled presets. */
