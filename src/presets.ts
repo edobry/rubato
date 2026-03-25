@@ -11,6 +11,38 @@ import { batchParamUpdate, params } from "./params";
 
 const STORAGE_KEY = "rubato-presets";
 const LAST_PRESET_KEY = "rubato-last-preset";
+const MIGRATION_KEY = "rubato-presets-migrated-v1";
+
+// One-time migration: strip bundled preset names from localStorage.
+// Before the refactor, savePreset() contaminated localStorage with copies
+// of bundled presets. These stale copies shadow updated bundled presets.
+(function migratePresets() {
+	if (typeof localStorage === "undefined") return;
+	if (localStorage.getItem(MIGRATION_KEY)) return;
+
+	try {
+		const raw = localStorage.getItem(STORAGE_KEY);
+		if (raw) {
+			const stored = JSON.parse(raw) as Record<string, unknown>;
+			const bundledNames = new Set(Object.keys(bundledPresets));
+			bundledNames.add("default");
+			let changed = false;
+			for (const name of bundledNames) {
+				if (name in stored) {
+					delete stored[name];
+					changed = true;
+				}
+			}
+			if (changed) {
+				localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+			}
+		}
+	} catch {
+		// Ignore migration errors — worst case, stale presets persist.
+	}
+
+	localStorage.setItem(MIGRATION_KEY, "1");
+})();
 
 /** The subset of params that a creative preset captures. */
 export interface CreativePreset {
