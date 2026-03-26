@@ -16,7 +16,7 @@
 		"lint": "biome check .",
 		"format": "biome check --write .",
 		"typecheck": "tsc --noEmit",
-		"check": "biome check . && tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && vite build",
+		"check": "biome check . && tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && vitest run && vite build",
 		"screenshot": "npx playwright test e2e/preview.spec.ts --grep screenshot",
 		"interact": "INTERACT=1 HEADED=1 npx playwright test e2e/preview.spec.ts --grep interact",
 		"prepare": "husky",
