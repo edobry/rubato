@@ -50,6 +50,10 @@ case "${1:-}" in
         echo "Installing rubato services..."
         install_plist "$SERVER_PLIST"
         install_plist "$KIOSK_PLIST"
+        # Place a restart shortcut on the Desktop for the curator
+        cp "$SCRIPT_DIR/Rubato.command" "$HOME/Desktop/Rubato.command"
+        chmod +x "$HOME/Desktop/Rubato.command"
+        echo "  Desktop shortcut installed"
         ;;
     uninstall)
         echo "Uninstalling rubato services..."
