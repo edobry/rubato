@@ -201,19 +201,8 @@ async function main(ws?: WsClient): Promise<void> {
 	hudCanvas.width = window.innerWidth;
 	hudCanvas.height = window.innerHeight;
 
-	// Hide cursor after inactivity (gallery display).
-	// Note: Chrome's F11 / kiosk fullscreen does NOT trigger the Fullscreen API,
-	// so we use a mouse-inactivity timer instead of fullscreenchange.
-	let cursorTimeout: ReturnType<typeof setTimeout>;
-	function resetCursorTimer(): void {
-		document.body.style.cursor = "";
-		clearTimeout(cursorTimeout);
-		cursorTimeout = setTimeout(() => {
-			document.body.style.cursor = "none";
-		}, 3000);
-	}
-	document.addEventListener("mousemove", resetCursorTimer);
-	resetCursorTimer();
+	// Hide cursor for gallery display. Always hidden — no mouse interaction expected.
+	document.body.style.cursor = "none";
 
 	// Dev GUI — toggle with G key (loads presets which may override params)
 	if (import.meta.env.VITE_DEV_GUI === "true") {
