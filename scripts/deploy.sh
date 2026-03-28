@@ -15,10 +15,16 @@ export PATH="$HOME/.local/node/bin:$PATH"
 REF="$1"
 cd ~/Projects/rubato
 
+# Stop existing services and Chrome
+echo "Stopping services..."
+bash scripts/service.sh stop 2>/dev/null || true
+echo "Stopping Chrome..."
+pkill -f "Google Chrome" 2>/dev/null || true
+sleep 2
 # Kill ALL vite processes to ensure clean restart
 echo "Stopping existing server..."
 pkill -f vite 2>/dev/null || true
-sleep 2
+sleep 1
 # Force-kill if still hanging
 if lsof -i :5173 -t &>/dev/null; then
     echo "Force-killing lingering processes..."
@@ -36,9 +42,8 @@ git checkout "$REF" --
 echo "Installing dependencies..."
 npm install --no-audit --no-fund
 
-echo "Starting server (live mode, no HMR)..."
-nohup bash -c 'export PATH="$HOME/.local/node/bin:$PATH" && cd ~/Projects/rubato && npm run serve:live' > ~/rubato.log 2>&1 &
-echo "Server started (PID $!)"
+echo "Installing services..."
+bash scripts/service.sh install
 
 # Wait and verify
 sleep 4

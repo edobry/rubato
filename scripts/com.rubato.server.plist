@@ -10,11 +10,11 @@
 		<string>/bin/zsh</string>
 		<string>-l</string>
 		<string>-c</string>
-		<string>cd ~/Projects/rubato &amp;&amp; npm run serve:live</string>
+		<string>cd __HOME__/Projects/rubato &amp;&amp; npm run serve:live</string>
 	</array>
 
 	<key>WorkingDirectory</key>
-	<string>/Users/edobry/Projects/rubato</string>
+	<string>__HOME__/Projects/rubato</string>
 
 	<key>KeepAlive</key>
 	<true/>
@@ -26,10 +26,10 @@
 	<integer>10</integer>
 
 	<key>StandardOutPath</key>
-	<string>/Users/edobry/rubato-stdout.log</string>
+	<string>__HOME__/rubato-stdout.log</string>
 
 	<key>StandardErrorPath</key>
-	<string>/Users/edobry/rubato-stderr.log</string>
+	<string>__HOME__/rubato-stderr.log</string>
 
 	<key>EnvironmentVariables</key>
 	<dict>
