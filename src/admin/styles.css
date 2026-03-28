@@ -222,6 +222,10 @@ body {
 	align-items: center;
 }
 
+.preview-video-wrap {
+	position: relative;
+}
+
 .preview-video {
 	width: 100%;
 	aspect-ratio: 16 / 9;
@@ -231,6 +235,46 @@ body {
 	border: 1px solid #222;
 	border-radius: 2px;
 	display: none;
+}
+
+.preview-fullscreen-btn {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 44px;
+	height: 44px;
+	min-height: 44px;
+	padding: 0;
+	font-size: 20px;
+	line-height: 1;
+	background: rgba(0, 0, 0, 0.6);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	color: rgba(255, 255, 255, 0.8);
+	cursor: pointer;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	z-index: 1;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+
+.preview-fullscreen-btn:active {
+	background: rgba(255, 255, 255, 0.2);
+	color: #fff;
+}
+
+.preview-video-wrap.live:hover .preview-fullscreen-btn,
+.preview-video-wrap.live .preview-fullscreen-btn:focus {
+	display: flex;
+}
+
+/* Always show fullscreen button on touch devices */
+@media (hover: none) {
+	.preview-video-wrap.live .preview-fullscreen-btn {
+		display: flex;
+	}
 }
 
 .preview-status {

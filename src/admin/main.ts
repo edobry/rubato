@@ -71,12 +71,34 @@ previewHeader.appendChild(previewLabel);
 previewHeader.appendChild(previewStatus);
 previewSection.appendChild(previewHeader);
 
+const previewVideoWrap = document.createElement("div");
+previewVideoWrap.className = "preview-video-wrap";
+
 const previewVideo = document.createElement("video");
 previewVideo.className = "preview-video";
 previewVideo.muted = true;
 previewVideo.autoplay = true;
 previewVideo.playsInline = true;
-previewSection.appendChild(previewVideo);
+previewVideoWrap.appendChild(previewVideo);
+
+const fullscreenBtn = document.createElement("button");
+fullscreenBtn.className = "preview-fullscreen-btn";
+fullscreenBtn.textContent = "\u26F6";
+fullscreenBtn.title = "Toggle fullscreen";
+fullscreenBtn.addEventListener("click", () => {
+	if (document.fullscreenElement) {
+		document.exitFullscreen();
+	} else {
+		previewVideo.requestFullscreen();
+	}
+});
+previewVideoWrap.appendChild(fullscreenBtn);
+
+document.addEventListener("fullscreenchange", () => {
+	fullscreenBtn.textContent = document.fullscreenElement ? "\u2715" : "\u26F6";
+});
+
+previewSection.appendChild(previewVideoWrap);
 
 const previewBtn = document.createElement("button");
 previewBtn.textContent = "Connect";
@@ -222,6 +244,7 @@ function setPreviewState(state: "disconnected" | "connecting" | "live"): void {
 	previewStatus.className = `preview-status ${state}`;
 	previewBtn.textContent = state === "disconnected" ? "Connect" : "Disconnect";
 	previewVideo.style.display = state === "live" ? "block" : "none";
+	previewVideoWrap.classList.toggle("live", state === "live");
 	streamActive = state !== "disconnected";
 }
 
