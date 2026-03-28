@@ -15,6 +15,10 @@ function tryTailscaleCli(bin: string): string | null {
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 		const data = JSON.parse(raw);
+		// Use DNSName (dashes, resolvable) not HostName (may have spaces).
+		// DNSName looks like "machine-name.tailnet.ts.net." — extract short name.
+		const dns: string | undefined = data.Self?.DNSName;
+		if (dns) return dns.replace(/\.$/, "").split(".")[0] ?? null;
 		return data.Self?.HostName ?? null;
 	} catch {
 		return null;
