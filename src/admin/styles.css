@@ -110,66 +110,79 @@ body {
 	margin-top: 4px;
 }
 
+/* --- Status Section: connection + piece state grouped --- */
+
 .connection-status {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
-	font-size: 12px;
-	color: #888;
+	font-size: 13px;
+	color: #999;
+	letter-spacing: 0.03em;
+	padding-bottom: 12px;
+	border-bottom: 1px solid #1a1a1a;
 }
 
 .connection-status .dot {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
-	background: #ff3333;
-	transition: background 0.3s ease;
+	background: #666;
+	box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.2);
+	transition:
+		background 0.3s ease,
+		box-shadow 0.3s ease;
 }
 
 .connection-status .dot.connected {
-	background: #33cc33;
+	background: #4caf50;
+	box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.25);
 }
 
 .piece-state {
 	text-align: center;
-	padding: 16px 0;
+	padding: 8px 0 0;
 }
 
-.piece-state .label {
+.piece-state > .label {
 	font-size: 10px;
-	color: #555;
+	color: #444;
 	text-transform: uppercase;
 	letter-spacing: 0.15em;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 }
 
-.piece-state .value {
-	font-size: 24px;
+.piece-state > .value {
+	font-size: 22px;
 	font-weight: 300;
-	letter-spacing: 0.02em;
+	letter-spacing: 0.04em;
+	color: #ddd;
 }
+
+/* --- Preset info row (secondary) --- */
 
 .preset-info {
-	margin-top: 12px;
+	margin-top: 14px;
+	padding-top: 12px;
+	border-top: 1px solid #1a1a1a;
 	font-size: 12px;
-	color: #888;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
+	gap: 6px;
 }
 
 .preset-info .label {
 	font-size: 10px;
-	color: #555;
+	color: #444;
 	text-transform: uppercase;
 	letter-spacing: 0.15em;
 }
 
 .preset-info .value {
 	font-size: 13px;
-	color: #aaa;
+	color: #999;
 	font-weight: 400;
 }
 
@@ -249,6 +262,18 @@ body {
 	grid-template-columns: 1fr 1fr;
 	border-top: 1px solid #222;
 	padding-top: 16px;
+}
+
+/* Active state for toggle buttons (Stats/Params visible on piece) */
+
+.controls.toggles button.toggle-active {
+	border-color: #2a3a4a;
+	background: #182838;
+	color: #6ab0f3;
+}
+
+.controls.toggles button.toggle-active:active {
+	background: #203848;
 }
 
 /* --- Presets --- */
@@ -599,6 +624,34 @@ body {
 	background-repeat: no-repeat;
 	background-position: right 16px center;
 	padding-right: 40px;
+}
+
+/* Disabled params panel (disconnected state) */
+.params-panel.disabled {
+	pointer-events: none;
+	opacity: 0.4;
+}
+
+.params-panel.disabled .params-toggle {
+	pointer-events: auto;
+	opacity: 1;
+}
+
+/* Stale state (disconnected) */
+.piece-state.stale > .value {
+	color: #555;
+}
+
+.piece-state.stale .preset-info .value {
+	color: #555;
+}
+
+/* Disabled preset controls */
+.preset-select:disabled {
+	color: #555;
+	border-color: #222;
+	background-color: #111;
+	cursor: not-allowed;
 }
 
 /* Color picker */
