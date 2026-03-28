@@ -227,6 +227,12 @@ async function main(ws?: WsClient): Promise<void> {
 		if (e.key === "a" || e.key === "A") {
 			if (isHelpOverlayVisible()) hideHelpOverlay();
 			toggleAdminOverlay();
+		} else if (e.key === "f" || e.key === "F") {
+			if (document.fullscreenElement) {
+				void document.exitFullscreen();
+			} else {
+				void document.documentElement.requestFullscreen();
+			}
 		} else if (e.key === "s" || e.key === "S") {
 			toggleHud();
 		} else if (e.key === "?") {

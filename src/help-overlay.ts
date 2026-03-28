@@ -85,6 +85,7 @@ interface ShortcutSection {
 const SHORTCUTS: ShortcutSection[] = [
 	{
 		entries: [
+			{ key: "F", desc: "Toggle fullscreen" },
 			{ key: "G", desc: "Toggle parameter GUI panel" },
 			{ key: "S", desc: "Toggle stats/FPS overlay" },
 			{ key: "A", desc: "Toggle admin overlay" },
