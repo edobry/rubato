@@ -367,9 +367,11 @@ ws.onState((state: StateMessage) => {
 
 	if (state.guiVisible !== undefined) {
 		toggleGuiBtn.textContent = state.guiVisible ? "Hide Params" : "Show Params";
+		toggleGuiBtn.classList.toggle("toggle-active", state.guiVisible);
 	}
 	if (state.hudVisible !== undefined) {
 		toggleHudBtn.textContent = state.hudVisible ? "Hide Stats" : "Show Stats";
+		toggleHudBtn.classList.toggle("toggle-active", state.hudVisible);
 	}
 
 	updateButtons();
@@ -422,12 +424,25 @@ ws.onConnectionChange((isConnected: boolean) => {
 	if (isConnected) {
 		dot.classList.add("connected");
 		statusText.textContent = "Connected";
+		stateSection.classList.remove("stale");
+		paramsPanel.setDisabled(false);
 	} else {
 		dot.classList.remove("connected");
 		statusText.textContent = "Disconnected";
 		if (streamActive) {
 			stopStream();
 		}
+
+		// Mark state info as stale
+		currentPieceState = "unknown";
+		stateValue.textContent = "Unknown";
+		presetInfoValue.textContent = "Unknown";
+		stateSection.classList.add("stale");
+
+		// Disable params panel and preset controls
+		paramsPanel.setDisabled(true);
+		presetSelect.disabled = true;
+		presetNameInput.disabled = true;
 	}
 
 	updateButtons();

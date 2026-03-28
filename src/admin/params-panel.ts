@@ -48,6 +48,7 @@ export function createParamsPanel(options: {
 	updateParams: (
 		params: Record<string, Record<string, number | string | boolean>>,
 	) => void;
+	setDisabled: (disabled: boolean) => void;
 } {
 	const controlMap = new Map<string, ControlEntry>();
 	const uiState = loadPanelState();
@@ -306,5 +307,9 @@ export function createParamsPanel(options: {
 		}
 	}
 
-	return { element: panel, updateParams };
+	function setDisabled(disabled: boolean): void {
+		panel.classList.toggle("disabled", disabled);
+	}
+
+	return { element: panel, updateParams, setDisabled };
 }
