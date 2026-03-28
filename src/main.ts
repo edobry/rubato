@@ -721,7 +721,11 @@ function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 	document.body.style.cursor = "none";
 	localStorage.setItem(PIECE_STATE_KEY, "running");
 	appState = "running";
-	ws.sendState("running", { preset: getLastPreset() });
+	ws.sendState("running", {
+		preset: getLastPreset(),
+		guiVisible: isGuiVisible(),
+		hudVisible,
+	});
 	void main(ws);
 }
 
@@ -747,7 +751,12 @@ function boot(): void {
 		appState = "running";
 		document.body.style.cursor = "none";
 		ws.onConnectionChange((connected) => {
-			if (connected) ws.sendState("running", { preset: getLastPreset() });
+			if (connected)
+				ws.sendState("running", {
+					preset: getLastPreset(),
+					guiVisible: isGuiVisible(),
+					hudVisible,
+				});
 		});
 		ws.onCommand((msg) => {
 			switch (msg.command) {
