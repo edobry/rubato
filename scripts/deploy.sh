@@ -12,6 +12,9 @@ set -euo pipefail
 
 export PATH="$HOME/.local/node/bin:$PATH"
 
+# If deployment fails mid-way, try to restart services so the gallery isn't left dead
+trap 'echo "ERROR: Deploy failed, attempting to restart services..."; bash scripts/service.sh install 2>/dev/null || true' ERR
+
 REF="$1"
 cd ~/Projects/rubato
 
@@ -21,6 +24,11 @@ bash scripts/service.sh stop 2>/dev/null || true
 echo "Stopping Chrome..."
 pkill -f "Google Chrome" 2>/dev/null || true
 sleep 2
+# Force-kill Chrome if still running
+if pgrep -f "Google Chrome" &>/dev/null; then
+    pkill -9 -f "Google Chrome" 2>/dev/null || true
+    sleep 1
+fi
 # Kill ALL vite processes to ensure clean restart
 echo "Stopping existing server..."
 pkill -f vite 2>/dev/null || true
@@ -41,6 +49,11 @@ git checkout "$REF" --
 
 echo "Installing dependencies..."
 npm install --no-audit --no-fund
+
+echo "Truncating old logs..."
+: > ~/rubato-stdout.log 2>/dev/null || true
+: > ~/rubato-stderr.log 2>/dev/null || true
+: > ~/rubato-kiosk.log 2>/dev/null || true
 
 echo "Installing services..."
 bash scripts/service.sh install
