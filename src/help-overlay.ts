@@ -161,7 +161,7 @@ function createOverlay(): HTMLElement {
 	// Dismiss hint
 	const hint = document.createElement("p");
 	hint.style.cssText = STYLES.hint;
-	hint.textContent = "press ? or Escape to dismiss";
+	hint.textContent = "press ?, Enter, or Escape to dismiss";
 	panel.appendChild(hint);
 
 	overlay.appendChild(panel);

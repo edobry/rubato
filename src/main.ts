@@ -233,6 +233,13 @@ async function main(ws?: WsClient): Promise<void> {
 			} else {
 				void document.documentElement.requestFullscreen();
 			}
+		} else if (e.key === "Enter") {
+			// Dismiss overlays (Escape is eaten by the browser in fullscreen)
+			if (isHelpOverlayVisible()) {
+				hideHelpOverlay();
+			} else if (isAdminOverlayVisible()) {
+				hideAdminOverlay();
+			}
 		} else if (e.key === "s" || e.key === "S") {
 			toggleHud();
 		} else if (e.key === "?") {
