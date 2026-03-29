@@ -1,7 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Plugin } from "vite";
 import { type WebSocket, WebSocketServer } from "ws";
 import type {
 	ClientRole,
+	ClipRequestMessage,
+	ClipResponseMessage,
 	CommandMessage,
 	ParamStateMessage,
 	ParamUpdateMessage,
@@ -30,6 +34,44 @@ export function wsPlugin(): Plugin {
 		configureServer(server) {
 			const wss = new WebSocketServer({ noServer: true });
 			const clients = new Set<TrackedClient>();
+
+			// Clip upload/serve endpoints
+			const clipsDir = path.join(process.cwd(), ".clips");
+			fs.mkdirSync(clipsDir, { recursive: true });
+
+			server.middlewares.use("/clips", (req, res, next) => {
+				if (req.method === "POST") {
+					const filename = `clip-${Date.now()}.webm`;
+					const filepath = path.join(clipsDir, filename);
+					const chunks: Buffer[] = [];
+					req.on("data", (chunk: Buffer) => chunks.push(chunk));
+					req.on("end", () => {
+						fs.writeFileSync(filepath, Buffer.concat(chunks));
+						res.writeHead(200, {
+							"Content-Type": "application/json",
+						});
+						res.end(JSON.stringify({ url: `/clips/${filename}` }));
+					});
+					return;
+				}
+
+				if (req.method === "GET") {
+					const filename = req.url?.replace(/^\//, "") ?? "";
+					const filepath = path.join(clipsDir, filename);
+					if (fs.existsSync(filepath)) {
+						res.writeHead(200, {
+							"Content-Type": "video/webm",
+							"Content-Disposition": `attachment; filename="${filename}"`,
+						});
+						fs.createReadStream(filepath).pipe(res);
+					} else {
+						res.writeHead(404);
+						res.end("Not found");
+					}
+					return;
+				}
+				next();
+			});
 
 			server.httpServer?.on("upgrade", (req, socket, head) => {
 				// Only handle our path; let Vite HMR handle its own
@@ -132,6 +174,18 @@ export function wsPlugin(): Plugin {
 							}
 							return;
 						}
+
+						if (msg.type === "clipRequest") {
+							// Forward clip request to piece clients (admin → piece)
+							broadcast(clients, "piece", msg);
+							return;
+						}
+
+						if (msg.type === "clipResponse") {
+							// Forward clip response to the specific admin (piece → admin)
+							sendToAdmin(clients, msg.adminId, msg);
+							return;
+						}
 					} catch (err) {
 						console.error("[rubato-ws] Invalid message:", err);
 					}
@@ -161,7 +215,8 @@ function broadcast(
 		| StreamRequestMessage
 		| StreamStopMessage
 		| RtcAnswerMessage
-		| RtcIceCandidateMessage,
+		| RtcIceCandidateMessage
+		| ClipRequestMessage,
 ): void {
 	const payload = JSON.stringify(msg);
 	for (const c of clients) {
@@ -175,7 +230,7 @@ function broadcast(
 function sendToAdmin(
 	clients: Set<TrackedClient>,
 	adminId: string,
-	msg: RtcOfferMessage | RtcIceCandidateMessage,
+	msg: RtcOfferMessage | RtcIceCandidateMessage | ClipResponseMessage,
 ): void {
 	const payload = JSON.stringify(msg);
 	for (const c of clients) {

@@ -105,6 +105,35 @@ previewBtn.textContent = "Connect";
 previewBtn.disabled = true;
 previewSection.appendChild(previewBtn);
 
+// Clip controls
+const clipControls = document.createElement("div");
+clipControls.className = "clip-controls";
+
+const clipDuration = document.createElement("select");
+clipDuration.className = "clip-duration";
+const durations = [15, 30, 60, 120];
+for (const d of durations) {
+	const opt = document.createElement("option");
+	opt.value = String(d);
+	opt.textContent = d < 60 ? `${d}s` : `${d / 60}m`;
+	if (d === 30) opt.selected = true;
+	clipDuration.appendChild(opt);
+}
+
+const clipBtn = document.createElement("button");
+clipBtn.className = "clip-btn";
+clipBtn.textContent = "Clip";
+clipBtn.disabled = true;
+
+clipControls.appendChild(clipDuration);
+clipControls.appendChild(clipBtn);
+previewSection.appendChild(clipControls);
+
+// Clip history list
+const clipList = document.createElement("div");
+clipList.className = "clip-list";
+previewSection.appendChild(clipList);
+
 container.appendChild(previewSection);
 
 // Controls
@@ -246,6 +275,7 @@ function setPreviewState(state: "disconnected" | "connecting" | "live"): void {
 	previewVideo.style.display = state === "live" ? "block" : "none";
 	previewVideoWrap.classList.toggle("live", state === "live");
 	streamActive = state !== "disconnected";
+	updateClipButton();
 }
 
 function startStream(): void {
@@ -294,6 +324,59 @@ previewBtn.addEventListener("click", () => {
 		stopStream();
 	} else {
 		startStream();
+	}
+});
+
+// --- Clip controls ---
+
+let clipPending = false;
+
+function updateClipButton(): void {
+	clipBtn.disabled = !streamActive || clipPending;
+	clipDuration.disabled = !streamActive;
+}
+
+clipBtn.addEventListener("click", () => {
+	if (clipPending) return;
+	clipPending = true;
+	clipBtn.textContent = "Saving...";
+	clipBtn.disabled = true;
+	ws.sendClipRequest(Number(clipDuration.value));
+});
+
+ws.onClipResponse((msg) => {
+	clipPending = false;
+	clipBtn.textContent = "Clip";
+	updateClipButton();
+
+	if (msg.status === "ready" && msg.url) {
+		const item = document.createElement("div");
+		item.className = "clip-item";
+
+		const link = document.createElement("a");
+		link.href = msg.url;
+		link.download = msg.url.split("/").pop() ?? "clip.webm";
+		link.textContent = new Date().toLocaleTimeString();
+		link.className = "clip-link";
+
+		const duration = document.createElement("span");
+		duration.className = "clip-meta";
+		duration.textContent = `${clipDuration.value}s`;
+
+		item.appendChild(link);
+		item.appendChild(duration);
+		clipList.prepend(item);
+	} else if (msg.status === "empty") {
+		clipBtn.textContent = "No data";
+		setTimeout(() => {
+			clipBtn.textContent = "Clip";
+		}, 2000);
+	} else if (msg.status === "error") {
+		clipBtn.textContent = "Error";
+		setTimeout(() => {
+			clipBtn.textContent = "Clip";
+		}, 2000);
+		console.error("[admin] Clip error:", msg.error);
 	}
 });
 
@@ -468,6 +551,7 @@ ws.onConnectionChange((isConnected: boolean) => {
 		presetNameInput.disabled = true;
 	}
 
+	updateClipButton();
 	updateButtons();
 });
 

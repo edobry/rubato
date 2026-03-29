@@ -524,7 +524,7 @@ async function main(ws?: WsClient): Promise<void> {
 
 	// Handle admin toggle commands and param sync
 	if (ws) {
-		initStreaming(ws, compositorCanvas);
+		const _streaming = initStreaming(ws, compositorCanvas);
 
 		ws.onCommand((msg) => {
 			if (msg.command === "toggleGui") {

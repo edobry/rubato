@@ -718,3 +718,68 @@ body {
 	border: none;
 	border-radius: 0;
 }
+
+/* --- Clip Controls --- */
+
+.clip-controls {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 8px;
+}
+
+.clip-duration {
+	appearance: none;
+	-webkit-appearance: none;
+	padding: 10px 12px;
+	font-family: inherit;
+	font-size: 13px;
+	background: #222;
+	color: #ccc;
+	border: 1px solid #333;
+	border-radius: 0;
+	cursor: pointer;
+	min-height: 44px;
+	min-width: 64px;
+	text-align: center;
+}
+
+.clip-duration:disabled {
+	color: #555;
+	border-color: #222;
+	background: #111;
+	cursor: not-allowed;
+}
+
+.clip-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.clip-list:empty {
+	display: none;
+}
+
+.clip-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px;
+	background: #0a0a0a;
+	border: 1px solid #1a1a1a;
+	font-size: 12px;
+}
+
+.clip-link {
+	color: #6a9fff;
+	text-decoration: none;
+}
+
+.clip-link:active {
+	color: #99bfff;
+}
+
+.clip-meta {
+	color: #555;
+	font-size: 11px;
+}

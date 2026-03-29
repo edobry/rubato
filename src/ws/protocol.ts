@@ -93,6 +93,25 @@ export interface RtcIceCandidateMessage {
 	candidate: RTCIceCandidateInit;
 }
 
+/** Admin requests a clip from the ring buffer */
+export interface ClipRequestMessage {
+	type: "clipRequest";
+	adminId: string;
+	/** Desired clip duration in seconds */
+	duration: number;
+}
+
+/** Piece responds with clip status/URL */
+export interface ClipResponseMessage {
+	type: "clipResponse";
+	adminId: string;
+	status: "ready" | "error" | "empty";
+	/** Download URL when status is "ready" */
+	url?: string;
+	/** Error message when status is "error" */
+	error?: string;
+}
+
 /** All possible messages */
 export type WsMessage =
 	| RegisterMessage
@@ -107,4 +126,6 @@ export type WsMessage =
 	| StreamStopMessage
 	| RtcOfferMessage
 	| RtcAnswerMessage
-	| RtcIceCandidateMessage;
+	| RtcIceCandidateMessage
+	| ClipRequestMessage
+	| ClipResponseMessage;

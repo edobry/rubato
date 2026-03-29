@@ -4,3 +4,5 @@ dist/
 e2e/screenshot*.png
 test-results/
 vnc
+custom-presets.json
+.clips/

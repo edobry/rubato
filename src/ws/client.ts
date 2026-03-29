@@ -1,5 +1,7 @@
 import type {
 	ClientRole,
+	ClipRequestMessage,
+	ClipResponseMessage,
 	CommandMessage,
 	ParamStateMessage,
 	ParamUpdateMessage,
@@ -26,6 +28,8 @@ type StreamStopHandler = (msg: StreamStopMessage) => void;
 type RtcOfferHandler = (msg: RtcOfferMessage) => void;
 type RtcAnswerHandler = (msg: RtcAnswerMessage) => void;
 type RtcIceCandidateHandler = (msg: RtcIceCandidateMessage) => void;
+type ClipRequestHandler = (msg: ClipRequestMessage) => void;
+type ClipResponseHandler = (msg: ClipResponseMessage) => void;
 type ConnectionHandler = (connected: boolean) => void;
 
 const MAX_RECONNECT_DELAY = 10_000;
@@ -50,6 +54,8 @@ export class WsClient {
 	private rtcOfferHandlers: RtcOfferHandler[] = [];
 	private rtcAnswerHandlers: RtcAnswerHandler[] = [];
 	private rtcIceCandidateHandlers: RtcIceCandidateHandler[] = [];
+	private clipRequestHandlers: ClipRequestHandler[] = [];
+	private clipResponseHandlers: ClipResponseHandler[] = [];
 	private connectionHandlers: ConnectionHandler[] = [];
 
 	private reconnectDelay = 1000;
@@ -129,6 +135,16 @@ export class WsClient {
 	/** Register handler for RTC ICE candidate messages (used by both). */
 	onRtcIceCandidate(handler: RtcIceCandidateHandler): void {
 		this.rtcIceCandidateHandlers.push(handler);
+	}
+
+	/** Register handler for clip request messages (used by piece). */
+	onClipRequest(handler: ClipRequestHandler): void {
+		this.clipRequestHandlers.push(handler);
+	}
+
+	/** Register handler for clip response messages (used by admin). */
+	onClipResponse(handler: ClipResponseHandler): void {
+		this.clipResponseHandlers.push(handler);
 	}
 
 	/** Register a handler for connection status changes. */
@@ -214,6 +230,25 @@ export class WsClient {
 		this.send({ type: "rtcIceCandidate", adminId, candidate });
 	}
 
+	/** Request a clip from the piece ring buffer (used by admin). */
+	sendClipRequest(duration: number): void {
+		if (!this.adminId) return;
+		this.send({ type: "clipRequest", adminId: this.adminId, duration });
+	}
+
+	/** Send clip response to a specific admin (used by piece). */
+	sendClipResponse(
+		adminId: string,
+		status: ClipResponseMessage["status"],
+		url?: string,
+		error?: string,
+	): void {
+		const msg: ClipResponseMessage = { type: "clipResponse", adminId, status };
+		if (url !== undefined) msg.url = url;
+		if (error !== undefined) msg.error = error;
+		this.send(msg);
+	}
+
 	/** Tear down the client and stop reconnecting. */
 	destroy(): void {
 		this.destroyed = true;
@@ -280,6 +315,10 @@ export class WsClient {
 					for (const h of this.rtcAnswerHandlers) h(msg);
 				} else if (msg.type === "rtcIceCandidate") {
 					for (const h of this.rtcIceCandidateHandlers) h(msg);
+				} else if (msg.type === "clipRequest") {
+					for (const h of this.clipRequestHandlers) h(msg);
+				} else if (msg.type === "clipResponse") {
+					for (const h of this.clipResponseHandlers) h(msg);
 				}
 			} catch {
 				// Ignore malformed messages
