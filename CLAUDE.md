@@ -14,7 +14,7 @@ Every request follows a two-phase flow: **plan → delegate**.
 
 Before dispatching any work, reason about the request:
 
-0. **Verify current state.** Before proposing any plan, check what already exists. Run `git log --oneline -10` to see recent commits (yours and subagents'). Check relevant directories with `ls`. If the task involves remote systems, check their state with `ssh`. Do NOT rely on memory of what was built earlier in the conversation — verify it. This step is non-optional and takes 5 seconds.
+0. **Verify current state.** Before proposing any plan, check what already exists. Run `git log --oneline -10` to see recent commits (yours and subagents'). Use Glob to check relevant directories, Grep to find related code. If the task involves remote systems, check their state with `ssh`. Do NOT rely on memory of what was built earlier in the conversation — verify it. This step is non-optional and takes 5 seconds.
 1. **Sanity-check the ask.** Does it make sense given the current state of the codebase, the project timeline, and the spec? If something feels off — wrong abstraction, premature optimization, solving the wrong problem — say so before writing code.
 2. **Consider alternatives.** Is the requested approach the best one, or is there a simpler/cheaper/more robust path to the same outcome? Propose it briefly if so.
 3. **Surface hidden complexity.** Will this interact badly with existing code? Create tech debt? Paint us into a corner for the next phase? Flag tradeoffs the user might not have considered.
