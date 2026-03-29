@@ -17,6 +17,7 @@
 	if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
 	const code = await resp.text();
 	// biome-ignore lint/security/noGlobalEval: required to load UMD module in worker
+	// biome-ignore lint/complexity/noCommaOperator: intentional indirect eval for UMD module loading
 	(0, eval)(code);
 	// Return empty module — the script sets globals as side effects
 	return {};
