@@ -555,28 +555,26 @@ ws.onConnectionChange((isConnected: boolean) => {
 	updateButtons();
 });
 
-// --- Version check polling ---
+// --- Build-info check polling ---
 
-async function checkVersion(): Promise<void> {
+async function checkBuildInfo(): Promise<void> {
 	try {
-		const res = await fetch("/api/version");
+		const res = await fetch("/api/build-info");
 		if (!res.ok) return;
-		const data = (await res.json()) as {
-			current: string;
-			latest: string | null;
-			updateAvailable: boolean;
-		};
-		if (data.updateAvailable && data.latest) {
-			reloadBtn.textContent = "Reload ●";
+		const data = (await res.json()) as { hash: string; buildTime: string };
+		const updateAvailable =
+			data.hash !== "unknown" && data.hash !== __GIT_HASH__;
+		if (updateAvailable) {
+			reloadBtn.textContent = "Reload \u25cf";
 			reloadBtn.classList.add("update-available");
 		} else {
 			reloadBtn.textContent = "Reload";
 			reloadBtn.classList.remove("update-available");
 		}
 	} catch {
-		// Version check failed — silently ignore
+		// Build-info check failed — silently ignore
 	}
 }
 
-void checkVersion();
-setInterval(() => void checkVersion(), 30_000);
+void checkBuildInfo();
+setInterval(() => void checkBuildInfo(), 30_000);

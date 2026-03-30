@@ -4,6 +4,7 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defineConfig, type Plugin } from "vite";
 import glsl from "vite-plugin-glsl";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import { buildInfo } from "./server/build-info.js";
 import { wsPlugin } from "./src/ws/plugin.js";
 
 /** Try running a Tailscale CLI command at the given path. */
@@ -39,55 +40,17 @@ if (tailscaleHost) {
 	console.log(`[rubato] Tailscale hostname: ${tailscaleHost}`);
 }
 
-/** Vite plugin that exposes a version check API endpoint. */
-function versionCheckPlugin(): Plugin {
-	const currentHash = execSync("git rev-parse --short HEAD", {
-		encoding: "utf-8",
-	}).trim();
-
-	let lastFetchTime = 0;
-	const FETCH_TTL_MS = 60_000;
-	let cachedLatestHash: string | null = null;
-
-	function getLatestHash(): string | null {
-		const now = Date.now();
-		if (now - lastFetchTime > FETCH_TTL_MS) {
-			try {
-				execSync("git fetch origin master --quiet", {
-					encoding: "utf-8",
-					timeout: 10_000,
-					stdio: ["pipe", "pipe", "pipe"],
-				});
-			} catch {
-				// git fetch failed — use cached value if available
-			}
-			lastFetchTime = now;
-			try {
-				cachedLatestHash = execSync("git rev-parse --short origin/master", {
-					encoding: "utf-8",
-				}).trim();
-			} catch {
-				cachedLatestHash = null;
-			}
-		}
-		return cachedLatestHash;
-	}
-
+/** Vite plugin that exposes a build-info API endpoint. */
+function buildInfoPlugin(): Plugin {
 	return {
-		name: "version-check",
+		name: "build-info",
 		configureServer(server) {
 			server.middlewares.use((req, res, next) => {
-				if (req.method !== "GET" || req.url !== "/api/version") return next();
+				if (req.method !== "GET" || req.url !== "/api/build-info")
+					return next();
 
-				const latest = getLatestHash();
 				res.setHeader("Content-Type", "application/json");
-				res.end(
-					JSON.stringify({
-						current: currentHash,
-						latest,
-						updateAvailable: latest !== null && latest !== currentHash,
-					}),
-				);
+				res.end(JSON.stringify(buildInfo));
 			});
 		},
 	};
@@ -99,9 +62,7 @@ export default defineConfig(({ mode }) => {
 	return {
 		define: {
 			__TAILSCALE_HOST__: JSON.stringify(tailscaleHost),
-			__GIT_HASH__: JSON.stringify(
-				execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim(),
-			),
+			__GIT_HASH__: JSON.stringify(buildInfo.hash),
 		},
 		build: {
 			rollupOptions: {
@@ -132,7 +93,7 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			basicSsl(),
 			glsl(),
-			versionCheckPlugin(),
+			buildInfoPlugin(),
 			wsPlugin(),
 			viteStaticCopy({
 				targets: [
