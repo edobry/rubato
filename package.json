@@ -10,13 +10,14 @@
 		"serve:live": "VITE_DEV_GUI=true vite --host --mode live",
 		"dev:debug": "VITE_DEV_GUI=true vite --host & sleep 2 && '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --remote-debugging-port=9222 --user-data-dir=/tmp/rubato-chrome-debug --auto-open-devtools-for-tabs https://localhost:5173",
 		"build": "tsc --noEmit && vite build",
+		"start": "tsx server/index.ts",
 		"prod": "vite build",
 		"kiosk": "npm run prod && npx serve dist & sleep 2 && '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --kiosk --start-fullscreen --disable-infobars --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --use-fake-ui-for-media-stream http://localhost:3000",
 		"preview": "vite preview",
 		"lint": "biome check .",
 		"format": "biome check --write .",
 		"typecheck": "tsc --noEmit",
-		"check": "biome check . && tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && vitest run && vite build",
+		"check": "biome check . && tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && tsc --noEmit -p tsconfig.server.json && vitest run && vite build",
 		"screenshot": "npx playwright test e2e/preview.spec.ts --grep screenshot",
 		"interact": "INTERACT=1 HEADED=1 npx playwright test e2e/preview.spec.ts --grep interact",
 		"prepare": "husky",
@@ -50,6 +51,7 @@
 		"jsdom": "^27.0.1",
 		"lil-gui": "^0.21.0",
 		"lint-staged": "^16.4.0",
+		"tsx": "^4.21.0",
 		"typescript": "^5.9.3",
 		"vite": "^8.0.0",
 		"vite-plugin-glsl": "^1.5.6",
@@ -57,8 +59,11 @@
 		"vitest": "^3.2.4"
 	},
 	"dependencies": {
+		"@hono/node-server": "^1.19.12",
 		"@mediapipe/tasks-vision": "^0.10.32",
+		"hono": "^4.12.9",
 		"qrcode": "^1.5.4",
+		"selfsigned": "^5.5.0",
 		"ws": "^8.19.0"
 	}
 }
