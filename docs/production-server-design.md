@@ -98,9 +98,13 @@ All implementations are provided via environment config at startup — not condi
 
 **Build info** is static metadata baked at build time (`__BUILD_HASH__`, build timestamp). The server exposes `GET /api/build-info` returning this. The client polls it and shows "new version available, reload" when the server's hash differs from the hash the client loaded with. No git, no remote comparison — just "is my code stale relative to the server."
 
-**Presets** are persisted via `PresetStore` and served over the REST API. The server is authoritative for the preset catalog. Individual clients may cache in localStorage but the server is the source of truth for what presets exist and their contents.
+**Presets** are durably persisted via `PresetStore` and served over the REST API. The server is authoritative for the preset catalog. Presets must survive server restarts. Individual clients may cache in localStorage but the server is the source of truth for what presets exist and their contents.
+
+**Clips** are ephemeral. The `ClipStore` holds captured clips long enough for the admin to download them, but durable storage is not required. Clips may be lost on server restart — this is acceptable.
 
 **Live parameters** are runtime state propagated via WebSocket. The piece is authoritative — when an admin changes a param, it sends a `paramUpdate` to the piece, the piece applies it and echoes the full state back to all admins. No server persistence of live params (they're ephemeral per-session, restored from presets on reload).
+
+**Reconnect / state sync:** When a new admin client connects, it sends a `requestState` message. The piece responds with its current state (running/lobby, active preset, all live param values). This ensures late-joining admins see the current state without requiring server-side state caching. If the piece reloads or disconnects, admin clients show "disconnected" state and re-sync when the piece reconnects.
 
 ### WebSocket relay (already built)
 
@@ -144,16 +148,11 @@ fly deploy
 
 ## Design Decisions
 
-### Framework: Fastify
-Fastify over Express for better TypeScript ergonomics and cleaner WebSocket upgrade handling. Over bare `http` for ergonomic JSON endpoints. Not a critical decision at this scale — any would work.
+### Framework: Hono
+Hono over Fastify/Express for lighter weight (~14kb), cleaner TypeScript types, and multi-runtime support (Node.js, Cloudflare Workers, Deno, Bun). For a ~150 line server with 3 JSON endpoints and a WebSocket upgrade, the full feature set of Fastify/Express is unnecessary. Not a critical decision at this scale.
 
 ### HTTPS for LAN admin
-The piece runs on `http://localhost` (secure context in Chrome). The phone admin connects over LAN and needs HTTPS for WebSocket (`wss://`). Options:
-- **Self-signed cert at startup** (like Vite's `basicSsl`) — works, but phone shows cert warning
-- **`http://` for everything** — WebSocket works over `ws://` on LAN, but some browsers may block mixed content
-- **mkcert** — trusted local certs, one-time setup per machine
-
-Leaning self-signed for simplicity. The cert warning is a one-time dismiss on the phone.
+The piece runs on `http://localhost` (secure context in Chrome, no TLS needed). The phone admin connects over LAN and needs HTTPS for WebSocket (`wss://`). The server generates a self-signed certificate at startup (same approach as Vite's `@vitejs/plugin-basic-ssl`). The phone shows a one-time cert warning on first connect — acceptable for this use case. Cloud deployments use platform-provided TLS.
 
 ### Vite remains for development
 `npm run dev` continues using Vite with HMR. The Vite WS plugin and the production server both use the same `relay.ts` module. Development workflow is unchanged.
@@ -176,5 +175,5 @@ Leaning self-signed for simplicity. The cert warning is a one-time dismiss on th
 
 - **PartyKit / serverless platforms** — evaluated, rejected. Adds complexity for no benefit at this scale.
 - **Docker** — not needed for current targets. Can be added trivially later (the server is a single `node` process).
-- **Authentication** — low-risk for this project. Admin access is localhost or LAN. Cloud version is low-traffic and not a sensitive target. Can be added later if needed.
+- **Authentication** — local/LAN deployments are trusted environments. Cloud admin is accepted as low-risk given the low traffic and non-sensitive nature of the controls (worst case: someone changes visual parameters). A lightweight admin token can be added later if needed, but is not required for v1.
 - **Database** — no persistent state beyond presets (flat JSON) and clips (filesystem).
