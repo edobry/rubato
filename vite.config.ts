@@ -5,6 +5,8 @@ import { defineConfig, type Plugin } from "vite";
 import glsl from "vite-plugin-glsl";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import { buildInfo } from "./server/build-info.js";
+import { presetSyncPlugin } from "./server/preset-api.js";
+import { FilePresetStore } from "./server/preset-store.js";
 import { wsPlugin } from "./src/ws/plugin.js";
 
 /** Try running a Tailscale CLI command at the given path. */
@@ -94,6 +96,9 @@ export default defineConfig(({ mode }) => {
 			basicSsl(),
 			glsl(),
 			buildInfoPlugin(),
+			presetSyncPlugin(
+				new FilePresetStore(resolve(__dirname, "custom-presets.json")),
+			),
 			wsPlugin(),
 			viteStaticCopy({
 				targets: [
