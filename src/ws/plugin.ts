@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Plugin } from "vite";
 import { type WebSocket, WebSocketServer } from "ws";
+import { FileClipStore } from "../../server/clip-store.js";
 import { Relay } from "./relay.js";
 
 export function wsPlugin(): Plugin {
@@ -20,28 +21,27 @@ export function wsPlugin(): Plugin {
 			});
 
 			// Clip upload/serve endpoints
-			const clipsDir = path.join(process.cwd(), ".clips");
-			fs.mkdirSync(clipsDir, { recursive: true });
+			const store = new FileClipStore(path.join(process.cwd(), ".clips"));
 
 			server.middlewares.use("/clips", (req, res, next) => {
 				if (req.method === "POST") {
 					const filename = `clip-${Date.now()}.webm`;
-					const filepath = path.join(clipsDir, filename);
 					const chunks: Buffer[] = [];
 					req.on("data", (chunk: Buffer) => chunks.push(chunk));
 					req.on("end", () => {
-						fs.writeFileSync(filepath, Buffer.concat(chunks));
-						res.writeHead(200, {
-							"Content-Type": "application/json",
+						void store.save(filename, Buffer.concat(chunks)).then((url) => {
+							res.writeHead(200, {
+								"Content-Type": "application/json",
+							});
+							res.end(JSON.stringify({ url }));
 						});
-						res.end(JSON.stringify({ url: `/clips/${filename}` }));
 					});
 					return;
 				}
 
 				if (req.method === "GET") {
 					const filename = req.url?.replace(/^\//, "") ?? "";
-					const filepath = path.join(clipsDir, filename);
+					const filepath = store.filePath(filename);
 					if (fs.existsSync(filepath)) {
 						res.writeHead(200, {
 							"Content-Type": "video/webm",
