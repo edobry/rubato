@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import path from "node:path";
 import { serve } from "@hono/node-server";
@@ -16,6 +17,7 @@ import { FilePresetStore } from "./preset-store.js";
 // ---------------------------------------------------------------------------
 
 const PORT = Number(process.env.PORT) || 5173;
+const useTls = process.env.TLS !== "false";
 const DIST_DIR = path.resolve(import.meta.dirname, "..", "dist");
 const PRESETS_FILE = path.resolve(
 	import.meta.dirname,
@@ -148,22 +150,37 @@ wss.on("connection", (ws) => {
 // ---------------------------------------------------------------------------
 
 async function main() {
-	const tlsCert = await generateCert();
+	const serverOptions = useTls
+		? {
+				createServer: createHttpsServer,
+				serverOptions: await generateCert().then((c) => ({
+					key: c.key,
+					cert: c.cert,
+				})),
+			}
+		: { createServer: createHttpServer };
+
+	const protocol = useTls ? "https" : "http";
 
 	const server = serve(
 		{
 			fetch: app.fetch,
 			port: PORT,
-			createServer: createHttpsServer,
-			serverOptions: { key: tlsCert.key, cert: tlsCert.cert },
+			...serverOptions,
 		},
 		(info) => {
 			console.log("[rubato] Production server started");
 			console.log(`[rubato]   Port:  ${info.port}`);
-			console.log("[rubato]   HTTPS: enabled (self-signed)");
+			console.log(
+				`[rubato]   TLS:   ${useTls ? "enabled (self-signed)" : "disabled"}`,
+			);
 			console.log(`[rubato]   Build: ${buildHash} (${buildTime})`);
-			console.log(`[rubato]   Piece: https://localhost:${info.port}/`);
-			console.log(`[rubato]   Admin: https://localhost:${info.port}/admin/`);
+			console.log(
+				`[rubato]   Piece: ${protocol}://localhost:${info.port}/`,
+			);
+			console.log(
+				`[rubato]   Admin: ${protocol}://localhost:${info.port}/admin/`,
+			);
 		},
 	);
 

@@ -130,7 +130,7 @@ Routes 14 message types between piece clients and admin clients. Currently used 
 |--------|-----------|-----------|-----------|-------|
 | Gallery (Mac Mini) | `node server/` on Mac Mini | `http://localhost:3000` | `https://<tailscale>:3000/admin/` | launchd auto-start, Chrome kiosk |
 | Home/event (laptop) | `node server/` on laptop | `http://localhost:3000` | `https://<laptop-ip>:3000/admin/` | HDMI to TV, phone admin over LAN |
-| Cloud (Fly.io) | `fly deploy` | `https://rubato.fly.dev` | `https://rubato.fly.dev/admin/` | Platform TLS, persistent volume |
+| Cloud (Fly.io) | `fly deploy` | `https://rubato.fly.dev` | `https://rubato.fly.dev/admin/` | Platform TLS (`TLS=false`), persistent volume |
 
 ### Deployment workflow
 
@@ -153,6 +153,8 @@ Hono over Fastify/Express for lighter weight (~14kb), cleaner TypeScript types, 
 
 ### HTTPS for LAN admin
 The piece runs on `http://localhost` (secure context in Chrome, no TLS needed). The phone admin connects over LAN and needs HTTPS for WebSocket (`wss://`). The server generates a self-signed certificate at startup (same approach as Vite's `@vitejs/plugin-basic-ssl`). The phone shows a one-time cert warning on first connect — acceptable for this use case. Cloud deployments use platform-provided TLS.
+
+TLS is enabled by default. Set `TLS=false` to disable self-signed cert generation and run plain HTTP — useful for cloud platforms (Fly.io, Railway, etc.) that terminate TLS at the edge via a reverse proxy.
 
 ### Vite remains for development
 `npm run dev` continues using Vite with HMR. The Vite WS plugin and the production server both use the same `relay.ts` module. Development workflow is unchanged.
