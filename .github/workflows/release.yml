@@ -6,12 +6,50 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v4
         with:
-          release-type: node
+          fetch-depth: 0
+
+      - name: Check if release-worthy
+        id: check
+        run: |
+          MSG=$(git log -1 --pretty=%s)
+          if echo "$MSG" | grep -qE '^(feat|fix|perf)(\(.+\))?!?:'; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            if echo "$MSG" | grep -qE '^feat(\(.+\))?!?:'; then
+              echo "bump=minor" >> "$GITHUB_OUTPUT"
+            else
+              echo "bump=patch" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version and tag
+        if: steps.check.outputs.release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          NEW_VERSION=$(npm version ${{ steps.check.outputs.bump }} --no-git-tag-version)
+          git add package.json package-lock.json
+          git commit -m "chore: release ${NEW_VERSION}"
+          git tag "${NEW_VERSION}"
+          git push origin master --tags
+
+      - name: Create GitHub release
+        if: steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
+          NOTES=$(git log ${PREV_TAG}..HEAD~1 --pretty=format:"- %s" --no-merges)
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes "${NOTES}" \
+            --target master
