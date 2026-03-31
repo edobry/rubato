@@ -13,6 +13,6 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
 COPY --from=build /app/src/ws ./src/ws
 COPY package.json package-lock.json tsconfig.server.json ./
-RUN npm ci --omit=dev && npm install tsx
+RUN npm ci --omit=dev --ignore-scripts && npm install tsx
 EXPOSE 5173
 CMD ["npx", "tsx", "server/index.ts"]
