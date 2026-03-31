@@ -101,7 +101,25 @@ The server is configured with `--ignore-https-errors` (for the self-signed Vite 
 
 ## Git Workflow
 
-Commit proactively after every logical unit of work — don't wait to be asked. A "logical unit" is any coherent change: scaffolding a module, wiring up a pipeline stage, fixing a bug, adding a shader. Small, frequent commits are better than large, infrequent ones. Write concise commit messages that explain *why*, not just *what*. Always run Biome before committing and fix any issues.
+Commit proactively after every logical unit of work — don't wait to be asked. A "logical unit" is any coherent change: scaffolding a module, wiring up a pipeline stage, fixing a bug, adding a shader. Small, frequent commits are better than large, infrequent ones. Always run Biome before committing and fix any issues.
+
+**Conventional commits are enforced** via commitlint. Every commit message MUST follow the format:
+
+```
+type: short description
+
+Optional longer body explaining why.
+```
+
+Types: `feat` (new feature), `fix` (bug fix), `chore` (tooling, deps, config), `refactor` (code restructure, no behavior change), `docs` (documentation), `style` (formatting), `perf` (performance), `test` (tests).
+
+Examples:
+- `feat: add fullscreen toggle with F key`
+- `fix: suppress motion deposition inside body to eliminate outline`
+- `chore: update deploy script for build artifacts`
+- `refactor: extract PresetStore interface from Vite plugin`
+
+Commits that don't follow this format will be rejected by the pre-commit hook. **Pushes to master auto-deploy to Fly.io** via GitHub Actions. release-please automatically creates release PRs and GitHub releases from conventional commits.
 
 ## Task Management
 
