@@ -15,7 +15,7 @@ import { FilePresetStore } from "./preset-store.js";
 // Config
 // ---------------------------------------------------------------------------
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 5173;
 const DIST_DIR = path.resolve(import.meta.dirname, "..", "dist");
 const PRESETS_FILE = path.resolve(
 	import.meta.dirname,
