@@ -19,12 +19,11 @@ import { FilePresetStore } from "./preset-store.js";
 const PORT = Number(process.env.PORT) || 5173;
 const useTls = process.env.TLS !== "false";
 const DIST_DIR = path.resolve(import.meta.dirname, "..", "dist");
-const PRESETS_FILE = path.resolve(
-	import.meta.dirname,
-	"..",
-	"custom-presets.json",
-);
-const CLIPS_DIR = path.resolve(import.meta.dirname, "..", ".clips");
+
+// Use /data mount (Fly.io volume) if available, otherwise local paths
+const DATA_DIR = fs.existsSync("/data") ? "/data" : path.resolve(import.meta.dirname, "..");
+const PRESETS_FILE = path.resolve(DATA_DIR, "custom-presets.json");
+const CLIPS_DIR = path.resolve(DATA_DIR, ".clips");
 
 // Build info — read git hash once at startup
 let buildHash = "unknown";
