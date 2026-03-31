@@ -72,8 +72,18 @@ export class WsClient {
 		if (role === "admin") {
 			this.adminId = crypto.randomUUID();
 		}
-		const proto = location.protocol === "https:" ? "wss:" : "ws:";
-		this.url = `${proto}//${location.host}/ws`;
+		const wsMeta = document
+			.querySelector('meta[name="rubato-ws"]')
+			?.getAttribute("content");
+		if (wsMeta?.startsWith("ws")) {
+			// Absolute WebSocket URL provided (e.g. wss://example.com/ws)
+			this.url = wsMeta;
+		} else {
+			// Relative path — resolve against current origin
+			const proto = location.protocol === "https:" ? "wss:" : "ws:";
+			const path = wsMeta || "/ws";
+			this.url = `${proto}//${location.host}${path}`;
+		}
 		this.connect();
 	}
 
