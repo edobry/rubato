@@ -6,6 +6,9 @@ export interface BuildInfo {
 }
 
 function getGitHash(): string {
+	if (process.env.BUILD_HASH && process.env.BUILD_HASH !== "unknown") {
+		return process.env.BUILD_HASH;
+	}
 	try {
 		return execSync("git rev-parse --short HEAD", {
 			encoding: "utf-8",
