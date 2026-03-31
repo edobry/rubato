@@ -204,10 +204,8 @@ async function main(ws?: WsClient): Promise<void> {
 	// Hide cursor for gallery display. Always hidden — no mouse interaction expected.
 	document.body.style.cursor = "none";
 
-	// Dev GUI — toggle with G key (loads presets which may override params)
-	if (import.meta.env.VITE_DEV_GUI === "true") {
-		initGui();
-	}
+	// GUI panel — toggle with G key (loads presets which may override params)
+	initGui();
 
 	// Enforce performance floors AFTER presets load (presets are creative-only
 	// but older presets may have included perf params before we split them)
