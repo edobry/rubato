@@ -1,4 +1,8 @@
-import { CREATIVE_PARAMS, type ParamControlDef } from "../param-schema.js";
+import {
+	CREATIVE_PARAMS,
+	ENVIRONMENT_PARAMS,
+	type ParamControlDef,
+} from "../param-schema.js";
 
 const PANEL_STATE_KEY = "rubato-admin-panel-state";
 
@@ -97,8 +101,9 @@ export function createParamsPanel(options: {
 		setExpanded: (open: boolean) => void;
 	}[] = [];
 
-	// Build sections
-	for (const section of CREATIVE_PARAMS) {
+	// Build sections from both environment and creative params
+	const allSections = [...ENVIRONMENT_PARAMS, ...CREATIVE_PARAMS];
+	for (const section of allSections) {
 		const sectionEl = document.createElement("div");
 		sectionEl.className = "param-section";
 

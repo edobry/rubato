@@ -17,7 +17,11 @@ import type { Controller } from "lil-gui";
 import GUI from "lil-gui";
 import { autoTuneState, onLogChange } from "./autotune";
 import { detectDevice } from "./device";
-import { CREATIVE_PARAMS, type ParamControlDef } from "./param-schema.js";
+import {
+	CREATIVE_PARAMS,
+	ENVIRONMENT_PARAMS,
+	type ParamControlDef,
+} from "./param-schema.js";
 import { onParamChange, params } from "./params";
 import { getPerfSummary } from "./perf";
 import {
@@ -547,6 +551,15 @@ export function initGui(): void {
 		.name("Import Presets");
 
 	presetsFolder.open();
+
+	// ── Environment section (per-machine display settings, not saved in presets) ──
+	const environment = gui.addFolder("Environment");
+	for (const section of ENVIRONMENT_PARAMS) {
+		for (const control of section.controls) {
+			addControl(environment, control);
+		}
+	}
+	environment.close();
 
 	// ── Creative section (driven by shared param schema) ────────────
 	const creative = gui.addFolder("Creative");

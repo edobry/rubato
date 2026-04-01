@@ -27,6 +27,33 @@ export interface ParamSectionDef {
  * IMPORTANT: If you change param ranges in gui.ts, update them here too.
  * Eventually gui.ts should also import from this schema.
  */
+/**
+ * Environment params — per-machine display settings that are NOT saved in presets.
+ * These depend on the physical setup (camera, screen) rather than the artistic look.
+ */
+export const ENVIRONMENT_PARAMS: ParamSectionDef[] = [
+	{
+		name: "Environment",
+		controls: [
+			{
+				section: "camera",
+				key: "showFeed",
+				label: "Show Camera Feed",
+				type: "toggle",
+			},
+			{
+				section: "camera",
+				key: "fillAmount",
+				label: "Fill / Fit",
+				type: "slider",
+				min: 0,
+				max: 1,
+				step: 0.05,
+			},
+		],
+	},
+];
+
 export const CREATIVE_PARAMS: ParamSectionDef[] = [
 	{
 		name: "Display",
