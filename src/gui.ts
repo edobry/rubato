@@ -866,12 +866,14 @@ export function initGui(): void {
 			}
 
 			case "ArrowLeft": {
+				if (!isGuiVisible()) break;
 				e.preventDefault();
 				adjustSelected(-1, e.shiftKey);
 				break;
 			}
 
 			case "ArrowRight": {
+				if (!isGuiVisible()) break;
 				e.preventDefault();
 				adjustSelected(1, e.shiftKey);
 				break;

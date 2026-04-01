@@ -52,6 +52,7 @@ import {
 	perfFrameStart,
 	perfMark,
 } from "./perf";
+import { initPresetSwitcher } from "./preset-switcher";
 import { getPresetFromUrl } from "./preset-url.js";
 import {
 	applyPreset,
@@ -203,6 +204,9 @@ async function main(ws?: WsClient): Promise<void> {
 	// GUI panel — toggle with G key (loads presets which may override params)
 	initGui();
 
+	// Preset switcher — arrow keys / swipe to cycle presets when panel is closed
+	initPresetSwitcher();
+
 	// Watermark — subtle "時痕" in bottom-left, click to return to lobby
 	initInfoWatermark();
 
@@ -227,7 +231,8 @@ async function main(ws?: WsClient): Promise<void> {
 				pointer-events: none;
 				-webkit-font-smoothing: antialiased;
 			`;
-			hint.textContent = "press Tab to shape the visuals";
+			hint.textContent =
+				"press Tab to customize \u00b7 \u2190 \u2192 to browse presets";
 			document.body.appendChild(hint);
 
 			// Fade in

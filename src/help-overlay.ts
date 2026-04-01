@@ -86,6 +86,10 @@ const SHORTCUTS: ShortcutSection[] = [
 	{
 		entries: [
 			{ key: "Tab", desc: "Toggle params panel" },
+			{
+				key: "\u2190 / \u2192",
+				desc: "Browse presets (when panel is closed)",
+			},
 			{ key: "F", desc: "Toggle fullscreen" },
 			{ key: "S", desc: "Toggle stats/FPS overlay" },
 			{ key: "A", desc: "Toggle admin overlay" },
