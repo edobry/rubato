@@ -34,6 +34,12 @@ import {
 	isHelpOverlayVisible,
 	toggleHelpOverlay,
 } from "./help-overlay";
+import {
+	hideInfoPanel,
+	initInfoWatermark,
+	isInfoPanelVisible,
+	toggleInfoPanel,
+} from "./info-watermark";
 import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
 import {
 	detectMotion,
@@ -202,6 +208,9 @@ async function main(ws?: WsClient): Promise<void> {
 	// GUI panel — toggle with G key (loads presets which may override params)
 	initGui();
 
+	// Info watermark — subtle "時痕" in bottom-left, click or I key for about panel
+	initInfoWatermark();
+
 	// Enforce performance floors AFTER presets load (presets are creative-only
 	// but older presets may have included perf params before we split them)
 	if (device.isConstrained) {
@@ -228,7 +237,9 @@ async function main(ws?: WsClient): Promise<void> {
 			}
 		} else if (e.key === "Enter") {
 			// Dismiss overlays (Escape is eaten by the browser in fullscreen)
-			if (isHelpOverlayVisible()) {
+			if (isInfoPanelVisible()) {
+				hideInfoPanel();
+			} else if (isHelpOverlayVisible()) {
 				hideHelpOverlay();
 			} else if (isAdminOverlayVisible()) {
 				hideAdminOverlay();
@@ -238,11 +249,15 @@ async function main(ws?: WsClient): Promise<void> {
 		} else if (e.key === "?") {
 			if (isAdminOverlayVisible()) hideAdminOverlay();
 			toggleHelpOverlay();
+		} else if (e.key === "i" || e.key === "I") {
+			toggleInfoPanel();
 		} else if (e.key === "l" || e.key === "L") {
 			localStorage.removeItem(PIECE_STATE_KEY);
 			location.reload();
 		} else if (e.key === "Escape") {
-			if (isHelpOverlayVisible()) {
+			if (isInfoPanelVisible()) {
+				hideInfoPanel();
+			} else if (isHelpOverlayVisible()) {
 				hideHelpOverlay();
 			} else if (isAdminOverlayVisible()) {
 				hideAdminOverlay();
@@ -754,7 +769,11 @@ function boot(): void {
 		}
 	});
 
-	const shouldResume = localStorage.getItem(PIECE_STATE_KEY) === "running";
+	// Auto-resume only on localhost (gallery kiosk). Hosted visitors always see the lobby.
+	const isLocal =
+		location.hostname === "localhost" || location.hostname === "127.0.0.1";
+	const shouldResume =
+		isLocal && localStorage.getItem(PIECE_STATE_KEY) === "running";
 
 	if (shouldResume) {
 		// Auto-resume: skip lobby, go straight to piece
