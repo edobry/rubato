@@ -299,8 +299,8 @@ shareBtn.addEventListener("click", () => {
 	);
 });
 
-// Insert preset section right after carousel (before preview/controls)
-container.insertBefore(presetSection, previewSection);
+// Insert preset section after preview (carousel → preview → presets → controls)
+container.insertBefore(presetSection, controls);
 
 // Params panel (hidden by default, expandable)
 const paramsPanel = createParamsPanel({
