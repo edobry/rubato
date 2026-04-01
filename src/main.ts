@@ -34,12 +34,7 @@ import {
 	isHelpOverlayVisible,
 	toggleHelpOverlay,
 } from "./help-overlay";
-import {
-	hideInfoPanel,
-	initInfoWatermark,
-	isInfoPanelVisible,
-	toggleInfoPanel,
-} from "./info-watermark";
+import { initInfoWatermark } from "./info-watermark";
 import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
 import {
 	detectMotion,
@@ -237,9 +232,7 @@ async function main(ws?: WsClient): Promise<void> {
 			}
 		} else if (e.key === "Enter") {
 			// Dismiss overlays (Escape is eaten by the browser in fullscreen)
-			if (isInfoPanelVisible()) {
-				hideInfoPanel();
-			} else if (isHelpOverlayVisible()) {
+			if (isHelpOverlayVisible()) {
 				hideHelpOverlay();
 			} else if (isAdminOverlayVisible()) {
 				hideAdminOverlay();
@@ -249,15 +242,11 @@ async function main(ws?: WsClient): Promise<void> {
 		} else if (e.key === "?") {
 			if (isAdminOverlayVisible()) hideAdminOverlay();
 			toggleHelpOverlay();
-		} else if (e.key === "i" || e.key === "I") {
-			toggleInfoPanel();
 		} else if (e.key === "l" || e.key === "L") {
 			localStorage.removeItem(PIECE_STATE_KEY);
 			location.reload();
 		} else if (e.key === "Escape") {
-			if (isInfoPanelVisible()) {
-				hideInfoPanel();
-			} else if (isHelpOverlayVisible()) {
+			if (isHelpOverlayVisible()) {
 				hideHelpOverlay();
 			} else if (isAdminOverlayVisible()) {
 				hideAdminOverlay();

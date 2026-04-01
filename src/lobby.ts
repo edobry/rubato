@@ -69,9 +69,9 @@ const STYLES = {
 		flex-direction: column;
 		align-items: center;
 		gap: 6px;
-		color: #666;
-		font-size: 11px;
-		letter-spacing: 0.05em;
+		color: #999;
+		font-size: 12px;
+		letter-spacing: 0.08em;
 		animation: lobbyBounce 2s ease-in-out infinite;
 	`,
 	aboutSection: `

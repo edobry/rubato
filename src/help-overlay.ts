@@ -89,7 +89,6 @@ const SHORTCUTS: ShortcutSection[] = [
 			{ key: "G", desc: "Toggle parameter GUI panel" },
 			{ key: "S", desc: "Toggle stats/FPS overlay" },
 			{ key: "A", desc: "Toggle admin overlay" },
-			{ key: "I", desc: "Toggle info/about panel" },
 			{ key: "L", desc: "Return to lobby" },
 			{ key: "E", desc: "Export current params to clipboard" },
 			{ key: "?", desc: "Toggle this help menu" },
