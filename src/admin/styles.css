@@ -160,30 +160,87 @@ body {
 	color: #ddd;
 }
 
-/* --- Preset info row (secondary) --- */
+/* --- Preset Carousel --- */
 
-.preset-info {
-	margin-top: 14px;
-	padding-top: 12px;
-	border-top: 1px solid #1a1a1a;
-	font-size: 12px;
+.preset-carousel {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
+	gap: 0;
+	padding: 12px 0 4px;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
-.preset-info .label {
-	font-size: 10px;
-	color: #444;
-	text-transform: uppercase;
-	letter-spacing: 0.15em;
+.carousel-arrow {
+	appearance: none;
+	background: transparent;
+	border: 1px solid transparent;
+	color: #555;
+	font-size: 32px;
+	font-weight: 300;
+	line-height: 1;
+	width: 48px;
+	min-width: 48px;
+	height: 48px;
+	min-height: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	padding: 0;
+	transition:
+		color 0.15s ease,
+		background 0.15s ease;
+	flex-shrink: 0;
 }
 
-.preset-info .value {
-	font-size: 13px;
-	color: #999;
-	font-weight: 400;
+.carousel-arrow:active {
+	color: #fff;
+	background: rgba(255, 255, 255, 0.05);
+}
+
+@media (hover: hover) {
+	.carousel-arrow:hover:not(:disabled) {
+		color: #999;
+	}
+}
+
+.carousel-arrow:disabled {
+	color: #2a2a2a;
+	cursor: not-allowed;
+}
+
+.carousel-center {
+	flex: 1;
+	text-align: center;
+	min-width: 0;
+}
+
+.carousel-name {
+	font-size: 20px;
+	font-weight: 300;
+	letter-spacing: 0.06em;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.carousel-desc {
+	font-size: 12px;
+	color: #777;
+	letter-spacing: 0.03em;
+	margin-top: 4px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-height: 18px;
+}
+
+/* Stale state for carousel */
+.piece-state.stale ~ .preset-carousel .carousel-name {
+	color: #555;
 }
 
 /* --- Section Card --- */
@@ -683,10 +740,6 @@ body {
 
 /* Stale state (disconnected) */
 .piece-state.stale > .value {
-	color: #555;
-}
-
-.piece-state.stale .preset-info .value {
 	color: #555;
 }
 

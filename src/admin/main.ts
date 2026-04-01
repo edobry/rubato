@@ -5,6 +5,16 @@ import { createParamsPanel } from "./params-panel.js";
 
 const ws = new WsClient("admin");
 
+// --- Preset descriptions for carousel ---
+
+const PRESET_DESCRIPTIONS: Record<string, string> = {
+	default: "default parameters",
+	taichi: "shadow fog \u00b7 flowing trails",
+	"shadow realm": "imprint \u00b7 anisotropic \u00b7 dark fog",
+	sarahdance: "butoh performance \u00b7 subtle trails",
+	silhouette: "monochrome \u00b7 clean outlines",
+};
+
 // --- Build UI ---
 
 const container = document.createElement("div");
@@ -39,19 +49,63 @@ stateValue.textContent = "—";
 stateSection.appendChild(stateLabel);
 stateSection.appendChild(stateValue);
 
-const presetInfo = document.createElement("div");
-presetInfo.className = "preset-info";
-const presetInfoLabel = document.createElement("span");
-presetInfoLabel.className = "label";
-presetInfoLabel.textContent = "Preset";
-const presetInfoValue = document.createElement("span");
-presetInfoValue.className = "value";
-presetInfoValue.textContent = "—";
-presetInfo.appendChild(presetInfoLabel);
-presetInfo.appendChild(presetInfoValue);
-stateSection.appendChild(presetInfo);
-
 container.appendChild(stateSection);
+
+// --- Preset Carousel ---
+
+const carousel = document.createElement("div");
+carousel.className = "preset-carousel";
+
+const carouselPrev = document.createElement("button");
+carouselPrev.className = "carousel-arrow carousel-prev";
+carouselPrev.textContent = "\u2039";
+carouselPrev.setAttribute("aria-label", "Previous preset");
+
+const carouselCenter = document.createElement("div");
+carouselCenter.className = "carousel-center";
+
+const carouselName = document.createElement("div");
+carouselName.className = "carousel-name";
+carouselName.textContent = "\u2014";
+
+const carouselDesc = document.createElement("div");
+carouselDesc.className = "carousel-desc";
+carouselDesc.textContent = "";
+
+carouselCenter.appendChild(carouselName);
+carouselCenter.appendChild(carouselDesc);
+
+const carouselNext = document.createElement("button");
+carouselNext.className = "carousel-arrow carousel-next";
+carouselNext.textContent = "\u203a";
+carouselNext.setAttribute("aria-label", "Next preset");
+
+carousel.appendChild(carouselPrev);
+carousel.appendChild(carouselCenter);
+carousel.appendChild(carouselNext);
+container.appendChild(carousel);
+
+function getPresetDescription(name: string): string {
+	if (PRESET_DESCRIPTIONS[name]) return PRESET_DESCRIPTIONS[name];
+	// Fallback: show visualization mode from current params if available
+	const vizMode = currentParams.visualization?.mode;
+	if (typeof vizMode === "string") return vizMode;
+	return "";
+}
+
+function updateCarousel(): void {
+	carouselName.textContent = activePreset || "\u2014";
+	carouselDesc.textContent = activePreset
+		? getPresetDescription(activePreset)
+		: "";
+	const canCycle =
+		connected && currentPieceState === "running" && presetList.length > 1;
+	carouselPrev.disabled = !canCycle;
+	carouselNext.disabled = !canCycle;
+}
+
+carouselPrev.addEventListener("click", () => cycleAdminPreset(-1));
+carouselNext.addEventListener("click", () => cycleAdminPreset(1));
 
 // Live Preview
 const previewSection = document.createElement("div");
@@ -468,7 +522,8 @@ ws.onState((state: StateMessage) => {
 	stateValue.textContent = labels[state.state] ?? state.state;
 
 	if (state.preset) {
-		presetInfoValue.textContent = state.preset;
+		activePreset = state.preset;
+		updateCarousel();
 	}
 
 	if (state.guiVisible !== undefined) {
@@ -491,7 +546,7 @@ ws.onParamState((msg) => {
 ws.onPresetList((msg) => {
 	presetList = msg.presets;
 	activePreset = msg.active;
-	presetInfoValue.textContent = msg.active;
+	updateCarousel();
 
 	// Rebuild dropdown
 	presetSelect.innerHTML = "";
@@ -542,7 +597,8 @@ ws.onConnectionChange((isConnected: boolean) => {
 		// Mark state info as stale
 		currentPieceState = "unknown";
 		stateValue.textContent = "Unknown";
-		presetInfoValue.textContent = "Unknown";
+		activePreset = "";
+		updateCarousel();
 		stateSection.classList.add("stale");
 
 		// Disable params panel and preset controls
@@ -611,9 +667,11 @@ function cycleAdminPreset(direction: 1 | -1): void {
 	idx = (idx + direction + presetList.length) % presetList.length;
 
 	const preset = presetList[idx]!;
+	activePreset = preset.name;
 	presetSelect.value = preset.name;
 	presetNameInput.value = preset.name;
 	ws.sendPresetCommand("apply", preset.name);
+	updateCarousel();
 	showToast(preset.name);
 	updatePresetButtons();
 }
