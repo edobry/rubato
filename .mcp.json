@@ -1,5 +1,9 @@
 {
 	"mcpServers": {
+		"cloudflare": {
+			"command": "npx",
+			"args": ["mcp-remote", "https://mcp.cloudflare.com/mcp"]
+		},
 		"fly": {
 			"command": "fly",
 			"args": ["mcp", "server"]

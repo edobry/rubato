@@ -128,9 +128,9 @@ Routes 14 message types between piece clients and admin clients. Currently used 
 
 | Target | Run command | Piece URL | Admin URL | Notes |
 |--------|-----------|-----------|-----------|-------|
-| Gallery (Mac Mini) | `node server/` on Mac Mini | `http://localhost:3000` | `https://<tailscale>:3000/admin/` | launchd auto-start, Chrome kiosk |
-| Home/event (laptop) | `node server/` on laptop | `http://localhost:3000` | `https://<laptop-ip>:3000/admin/` | HDMI to TV, phone admin over LAN |
-| Cloud (Fly.io) | `fly deploy` | `https://rubato.fly.dev` | `https://rubato.fly.dev/admin/` | Platform TLS (`TLS=false`), persistent volume |
+| Gallery (Mac Mini) | `node server/` on Mac Mini | `http://localhost:5173` | `https://<tailscale>:5173/admin/` | launchd auto-start, Chrome kiosk |
+| Home/event (laptop) | `node server/` on laptop | `http://localhost:5173` | `https://<laptop-ip>:5173/admin/` | HDMI to TV, phone admin over LAN |
+| Cloud (Fly.io) | `fly deploy` | `https://rubato.dobry.me` | `https://rubato.dobry.me/admin/` | Custom domain, Let's Encrypt TLS, persistent volume |
 
 ### Deployment workflow
 
