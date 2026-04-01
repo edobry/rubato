@@ -777,8 +777,11 @@ function boot(): void {
 	const lobbyEl = showLobby();
 	document.body.appendChild(lobbyEl);
 
-	// Tap anywhere on lobby to start
-	lobbyEl.addEventListener("click", () => startPiece(ws, lobbyEl));
+	// Tap on hero section to start (not the about section below)
+	const heroEl = lobbyEl.querySelector<HTMLElement>("[data-role='hero']");
+	if (heroEl) {
+		heroEl.addEventListener("click", () => startPiece(ws, lobbyEl));
+	}
 
 	ws.onConnectionChange((connected) => {
 		if (connected) {

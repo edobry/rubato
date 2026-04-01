@@ -5,14 +5,19 @@ const STYLES = {
 		position: fixed;
 		inset: 0;
 		background: #000;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		overflow-y: auto;
 		z-index: 10000;
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 		color: #fff;
 		-webkit-font-smoothing: antialiased;
+	`,
+	hero: `
+		min-height: 100vh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		cursor: pointer;
+		position: relative;
 	`,
 	inner: `
 		display: flex;
@@ -62,11 +67,72 @@ const STYLES = {
 		text-transform: uppercase;
 		margin: 0;
 	`,
+	scrollIndicator: `
+		position: absolute;
+		bottom: 32px;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		color: #333;
+		font-size: 11px;
+		letter-spacing: 0.05em;
+		animation: lobbyPulse 2.5s ease-in-out infinite;
+	`,
+	aboutSection: `
+		padding: 80px 24px 120px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	`,
+	aboutInner: `
+		max-width: 600px;
+		width: 100%;
+	`,
+	aboutSeparator: `
+		width: 40px;
+		height: 1px;
+		background: #333;
+		border: none;
+		margin: 0 auto 60px;
+	`,
+	aboutParagraph: `
+		font-size: 15px;
+		font-weight: 300;
+		line-height: 1.7;
+		color: #999;
+		margin: 0 0 28px 0;
+	`,
+	aboutNote: `
+		font-size: 12px;
+		font-weight: 300;
+		line-height: 1.6;
+		color: #555;
+		margin: 40px 0 0 0;
+		font-style: italic;
+	`,
 } as const;
 
 export function showLobby(): HTMLElement {
 	const overlay = document.createElement("div");
 	overlay.style.cssText = STYLES.overlay;
+
+	// Inject keyframes for scroll indicator pulse
+	const styleTag = document.createElement("style");
+	styleTag.textContent = `
+		@keyframes lobbyPulse {
+			0%, 100% { opacity: 0.4; }
+			50% { opacity: 1; }
+		}
+	`;
+	overlay.appendChild(styleTag);
+
+	// Hero section (first viewport)
+	const hero = document.createElement("div");
+	hero.style.cssText = STYLES.hero;
+	hero.dataset.role = "hero";
 
 	const inner = document.createElement("div");
 	inner.style.cssText = STYLES.inner;
@@ -156,7 +222,53 @@ export function showLobby(): HTMLElement {
 	tapHint.textContent = "tap anywhere to start";
 	inner.appendChild(tapHint);
 
-	overlay.appendChild(inner);
+	hero.appendChild(inner);
+
+	// Scroll indicator
+	const scrollIndicator = document.createElement("div");
+	scrollIndicator.style.cssText = STYLES.scrollIndicator;
+	scrollIndicator.innerHTML = `
+		<span>scroll for more</span>
+		<svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<polyline points="1,1 8,8 15,1"/>
+		</svg>
+	`;
+	hero.appendChild(scrollIndicator);
+
+	overlay.appendChild(hero);
+
+	// About section
+	const about = document.createElement("div");
+	about.style.cssText = STYLES.aboutSection;
+
+	const aboutInner = document.createElement("div");
+	aboutInner.style.cssText = STYLES.aboutInner;
+
+	const separator = document.createElement("hr");
+	separator.style.cssText = STYLES.aboutSeparator;
+	aboutInner.appendChild(separator);
+
+	const paragraphs = [
+		"時痕 Rubato is an interactive installation by Sarah Lin. A camera watches the space. When it finds you, your body becomes a presence in a fog-like field — a shadow that moves as you move, inscribing traces into the surface of the image.",
+		"Move and you leave residue. Stand still and the accumulation stops. Step away and what remains is a machine still following the shape of someone no longer there. Traces dissolve slowly, like heat leaving a room.",
+		"The piece asks a simple question about time — whether it is something measured and external, or something we deposit into spaces and into each other. The shadow recalls the sundial, the oldest temporal instrument. The body recalls butoh, the dance of darkness. Both turn presence into mark.",
+	];
+
+	for (const text of paragraphs) {
+		const p = document.createElement("p");
+		p.style.cssText = STYLES.aboutParagraph;
+		p.textContent = text;
+		aboutInner.appendChild(p);
+	}
+
+	const cameraNote = document.createElement("p");
+	cameraNote.style.cssText = STYLES.aboutNote;
+	cameraNote.textContent =
+		"This piece requires camera access to detect your presence.";
+	aboutInner.appendChild(cameraNote);
+
+	about.appendChild(aboutInner);
+	overlay.appendChild(about);
 
 	return overlay;
 }
