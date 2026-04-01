@@ -205,7 +205,9 @@ async function main(ws?: WsClient): Promise<void> {
 	initGui();
 
 	// Preset switcher — arrow keys / swipe to cycle presets when panel is closed
-	initPresetSwitcher();
+	// onSwitch callback is set later when WS is connected (see sendPresetList)
+	let presetSwitchNotify: (() => void) | null = null;
+	initPresetSwitcher(() => presetSwitchNotify?.());
 
 	// Watermark — subtle "時痕" in bottom-left, click to return to lobby
 	initInfoWatermark();
@@ -648,6 +650,12 @@ async function main(ws?: WsClient): Promise<void> {
 
 		// Send initial preset list
 		sendPresetList();
+
+		// Wire preset switcher (arrow keys) to notify admin of changes
+		presetSwitchNotify = () => {
+			sendPresetList();
+			ws.sendParamState(serializeParams());
+		};
 
 		// Handle preset commands from admin
 		ws.onPresetCommand((msg) => {

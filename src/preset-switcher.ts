@@ -94,6 +94,7 @@ function cyclePreset(direction: 1 | -1): void {
 	if (preset) {
 		applyPreset(preset);
 		setLastPreset(name);
+		onSwitchCallback?.();
 
 		// Show friendly name (strip "* " prefix for user presets)
 		const display = name.startsWith("* ") ? name.slice(2) : name;
@@ -101,9 +102,13 @@ function cyclePreset(direction: 1 | -1): void {
 	}
 }
 
+let onSwitchCallback: (() => void) | null = null;
+
 // ── Init ─────────────────────────────────────────────────────────────
 
-export function initPresetSwitcher(): void {
+/** Initialize the preset switcher. Optional callback fires after each switch. */
+export function initPresetSwitcher(onSwitch?: () => void): void {
+	onSwitchCallback = onSwitch ?? null;
 	// Keyboard: left/right arrows when GUI is hidden
 	window.addEventListener("keydown", (e) => {
 		if (isGuiVisible()) return;
