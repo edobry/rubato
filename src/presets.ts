@@ -72,9 +72,9 @@ export interface CreativePreset {
 		temporalSmoothing: number;
 		motionThreshold: number;
 	};
-	camera: {
-		showFeed: boolean;
-		fillAmount: number;
+	camera?: {
+		showFeed?: boolean;
+		fillAmount?: number;
 	};
 	fog: {
 		mode?: string;
@@ -161,10 +161,6 @@ export function getBundledPresets(): Record<string, CreativePreset> {
 				confidenceThreshold: d.segmentation.confidenceThreshold,
 				temporalSmoothing: d.segmentation.temporalSmoothing,
 				motionThreshold: d.segmentation.motionThreshold,
-			},
-			camera: {
-				showFeed: d.camera.showFeed,
-				fillAmount: d.camera.fillAmount,
 			},
 			fog: {
 				speed: d.fog.speed,

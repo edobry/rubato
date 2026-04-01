@@ -35,10 +35,6 @@ function makeTestPreset(name: string): CreativePreset {
 			temporalSmoothing: 0.35,
 			motionThreshold: 0.12,
 		},
-		camera: {
-			showFeed: false,
-			fillAmount: 0.8,
-		},
 		fog: {
 			speed: 0.1,
 			scale: 4.0,
@@ -204,8 +200,6 @@ describe("applyPreset", () => {
 		expect(params.overlay.color).toBe("#112233");
 		expect(params.motion.deposition).toBe(7);
 		expect(params.motion.decay).toBe(0.97);
-		expect(params.camera.showFeed).toBe(false);
-		expect(params.camera.fillAmount).toBe(0.8);
 		expect(params.segmentation.confidenceThreshold).toBe(0.55);
 		expect(params.fog.speed).toBe(0.1);
 	});
@@ -230,10 +224,6 @@ describe("applyPreset", () => {
 				confidenceThreshold: 0.5,
 				temporalSmoothing: 0.4,
 				motionThreshold: 0.1,
-			},
-			camera: {
-				showFeed: true,
-				fillAmount: 1.0,
 			},
 			fog: {
 				speed: 0.15,

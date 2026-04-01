@@ -26,10 +26,6 @@
 			"temporalSmoothing": 0,
 			"motionThreshold": 0.3
 		},
-		"camera": {
-			"showFeed": false,
-			"fillAmount": 1
-		},
 		"fog": {
 			"mode": "shadow",
 			"speed": 0.44,
@@ -80,10 +76,6 @@
 			"temporalSmoothing": 0.8,
 			"motionThreshold": 0.75
 		},
-		"camera": {
-			"showFeed": false,
-			"fillAmount": 1
-		},
 		"fog": {
 			"mode": "classic",
 			"speed": 0.32,
@@ -128,10 +120,6 @@
 			"temporalSmoothing": 0.4,
 			"motionThreshold": 0.8
 		},
-		"camera": {
-			"showFeed": false,
-			"fillAmount": 0.05
-		},
 		"fog": {
 			"speed": 0.21,
 			"scale": 2.5,
@@ -158,10 +146,6 @@
 			"confidenceThreshold": 0.7,
 			"temporalSmoothing": 0.6,
 			"motionThreshold": 0.08
-		},
-		"camera": {
-			"showFeed": false,
-			"fillAmount": 1.0
 		},
 		"fog": {
 			"speed": 0.05,

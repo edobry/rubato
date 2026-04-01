@@ -32,21 +32,6 @@ export const CREATIVE_PARAMS: ParamSectionDef[] = [
 		name: "Display",
 		controls: [
 			{
-				section: "camera",
-				key: "showFeed",
-				label: "Show Feed",
-				type: "toggle",
-			},
-			{
-				section: "camera",
-				key: "fillAmount",
-				label: "Fill / Fit",
-				type: "slider",
-				min: 0,
-				max: 1,
-				step: 0.05,
-			},
-			{
 				section: "overlay",
 				key: "showOverlay",
 				label: "Show Overlay",
