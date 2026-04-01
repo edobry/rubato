@@ -243,6 +243,9 @@ async function main(ws?: WsClient): Promise<void> {
 		} else if (e.key === "?") {
 			if (isAdminOverlayVisible()) hideAdminOverlay();
 			toggleHelpOverlay();
+		} else if (e.key === "l" || e.key === "L") {
+			localStorage.removeItem(PIECE_STATE_KEY);
+			location.reload();
 		} else if (e.key === "Escape") {
 			if (isHelpOverlayVisible()) {
 				hideHelpOverlay();
