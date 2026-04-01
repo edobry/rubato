@@ -57,10 +57,10 @@ describe("preset storage", () => {
 	it("getBundledPresets returns default + bundled presets", () => {
 		const bundled = getBundledPresets();
 		expect(bundled).toHaveProperty("default");
-		expect(bundled).toHaveProperty("dramatic");
-		expect(bundled).toHaveProperty("subtle");
+		expect(bundled).toHaveProperty("taichi");
+		expect(bundled).toHaveProperty("shadow realm");
 		expect(bundled).toHaveProperty("silhouette");
-		expect(bundled).toHaveProperty("rainbow");
+		expect(bundled).toHaveProperty("sarahdance");
 	});
 
 	it("getUserPresets returns empty when no presets saved", () => {
@@ -88,10 +88,10 @@ describe("preset storage", () => {
 
 		// Only the user preset should be in localStorage
 		expect(Object.keys(stored)).toEqual(["mypreset"]);
-		expect(stored).not.toHaveProperty("dramatic");
-		expect(stored).not.toHaveProperty("subtle");
+		expect(stored).not.toHaveProperty("taichi");
+		expect(stored).not.toHaveProperty("shadow realm");
 		expect(stored).not.toHaveProperty("silhouette");
-		expect(stored).not.toHaveProperty("rainbow");
+		expect(stored).not.toHaveProperty("sarahdance");
 		expect(stored).not.toHaveProperty("default");
 	});
 
@@ -105,11 +105,11 @@ describe("preset storage", () => {
 
 	it("deletePreset does not affect bundled presets", () => {
 		// Try to delete a bundled preset name
-		deletePreset("dramatic");
+		deletePreset("taichi");
 
 		// It should still appear in bundled presets
 		const bundled = getBundledPresets();
-		expect(bundled).toHaveProperty("dramatic");
+		expect(bundled).toHaveProperty("taichi");
 	});
 
 	it("getAllPresets merges bundled and user", () => {
@@ -118,19 +118,19 @@ describe("preset storage", () => {
 		const all = getAllPresets();
 		// Has bundled
 		expect(all).toHaveProperty("default");
-		expect(all).toHaveProperty("dramatic");
+		expect(all).toHaveProperty("taichi");
 		// Has user
 		expect(all).toHaveProperty("mypreset");
 	});
 
 	it("user preset shadows bundled preset with same name", () => {
-		const custom = makeTestPreset("dramatic");
+		const custom = makeTestPreset("taichi");
 		custom.overlay.opacity = 0.11;
-		savePreset("dramatic", custom);
+		savePreset("taichi", custom);
 
 		const all = getAllPresets();
 		// User version should win
-		expect(all.dramatic!.overlay.opacity).toBe(0.11);
+		expect(all.taichi!.overlay.opacity).toBe(0.11);
 	});
 
 	it("exportAllPresets returns only user presets", () => {
@@ -141,7 +141,7 @@ describe("preset storage", () => {
 
 		expect(parsed).toHaveProperty("mypreset");
 		expect(parsed).not.toHaveProperty("default");
-		expect(parsed).not.toHaveProperty("dramatic");
+		expect(parsed).not.toHaveProperty("taichi");
 	});
 
 	it("importPresets adds to user presets", () => {
@@ -161,7 +161,7 @@ describe("preset storage", () => {
 		const raw = localStorage.getItem("rubato-presets");
 		const stored = JSON.parse(raw!);
 		expect(stored).not.toHaveProperty("default");
-		expect(stored).not.toHaveProperty("dramatic");
+		expect(stored).not.toHaveProperty("taichi");
 	});
 });
 
