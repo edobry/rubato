@@ -46,6 +46,9 @@
 			"highlightColor": "#1c1c1c",
 			"baseDensity": 0.35,
 			"creepSpeed": 0.05
+		},
+		"camera": {
+			"showFeed": false
 		}
 	},
 	"shadow realm": {
@@ -99,6 +102,9 @@
 			"baseDensity": 0.35,
 			"creepSpeed": 0.05,
 			"pressureIterations": 8
+		},
+		"camera": {
+			"showFeed": false
 		}
 	},
 	"sarahdance": {
@@ -126,6 +132,9 @@
 			"density": 2.4,
 			"brightness": 0.05,
 			"color": "#6b6b6b"
+		},
+		"camera": {
+			"showFeed": false
 		}
 	},
 	"silhouette": {
@@ -153,6 +162,9 @@
 			"density": 1.5,
 			"brightness": 0.2,
 			"color": "#ffffff"
+		},
+		"camera": {
+			"showFeed": false
 		}
 	}
 }

@@ -37,12 +37,6 @@ export const ENVIRONMENT_PARAMS: ParamSectionDef[] = [
 		controls: [
 			{
 				section: "camera",
-				key: "showFeed",
-				label: "Show Camera Feed",
-				type: "toggle",
-			},
-			{
-				section: "camera",
 				key: "fillAmount",
 				label: "Fill / Fit",
 				type: "slider",
@@ -58,6 +52,12 @@ export const CREATIVE_PARAMS: ParamSectionDef[] = [
 	{
 		name: "Display",
 		controls: [
+			{
+				section: "camera",
+				key: "showFeed",
+				label: "Show Camera Feed",
+				type: "toggle",
+			},
 			{
 				section: "overlay",
 				key: "showOverlay",

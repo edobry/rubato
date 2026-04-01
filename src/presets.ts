@@ -74,7 +74,6 @@ export interface CreativePreset {
 	};
 	camera?: {
 		showFeed?: boolean;
-		fillAmount?: number;
 	};
 	fog: {
 		mode?: string;
