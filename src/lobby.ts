@@ -60,29 +60,23 @@ const STYLES = {
 		letter-spacing: 0.02em;
 		margin: 0;
 	`,
-	status: `
-		font-size: 13px;
-		color: #666;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		margin: 0;
-	`,
 	scrollIndicator: `
 		position: absolute;
-		bottom: 32px;
+		bottom: 24px;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 8px;
-		color: #333;
+		gap: 6px;
+		color: #666;
 		font-size: 11px;
 		letter-spacing: 0.05em;
-		animation: lobbyPulse 2.5s ease-in-out infinite;
+		animation: lobbyBounce 2s ease-in-out infinite;
 	`,
 	aboutSection: `
-		padding: 80px 24px 120px;
+		padding: 40px 24px 120px;
+		margin-top: -40px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -119,12 +113,12 @@ export function showLobby(): HTMLElement {
 	const overlay = document.createElement("div");
 	overlay.style.cssText = STYLES.overlay;
 
-	// Inject keyframes for scroll indicator pulse
+	// Inject keyframes for scroll indicator
 	const styleTag = document.createElement("style");
 	styleTag.textContent = `
-		@keyframes lobbyPulse {
-			0%, 100% { opacity: 0.4; }
-			50% { opacity: 1; }
+		@keyframes lobbyBounce {
+			0%, 100% { opacity: 0.6; transform: translateX(-50%) translateY(0); }
+			50% { opacity: 1; transform: translateX(-50%) translateY(6px); }
 		}
 	`;
 	overlay.appendChild(styleTag);
@@ -192,8 +186,8 @@ export function showLobby(): HTMLElement {
 
 	const guidance = document.createElement("p");
 	guidance.style.cssText = `
-		font-size: 11px;
-		color: #444;
+		font-size: 13px;
+		color: #777;
 		letter-spacing: 0.05em;
 		margin: 0;
 	`;
@@ -204,22 +198,15 @@ export function showLobby(): HTMLElement {
 	qrWrapper.appendChild(guidance);
 	inner.appendChild(qrWrapper);
 
-	// Status
-	const statusEl = document.createElement("p");
-	statusEl.style.cssText = STYLES.status;
-	statusEl.dataset.role = "status";
-	statusEl.textContent = "Ready";
-
-	inner.appendChild(statusEl);
-
 	const tapHint = document.createElement("p");
 	tapHint.style.cssText = `
-		font-size: 11px;
-		color: #333;
-		letter-spacing: 0.05em;
+		font-size: 14px;
+		color: #888;
+		letter-spacing: 0.1em;
 		margin-top: 32px;
+		text-transform: uppercase;
 	`;
-	tapHint.textContent = "tap anywhere to start";
+	tapHint.textContent = "click anywhere to begin";
 	inner.appendChild(tapHint);
 
 	hero.appendChild(inner);
@@ -249,15 +236,36 @@ export function showLobby(): HTMLElement {
 	aboutInner.appendChild(separator);
 
 	const paragraphs = [
-		"時痕 Rubato is an interactive installation by Sarah Lin. A camera watches the space. When it finds you, your body becomes a presence in a fog-like field — a shadow that moves as you move, inscribing traces into the surface of the image.",
-		"Move and you leave residue. Stand still and the accumulation stops. Step away and what remains is a machine still following the shape of someone no longer there. Traces dissolve slowly, like heat leaving a room.",
-		"The piece asks a simple question about time — whether it is something measured and external, or something we deposit into spaces and into each other. The shadow recalls the sundial, the oldest temporal instrument. The body recalls butoh, the dance of darkness. Both turn presence into mark.",
+		"時痕 Rubato (Time Scar) is an interactive new media installation by Sarah Lin and Eugene Dobry, created for the time.place exhibition at tiat in San Francisco.",
+		"A camera watches the space. When it finds you, your body becomes a presence in a slowly modulating fog field — not a reflection, but a shadow that moves as you move, inscribing traces into the surface of the image.",
+		"Move and you leave residue — temporal marks along the path of your passage. Stand still and the accumulation stops. Step away and what remains is a machine still moving according to someone no longer there. The screen becomes a repository of absent bodies. Traces dissolve slowly, unevenly, like memory corrupting.",
+		"The piece asks whether time is something external that we obey, or something internal that we inscribe — into machines, into spaces, into each other. The shadow recalls the sundial, the oldest temporal instrument. The body recalls butoh, the dance of darkness. Both turn presence into mark.",
 	];
+
+	const credit = document.createElement("p");
+	credit.style.cssText = `
+		font-size: 12px;
+		font-weight: 300;
+		line-height: 1.6;
+		color: #666;
+		margin: 32px 0 0 0;
+		text-align: center;
+	`;
+	credit.textContent =
+		"Sarah Lin — artist  ·  Eugene Dobry — technical collaborator";
 
 	for (const text of paragraphs) {
 		const p = document.createElement("p");
 		p.style.cssText = STYLES.aboutParagraph;
-		p.textContent = text;
+		if (text.includes("time.place")) {
+			// Make "time.place" a link and italicize
+			p.innerHTML = text.replace(
+				"time.place",
+				'<a href="https://www.tiat.place/exhibitions/time-place" target="_blank" rel="noopener" style="color: #bbb; text-decoration: underline; text-decoration-color: #555; text-underline-offset: 3px;"><em>time.place</em></a>',
+			);
+		} else {
+			p.textContent = text;
+		}
 		aboutInner.appendChild(p);
 	}
 
@@ -266,6 +274,7 @@ export function showLobby(): HTMLElement {
 	cameraNote.textContent =
 		"This piece requires camera access to detect your presence.";
 	aboutInner.appendChild(cameraNote);
+	aboutInner.appendChild(credit);
 
 	about.appendChild(aboutInner);
 	overlay.appendChild(about);
