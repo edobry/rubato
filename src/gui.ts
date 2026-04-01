@@ -835,8 +835,8 @@ export function initGui(): void {
 			return;
 
 		switch (e.key) {
-			case "g":
-			case "G":
+			case "Tab":
+				e.preventDefault();
 				if (gui) gui.show(gui._hidden);
 				break;
 

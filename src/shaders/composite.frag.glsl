@@ -252,7 +252,7 @@ void main() {
         // Density illuminates the fog multiplicatively: where density is high,
         // the fog glows brighter (fog * density). This preserves the fog's
         // texture and color while making it luminous — not a flat overlay.
-        color += fog * density * u_fogTrailStrength;
+        color += fog * density * u_fogTrailStrength * u_opacity;
 
         // Camera feed — debug only, never shown in gallery installation.
         if (u_showFeed > 0.5) {

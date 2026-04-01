@@ -154,6 +154,63 @@
 			"color": "#6b6b6b"
 		}
 	},
+	"shadow realm": {
+		"name": "shadow realm",
+		"overlay": {
+			"showOverlay": true,
+			"visualize": "imprint",
+			"opacity": 1,
+			"color": "#ffffff",
+			"colorMode": "solid",
+			"blur": 0
+		},
+		"motion": {
+			"deposition": 79,
+			"decay": 0.91
+		},
+		"density": {
+			"cultivationRate": 2.331,
+			"channelStrength": 303,
+			"drainRate": 0.31,
+			"diffusionRate": 0.61,
+			"decayVariance": 0.12,
+			"disintegrationSpeed": 0.05,
+			"diffusionMode": "anisotropic"
+		},
+		"segmentation": {
+			"confidenceThreshold": 0.75,
+			"temporalSmoothing": 0.8,
+			"motionThreshold": 0.75
+		},
+		"camera": {
+			"showFeed": false,
+			"fillAmount": 1
+		},
+		"fog": {
+			"mode": "classic",
+			"speed": 0.32,
+			"scale": 4.25,
+			"density": 0.9,
+			"brightness": 0.05,
+			"color": "#ffffff",
+			"maskInteraction": 0.3,
+			"trailInteraction": 36.5
+		},
+		"shadow": {
+			"forceScale": 0,
+			"damping": 0.985,
+			"diffusion": 0.13,
+			"advection": 0.1,
+			"noiseScale": 1,
+			"noiseSpeed": 0.015,
+			"noiseAmount": 0.9,
+			"baseColor": "#111111",
+			"highlightColor": "#1c1c1c",
+			"baseDensity": 0.35,
+			"creepSpeed": 0.05,
+			"pressureIterations": 8
+		}
+	},
 	"taichi live": {
 		"name": "taichi live",
 		"overlay": {

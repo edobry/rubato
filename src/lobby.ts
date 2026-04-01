@@ -147,57 +147,6 @@ export function showLobby(): HTMLElement {
 	titleBlock.appendChild(titleSub);
 	inner.appendChild(titleBlock);
 
-	// QR code — always prefer the Tailscale hostname so the URL is
-	// reachable from other devices on the network (e.g. phone scanning QR).
-	const tsHost: string | null = (globalThis as Record<string, unknown>)
-		.__TAILSCALE_HOST__ as string | null;
-	const port = location.port ? `:${location.port}` : "";
-	const origin = tsHost ? `https://${tsHost}${port}` : window.location.origin;
-	const adminUrl = `${origin}/admin/`;
-
-	if (
-		!tsHost &&
-		(location.hostname === "localhost" || location.hostname === "127.0.0.1")
-	) {
-		console.warn(
-			"[rubato] QR code points to localhost — it won't work from other devices. " +
-				"Ensure Tailscale is running and the CLI is in PATH.",
-		);
-	}
-
-	const qrWrapper = document.createElement("div");
-	qrWrapper.style.cssText = STYLES.qrWrapper;
-
-	const canvas = document.createElement("canvas");
-	canvas.style.cssText = STYLES.qrCanvas;
-
-	QRCode.toCanvas(canvas, adminUrl, {
-		width: 180,
-		margin: 0,
-		color: {
-			dark: "#ffffff",
-			light: "#000000",
-		},
-	});
-
-	const urlText = document.createElement("p");
-	urlText.style.cssText = STYLES.urlText;
-	urlText.textContent = adminUrl;
-
-	const guidance = document.createElement("p");
-	guidance.style.cssText = `
-		font-size: 13px;
-		color: #777;
-		letter-spacing: 0.05em;
-		margin: 0;
-	`;
-	guidance.textContent = "Scan to control remotely";
-
-	qrWrapper.appendChild(canvas);
-	qrWrapper.appendChild(urlText);
-	qrWrapper.appendChild(guidance);
-	inner.appendChild(qrWrapper);
-
 	const tapHint = document.createElement("p");
 	tapHint.style.cssText = `
 		font-size: 14px;
@@ -275,6 +224,64 @@ export function showLobby(): HTMLElement {
 		"This piece requires camera access to detect your presence.";
 	aboutInner.appendChild(cameraNote);
 	aboutInner.appendChild(credit);
+
+	// Remote control section — QR code for multi-device setups
+	const tsHost: string | null = (globalThis as Record<string, unknown>)
+		.__TAILSCALE_HOST__ as string | null;
+	const port = location.port ? `:${location.port}` : "";
+	const origin = tsHost ? `https://${tsHost}${port}` : window.location.origin;
+	const adminUrl = `${origin}/admin/`;
+
+	const remoteSep = document.createElement("hr");
+	remoteSep.style.cssText = `
+		width: 40px;
+		height: 1px;
+		background: #333;
+		border: none;
+		margin: 48px auto 32px;
+	`;
+	aboutInner.appendChild(remoteSep);
+
+	const remoteLabel = document.createElement("p");
+	remoteLabel.style.cssText = `
+		font-size: 12px;
+		font-weight: 300;
+		color: #555;
+		letter-spacing: 0.05em;
+		text-align: center;
+		margin: 0 0 16px 0;
+	`;
+	remoteLabel.textContent = "Control from another device";
+	aboutInner.appendChild(remoteLabel);
+
+	const qrWrapper = document.createElement("div");
+	qrWrapper.style.cssText = `
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+	`;
+
+	const canvas = document.createElement("canvas");
+	QRCode.toCanvas(canvas, adminUrl, {
+		width: 140,
+		margin: 0,
+		color: { dark: "#888888", light: "#000000" },
+	});
+
+	const urlText = document.createElement("p");
+	urlText.style.cssText = `
+		font-size: 11px;
+		color: #444;
+		font-family: "SF Mono", Menlo, Consolas, monospace;
+		letter-spacing: 0.02em;
+		margin: 0;
+	`;
+	urlText.textContent = adminUrl;
+
+	qrWrapper.appendChild(canvas);
+	qrWrapper.appendChild(urlText);
+	aboutInner.appendChild(qrWrapper);
 
 	about.appendChild(aboutInner);
 	overlay.appendChild(about);

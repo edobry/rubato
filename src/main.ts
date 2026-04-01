@@ -203,8 +203,47 @@ async function main(ws?: WsClient): Promise<void> {
 	// GUI panel — toggle with G key (loads presets which may override params)
 	initGui();
 
-	// Info watermark — subtle "時痕" in bottom-left, click or I key for about panel
+	// Watermark — subtle "時痕" in bottom-left, click to return to lobby
 	initInfoWatermark();
+
+	// One-time hint for new visitors: show "press ? for controls" after 10s
+	const HINT_KEY = "rubato-hint-shown";
+	if (!localStorage.getItem(HINT_KEY)) {
+		setTimeout(() => {
+			const hint = document.createElement("div");
+			hint.style.cssText = `
+				position: fixed;
+				bottom: 32px;
+				left: 50%;
+				transform: translateX(-50%);
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+				font-size: 13px;
+				font-weight: 300;
+				letter-spacing: 0.08em;
+				color: #888;
+				z-index: 10000;
+				opacity: 0;
+				transition: opacity 1s ease;
+				pointer-events: none;
+				-webkit-font-smoothing: antialiased;
+			`;
+			hint.textContent = "press Tab to shape the visuals";
+			document.body.appendChild(hint);
+
+			// Fade in
+			requestAnimationFrame(() => {
+				hint.style.opacity = "1";
+			});
+
+			// Fade out after 5 seconds
+			setTimeout(() => {
+				hint.style.opacity = "0";
+				setTimeout(() => hint.remove(), 1000);
+			}, 5000);
+
+			localStorage.setItem(HINT_KEY, "1");
+		}, 10000);
+	}
 
 	// Enforce performance floors AFTER presets load (presets are creative-only
 	// but older presets may have included perf params before we split them)

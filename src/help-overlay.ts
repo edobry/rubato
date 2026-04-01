@@ -85,8 +85,8 @@ interface ShortcutSection {
 const SHORTCUTS: ShortcutSection[] = [
 	{
 		entries: [
+			{ key: "Tab", desc: "Toggle params panel" },
 			{ key: "F", desc: "Toggle fullscreen" },
-			{ key: "G", desc: "Toggle parameter GUI panel" },
 			{ key: "S", desc: "Toggle stats/FPS overlay" },
 			{ key: "A", desc: "Toggle admin overlay" },
 			{ key: "L", desc: "Return to lobby" },
@@ -95,7 +95,7 @@ const SHORTCUTS: ShortcutSection[] = [
 		],
 	},
 	{
-		label: "When params panel is open (G)",
+		label: "When params panel is open (Tab)",
 		entries: [
 			{ key: "\u2191 / \u2193", desc: "Navigate controls" },
 			{ key: "\u2190 / \u2192", desc: "Adjust values / collapse folders" },
