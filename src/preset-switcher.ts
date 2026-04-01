@@ -51,10 +51,14 @@ function showToast(text: string): void {
 			left: 50%;
 			transform: translateX(-50%);
 			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-			font-size: 18px;
+			font-size: 20px;
 			font-weight: 300;
-			letter-spacing: 0.1em;
+			letter-spacing: 0.12em;
 			color: #fff;
+			text-shadow: 0 0 12px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7);
+			background: rgba(0,0,0,0.4);
+			padding: 8px 20px;
+			border-radius: 8px;
 			z-index: 9000;
 			pointer-events: none;
 			opacity: 0;
