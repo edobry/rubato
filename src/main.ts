@@ -10,6 +10,7 @@ import {
 	resetAutoTuneFrames,
 } from "./autotune";
 import { initCamera } from "./camera";
+import { removeCameraError, showCameraError } from "./camera-error";
 import {
 	compositeFrame,
 	getCompositorGl,
@@ -25,13 +26,7 @@ import {
 	resetFluid,
 	updateFluid,
 } from "./fluid";
-import {
-	drawFog,
-	initFog,
-	renderFogToTexture,
-	resizeFog,
-	setFogCrop,
-} from "./fog";
+import { initFog, renderFogToTexture, resizeFog, setFogCrop } from "./fog";
 import { FpsCounter } from "./fps";
 import { initGui, isGuiVisible, toggleGui } from "./gui";
 import {
@@ -263,8 +258,20 @@ async function main(ws?: WsClient): Promise<void> {
 		showStatus("Camera ready");
 	} catch (err) {
 		console.error("Camera unavailable:", err);
-		// Compositor will show fog-only mode; drawFog() is the fallback
-		drawFog();
+		showCameraError(() => {
+			// Re-attempt camera init on "Try again"
+			void initCamera(params.camera.resolution)
+				.then((v) => {
+					video = v;
+					showStatus("Camera ready");
+					removeCameraError();
+					// Continue with the rest of init by reloading
+					location.reload();
+				})
+				.catch((retryErr) => {
+					console.error("Camera retry failed:", retryErr);
+				});
+		});
 		return;
 	}
 
