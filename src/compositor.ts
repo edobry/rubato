@@ -335,10 +335,8 @@ export function compositeFrame(
 	);
 	// u_cameraFill: 0 = camera visible only where mask detects a person,
 	// 1 = camera fills the entire frame (debug). Forced to 0 when feed is off.
-	gl.uniform1f(
-		getUniform("u_cameraFill"),
-		params.camera.showFeed ? params.camera.fillAmount : 0,
-	);
+	// This is independent of fillAmount, which controls the crop/scale UV transform.
+	gl.uniform1f(getUniform("u_cameraFill"), params.camera.showFeed ? 1.0 : 0);
 	// Fog interaction uniforms:
 	// - u_fogMaskStrength: how much the body silhouette parts/clears the fog (0–1)
 	// - u_fogTrailStrength: how much accumulated trails modulate fog brightness (0–1)
