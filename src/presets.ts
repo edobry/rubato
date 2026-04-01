@@ -218,7 +218,7 @@ export function savePreset(name: string, preset: CreativePreset): void {
 
 /** Get the last-used preset name from localStorage. */
 export function getLastPreset(): string {
-	return localStorage.getItem(LAST_PRESET_KEY) ?? "default";
+	return localStorage.getItem(LAST_PRESET_KEY) ?? "taichi";
 }
 
 /** Save the last-used preset name to localStorage. */

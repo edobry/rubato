@@ -1,157 +1,55 @@
 {
-	"dramatic": {
-		"name": "dramatic",
-		"overlay": {
-			"showOverlay": true,
-			"visualize": "trail",
-			"opacity": 0.9,
-			"color": "#ff4400",
-			"colorMode": "aura",
-			"blur": 0
-		},
-		"motion": {
-			"deposition": 12,
-			"decay": 0.995
-		},
-		"segmentation": {
-			"confidenceThreshold": 0.6,
-			"temporalSmoothing": 0.7,
-			"motionThreshold": 0.05
-		},
-		"camera": {
-			"showFeed": true,
-			"fillAmount": 1.0
-		},
-		"fog": {
-			"speed": 0.08,
-			"scale": 5.0,
-			"density": 2.0,
-			"brightness": 0.6,
-			"color": "#ff6633"
-		}
-	},
-	"subtle": {
-		"name": "subtle",
-		"overlay": {
-			"showOverlay": true,
-			"visualize": "mask",
-			"opacity": 0.25,
-			"color": "#88ccff",
-			"colorMode": "solid",
-			"blur": 0
-		},
-		"motion": {
-			"deposition": 0.8,
-			"decay": 0.93
-		},
-		"segmentation": {
-			"confidenceThreshold": 0.5,
-			"temporalSmoothing": 0.4,
-			"motionThreshold": 0.15
-		},
-		"camera": {
-			"showFeed": true,
-			"fillAmount": 1.0
-		},
-		"fog": {
-			"speed": 0.2,
-			"scale": 4.0,
-			"density": 0.8,
-			"brightness": 0.3,
-			"color": "#aaccff"
-		}
-	},
-	"silhouette": {
-		"name": "silhouette",
+	"taichi": {
+		"name": "taichi",
 		"overlay": {
 			"showOverlay": true,
 			"visualize": "both",
-			"opacity": 0.85,
+			"opacity": 0.1,
 			"color": "#ffffff",
 			"colorMode": "solid",
 			"blur": 0
 		},
 		"motion": {
-			"deposition": 6,
-			"decay": 0.98
+			"deposition": 14,
+			"decay": 0.959
 		},
-		"segmentation": {
-			"confidenceThreshold": 0.7,
-			"temporalSmoothing": 0.6,
-			"motionThreshold": 0.08
-		},
-		"camera": {
-			"showFeed": false,
-			"fillAmount": 1.0
-		},
-		"fog": {
-			"speed": 0.05,
-			"scale": 6.0,
-			"density": 1.5,
-			"brightness": 0.2,
-			"color": "#ffffff"
-		}
-	},
-	"rainbow": {
-		"name": "rainbow",
-		"overlay": {
-			"showOverlay": true,
-			"visualize": "both",
-			"opacity": 0.75,
-			"color": "#ffffff",
-			"colorMode": "rainbow",
-			"blur": 0
-		},
-		"motion": {
-			"deposition": 4,
-			"decay": 0.96
-		},
-		"segmentation": {
-			"confidenceThreshold": 0.5,
-			"temporalSmoothing": 0.5,
-			"motionThreshold": 0.1
-		},
-		"camera": {
-			"showFeed": true,
-			"fillAmount": 1.0
-		},
-		"fog": {
-			"speed": 0.15,
-			"scale": 3.0,
-			"density": 1.2,
-			"brightness": 0.5,
-			"color": "#ff88ff"
-		}
-	},
-	"sarahdance": {
-		"name": "sarahdance",
-		"overlay": {
-			"showOverlay": true,
-			"visualize": "both",
-			"opacity": 0.4,
-			"color": "#ffffff",
-			"colorMode": "solid",
-			"blur": 0
-		},
-		"motion": {
-			"deposition": 7.7,
-			"decay": 0.933
+		"density": {
+			"cultivationRate": 1.141,
+			"channelStrength": 198,
+			"drainRate": 0.56,
+			"diffusionRate": 0.59,
+			"decayVariance": 0.13,
+			"disintegrationSpeed": 0.35
 		},
 		"segmentation": {
 			"confidenceThreshold": 0.55,
-			"temporalSmoothing": 0.4,
-			"motionThreshold": 0.8
+			"temporalSmoothing": 0,
+			"motionThreshold": 0.3
 		},
 		"camera": {
 			"showFeed": false,
-			"fillAmount": 0.05
+			"fillAmount": 1
 		},
 		"fog": {
-			"speed": 0.21,
-			"scale": 2.5,
-			"density": 2.4,
+			"mode": "shadow",
+			"speed": 0.44,
+			"scale": 3,
+			"density": 1.8,
 			"brightness": 0.05,
 			"color": "#6b6b6b"
+		},
+		"shadow": {
+			"forceScale": 0,
+			"damping": 0.985,
+			"diffusion": 0.13,
+			"advection": 0.1,
+			"noiseScale": 1,
+			"noiseSpeed": 0.015,
+			"noiseAmount": 0.9,
+			"baseColor": "#111111",
+			"highlightColor": "#1c1c1c",
+			"baseDensity": 0.35,
+			"creepSpeed": 0.05
 		}
 	},
 	"shadow realm": {
@@ -211,57 +109,66 @@
 			"pressureIterations": 8
 		}
 	},
-	"taichi live": {
-		"name": "taichi live",
+	"sarahdance": {
+		"name": "sarahdance",
 		"overlay": {
 			"showOverlay": true,
 			"visualize": "both",
-			"opacity": 0.1,
+			"opacity": 0.4,
 			"color": "#ffffff",
 			"colorMode": "solid",
 			"blur": 0
 		},
 		"motion": {
-			"deposition": 14,
-			"decay": 0.959
-		},
-		"density": {
-			"cultivationRate": 1.141,
-			"channelStrength": 198,
-			"drainRate": 0.56,
-			"diffusionRate": 0.59,
-			"decayVariance": 0.13,
-			"disintegrationSpeed": 0.35
+			"deposition": 7.7,
+			"decay": 0.933
 		},
 		"segmentation": {
 			"confidenceThreshold": 0.55,
-			"temporalSmoothing": 0,
-			"motionThreshold": 0.3
+			"temporalSmoothing": 0.4,
+			"motionThreshold": 0.8
 		},
 		"camera": {
 			"showFeed": false,
-			"fillAmount": 1
+			"fillAmount": 0.05
 		},
 		"fog": {
-			"mode": "shadow",
-			"speed": 0.44,
-			"scale": 3,
-			"density": 1.8,
+			"speed": 0.21,
+			"scale": 2.5,
+			"density": 2.4,
 			"brightness": 0.05,
 			"color": "#6b6b6b"
+		}
+	},
+	"silhouette": {
+		"name": "silhouette",
+		"overlay": {
+			"showOverlay": true,
+			"visualize": "both",
+			"opacity": 0.85,
+			"color": "#ffffff",
+			"colorMode": "solid",
+			"blur": 0
 		},
-		"shadow": {
-			"forceScale": 0,
-			"damping": 0.985,
-			"diffusion": 0.13,
-			"advection": 0.1,
-			"noiseScale": 1,
-			"noiseSpeed": 0.015,
-			"noiseAmount": 0.9,
-			"baseColor": "#111111",
-			"highlightColor": "#1c1c1c",
-			"baseDensity": 0.35,
-			"creepSpeed": 0.05
+		"motion": {
+			"deposition": 6,
+			"decay": 0.98
+		},
+		"segmentation": {
+			"confidenceThreshold": 0.7,
+			"temporalSmoothing": 0.6,
+			"motionThreshold": 0.08
+		},
+		"camera": {
+			"showFeed": false,
+			"fillAmount": 1.0
+		},
+		"fog": {
+			"speed": 0.05,
+			"scale": 6.0,
+			"density": 1.5,
+			"brightness": 0.2,
+			"color": "#ffffff"
 		}
 	}
 }
