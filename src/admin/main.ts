@@ -578,3 +578,118 @@ async function checkBuildInfo(): Promise<void> {
 
 void checkBuildInfo();
 setInterval(() => void checkBuildInfo(), 30_000);
+
+// --- Toast ---
+
+let toastEl: HTMLElement | null = null;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(text: string): void {
+	if (!toastEl) {
+		toastEl = document.createElement("div");
+		toastEl.className = "admin-toast";
+		document.body.appendChild(toastEl);
+	}
+
+	toastEl.textContent = text;
+	toastEl.classList.add("visible");
+
+	if (toastTimer) clearTimeout(toastTimer);
+	toastTimer = setTimeout(() => {
+		toastEl?.classList.remove("visible");
+		toastTimer = null;
+	}, 2000);
+}
+
+// --- Swipe preset cycling ---
+
+function cycleAdminPreset(direction: 1 | -1): void {
+	if (presetList.length === 0) return;
+
+	let idx = presetList.findIndex((p) => p.name === activePreset);
+	if (idx === -1) idx = 0;
+	idx = (idx + direction + presetList.length) % presetList.length;
+
+	const preset = presetList[idx]!;
+	presetSelect.value = preset.name;
+	presetNameInput.value = preset.name;
+	ws.sendPresetCommand("apply", preset.name);
+	showToast(preset.name);
+	updatePresetButtons();
+}
+
+{
+	let touchStartX = 0;
+	let touchStartY = 0;
+	let touchInsideParams = false;
+
+	window.addEventListener(
+		"touchstart",
+		(e) => {
+			if (e.touches.length === 1) {
+				touchStartX = e.touches[0]!.clientX;
+				touchStartY = e.touches[0]!.clientY;
+				// Check if the touch started inside the params panel
+				touchInsideParams = !!(
+					e.target instanceof Node && paramsPanel.element.contains(e.target)
+				);
+			}
+		},
+		{ passive: true },
+	);
+
+	window.addEventListener(
+		"touchend",
+		(e) => {
+			if (touchInsideParams) return;
+			if (!connected || currentPieceState !== "running") return;
+			if (e.changedTouches.length !== 1) return;
+
+			const dx = e.changedTouches[0]!.clientX - touchStartX;
+			const dy = e.changedTouches[0]!.clientY - touchStartY;
+
+			// Only trigger if horizontal movement > 50px and dominates vertical
+			if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+				cycleAdminPreset(dx > 0 ? -1 : 1);
+			}
+		},
+		{ passive: true },
+	);
+}
+
+// --- Help button & overlay ---
+
+const helpBtn = document.createElement("button");
+helpBtn.className = "admin-help-btn";
+helpBtn.textContent = "?";
+helpBtn.setAttribute("aria-label", "Help");
+document.body.appendChild(helpBtn);
+
+const helpOverlay = document.createElement("div");
+helpOverlay.className = "admin-help-overlay";
+helpOverlay.innerHTML = `
+	<div class="admin-help-content">
+		<h2>Admin Help</h2>
+		<div class="help-section">
+			<div class="help-heading">Gestures</div>
+			<p>Swipe left/right to browse presets</p>
+		</div>
+		<div class="help-section">
+			<div class="help-heading">About</div>
+			<p>This panel controls the 時痕 Rubato piece remotely. Use it to start/stop the piece, switch presets, adjust parameters, and preview the live output.</p>
+		</div>
+		<div class="help-dismiss">Tap anywhere to dismiss</div>
+	</div>
+`;
+document.body.appendChild(helpOverlay);
+
+let helpVisible = false;
+
+function toggleHelp(): void {
+	helpVisible = !helpVisible;
+	helpOverlay.classList.toggle("visible", helpVisible);
+	helpBtn.classList.toggle("active", helpVisible);
+}
+
+helpBtn.addEventListener("click", toggleHelp);
+helpOverlay.addEventListener("click", toggleHelp);

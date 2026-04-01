@@ -783,3 +783,121 @@ body {
 	color: #555;
 	font-size: 11px;
 }
+
+/* --- Admin Toast --- */
+
+.admin-toast {
+	position: fixed;
+	bottom: 48px;
+	left: 50%;
+	transform: translateX(-50%);
+	font-family: inherit;
+	font-size: 16px;
+	font-weight: 300;
+	letter-spacing: 0.08em;
+	color: #fff;
+	background: rgba(17, 17, 17, 0.9);
+	border: 1px solid #333;
+	padding: 8px 20px;
+	z-index: 9000;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+
+.admin-toast.visible {
+	opacity: 1;
+}
+
+/* --- Help Button --- */
+
+.admin-help-btn {
+	position: fixed;
+	bottom: 20px;
+	right: 20px;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	appearance: none;
+	background: #111;
+	border: 1px solid #333;
+	color: #999;
+	font-family: inherit;
+	font-size: 18px;
+	font-weight: 300;
+	cursor: pointer;
+	z-index: 9001;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.admin-help-btn:active,
+.admin-help-btn.active {
+	background: #222;
+	color: #fff;
+	border-color: #555;
+}
+
+/* --- Help Overlay --- */
+
+.admin-help-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.85);
+	z-index: 9000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.25s ease;
+}
+
+.admin-help-overlay.visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.admin-help-content {
+	max-width: 320px;
+	padding: 32px 28px;
+	text-align: center;
+}
+
+.admin-help-content h2 {
+	font-size: 18px;
+	font-weight: 400;
+	letter-spacing: 0.08em;
+	color: #ccc;
+	margin-bottom: 24px;
+}
+
+.help-section {
+	margin-bottom: 20px;
+}
+
+.help-heading {
+	font-size: 10px;
+	color: #555;
+	text-transform: uppercase;
+	letter-spacing: 0.15em;
+	margin-bottom: 6px;
+}
+
+.help-section p {
+	font-size: 13px;
+	color: #999;
+	line-height: 1.6;
+}
+
+.help-dismiss {
+	margin-top: 28px;
+	font-size: 11px;
+	color: #444;
+	letter-spacing: 0.05em;
+}
