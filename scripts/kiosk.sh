@@ -4,6 +4,15 @@ set -euo pipefail
 URL="https://localhost:5173"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
+# Kill any leftover Chrome and clean stale lock files to prevent
+# "profile appears to be in use" errors after unclean shutdown
+pkill -f 'Google Chrome' 2>/dev/null || true
+sleep 1
+rm -rf "$HOME/.rubato-chrome/SingletonLock" \
+       "$HOME/.rubato-chrome/SingletonSocket" \
+       "$HOME/.rubato-chrome/SingletonCookie" 2>/dev/null || true
+echo "[rubato-kiosk] Cleaned up stale Chrome state"
+
 echo "[rubato-kiosk] Waiting for server at $URL..."
 
 # Wait up to 60 seconds for the server to be ready

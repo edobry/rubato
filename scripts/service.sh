@@ -61,19 +61,41 @@ case "${1:-}" in
         uninstall_plist "$SERVER_PLIST"
         ;;
     start)
-        launchctl kickstart "gui/$(id -u)/com.rubato.server"
-        launchctl kickstart "gui/$(id -u)/com.rubato.kiosk"
+        # Bootstrap if not loaded, kickstart if already loaded
+        for plist in "$SERVER_PLIST" "$KIOSK_PLIST"; do
+            local_label="${plist%.plist}"
+            local_target="gui/$(id -u)/$local_label"
+            local_dest="$HOME/Library/LaunchAgents/$plist"
+            if launchctl print "$local_target" &>/dev/null; then
+                launchctl kickstart -k "$local_target"
+            else
+                launchctl bootstrap "gui/$(id -u)" "$local_dest"
+            fi
+        done
         echo "Services started"
         ;;
     stop)
-        launchctl bootout "gui/$(id -u)/com.rubato.kiosk" 2>/dev/null || true
-        launchctl bootout "gui/$(id -u)/com.rubato.server" 2>/dev/null || true
+        # Kill processes but keep services registered so start/kickstart works
+        for plist in "$KIOSK_PLIST" "$SERVER_PLIST"; do
+            local_label="${plist%.plist}"
+            local_target="gui/$(id -u)/$local_label"
+            launchctl kill SIGTERM "$local_target" 2>/dev/null || true
+        done
         echo "Services stopped"
         ;;
     restart)
-        "$0" stop
+        # Full re-bootstrap: bootout then bootstrap for a clean restart
+        for plist in "$KIOSK_PLIST" "$SERVER_PLIST"; do
+            local_label="${plist%.plist}"
+            local_target="gui/$(id -u)/$local_label"
+            launchctl bootout "$local_target" 2>/dev/null || true
+        done
         sleep 2
-        "$0" start
+        for plist in "$SERVER_PLIST" "$KIOSK_PLIST"; do
+            local_dest="$HOME/Library/LaunchAgents/$plist"
+            launchctl bootstrap "gui/$(id -u)" "$local_dest"
+        done
+        echo "Services restarted"
         ;;
     status)
         echo "Server:"
