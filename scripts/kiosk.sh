@@ -38,6 +38,7 @@ exec "$CHROME" \
     --noerrdialogs \
     --disable-translate \
     --no-first-run \
+    --ignore-certificate-errors \
     --disable-features=MediaRouter \
     --user-data-dir="$HOME/.rubato-chrome" \
     "$URL"
