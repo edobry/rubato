@@ -363,15 +363,6 @@ export const CREATIVE_PARAMS: ParamSectionDef[] = [
 				max: 0.1,
 				step: 0.005,
 			},
-			{
-				section: "shadow",
-				key: "pressureIterations",
-				label: "Pressure Iters",
-				type: "slider",
-				min: 5,
-				max: 40,
-				step: 1,
-			},
 		],
 	},
 	{

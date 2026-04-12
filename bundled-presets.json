@@ -100,8 +100,7 @@
 			"baseColor": "#111111",
 			"highlightColor": "#1c1c1c",
 			"baseDensity": 0.35,
-			"creepSpeed": 0.05,
-			"pressureIterations": 8
+			"creepSpeed": 0.05
 		},
 		"camera": {
 			"showFeed": false
