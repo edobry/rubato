@@ -840,6 +840,11 @@ function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 }
 
 function boot(): void {
+	// Mobile dev console — only in dev mode
+	if (import.meta.env.DEV) {
+		void import("eruda").then((eruda) => eruda.default.init());
+	}
+
 	const ws = new WsClient("piece");
 
 	// Resend current state + params when a new admin client connects
