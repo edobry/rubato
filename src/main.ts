@@ -161,13 +161,23 @@ async function main(ws?: WsClient): Promise<void> {
 		);
 	}
 
-	// Apply mobile-friendly defaults on first visit
-	if (isMobile() && !localStorage.getItem("rubato-mobile-configured")) {
+	// Apply mobile-friendly defaults on first visit (or when version changes)
+	const MOBILE_DEFAULTS_VERSION = "2";
+	if (
+		isMobile() &&
+		localStorage.getItem("rubato-mobile-configured") !== MOBILE_DEFAULTS_VERSION
+	) {
 		console.log("Mobile device detected, applying mobile defaults");
+		// Camera & segmentation
 		params.camera.resolution = "480p";
 		params.segmentation.frameSkip = Math.max(params.segmentation.frameSkip, 2);
-		params.overlay.downsample = Math.max(params.overlay.downsample, 2);
-		localStorage.setItem("rubato-mobile-configured", "true");
+		// Fog: reduce octaves, render at half res, skip every other frame
+		params.fog.octaves = 3;
+		params.fog.renderScale = 0.5;
+		params.fog.frameSkip = 2;
+		// Lower FPS target for thermal headroom
+		params.autoTune.targetFps = 24;
+		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
 		showStatus("Mobile device — optimized defaults applied", 3000);
 	}
 

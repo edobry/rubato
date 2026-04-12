@@ -4,6 +4,12 @@
  * so other modules can adapt behavior accordingly.
  */
 
+declare global {
+	interface Navigator {
+		userAgentData?: { mobile: boolean };
+	}
+}
+
 export interface DeviceInfo {
 	isConstrained: boolean;
 	platform: string;
@@ -50,6 +56,10 @@ export function detectDevice(): DeviceInfo {
 }
 
 export function isMobile(): boolean {
+	if (navigator.userAgentData) {
+		return navigator.userAgentData.mobile;
+	}
+	// Fallback for Safari/Firefox: check for touch + mobile viewport
 	return "ontouchstart" in window && window.innerWidth < 1024;
 }
 

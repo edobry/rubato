@@ -28,6 +28,7 @@ import {
 	createFramebuffer,
 	createProgram,
 	createTexture,
+	invalidateFramebuffer,
 	uploadFloatTexture,
 } from "./webgl-utils";
 
@@ -426,6 +427,9 @@ export function updateFluid(
 		});
 		presPing = !presPing;
 	}
+
+	// Divergence FBO is no longer needed this frame
+	invalidateFramebuffer(gl!, divFbo!);
 
 	// --- Step 5: Subtract pressure gradient from velocity ---
 	{

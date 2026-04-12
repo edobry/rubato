@@ -50,6 +50,7 @@ import {
 	createFramebuffer,
 	createProgram,
 	createTexture,
+	invalidateFramebuffer,
 	uploadFloatRGBTexture,
 	uploadFloatTexture,
 } from "./webgl-utils";
@@ -328,6 +329,8 @@ export function updateGpuTrail(
 
 	// Swap ping-pong so next frame reads from the FBO we just wrote to
 	pingPongState = !pingPongState;
+	// Invalidate the source FBO we just read from (TBDR optimization)
+	invalidateFramebuffer(gl!, pingPongState ? fboA! : fboB!);
 
 	return outputTex;
 }

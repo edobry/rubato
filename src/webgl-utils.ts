@@ -183,3 +183,20 @@ export function uploadVideoTexture(
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 	// Texture stays bound for the caller to use
 }
+
+/**
+ * Invalidate a framebuffer's color attachment after reading from it.
+ * On tile-based mobile GPUs (Adreno, Mali, Apple), this tells the driver
+ * it doesn't need to write the tile data back to main memory, saving bandwidth.
+ * No-op on WebGL1 contexts (invalidateFramebuffer is WebGL2-only).
+ */
+export function invalidateFramebuffer(
+	gl: WebGLRenderingContext,
+	fbo: WebGLFramebuffer,
+): void {
+	const gl2 = gl as WebGL2RenderingContext;
+	if (typeof gl2.invalidateFramebuffer !== "function") return;
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+	gl2.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
