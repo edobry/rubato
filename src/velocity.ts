@@ -12,7 +12,7 @@ import { createTexture } from "./webgl-utils";
 
 // --- Module-level state ---
 
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
 let velocityTexture: WebGLTexture | null = null;
 
 /** Centroids from the previous frame: [cx0, cy0, cx1, cy1, ...] in pixel coords.
@@ -30,7 +30,7 @@ let uploadGridSize = 0;
  * Initialize the velocity module on a shared WebGL context.
  * Call once during startup.
  */
-export function initVelocity(sharedGl: WebGLRenderingContext): void {
+export function initVelocity(sharedGl: WebGL2RenderingContext): void {
 	gl = sharedGl;
 	velocityTexture = createTexture(gl);
 }

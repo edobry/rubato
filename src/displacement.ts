@@ -14,7 +14,7 @@ import vertSrc from "./shaders/fog.vert.glsl";
 import { createFramebuffer, createProgram, createTexture } from "./webgl-utils";
 
 // Module-level GL state
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let quadBuffer: WebGLBuffer | null = null;
 let aPosLocation = -1;
@@ -43,7 +43,7 @@ let uTexelSize: WebGLUniformLocation | null = null;
  * Initialize the displacement field on a shared WebGL context.
  * Call once during startup (unified pipeline only).
  */
-export function initDisplacement(sharedGl: WebGLRenderingContext): void {
+export function initDisplacement(sharedGl: WebGL2RenderingContext): void {
 	gl = sharedGl;
 
 	try {

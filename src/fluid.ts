@@ -27,13 +27,16 @@ import vertSrc from "./shaders/fog.vert.glsl";
 import {
 	createFramebuffer,
 	createProgram,
+	createQuadVAO,
 	createTexture,
 	invalidateFramebuffer,
+	renderPass,
 	uploadFloatTexture,
 } from "./webgl-utils";
 
 // ── Module-level GL state ───────────────────────────────────────────────────
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
+let vao: WebGLVertexArrayObject | null = null;
 
 // Shader programs (one per pass)
 let advectProgram: WebGLProgram | null = null;
@@ -42,9 +45,6 @@ let divergenceProgram: WebGLProgram | null = null;
 let pressureProgram: WebGLProgram | null = null;
 let gradientProgram: WebGLProgram | null = null;
 let drainProgram: WebGLProgram | null = null;
-
-// Shared fullscreen quad
-let quadBuffer: WebGLBuffer | null = null;
 
 // ── Ping-pong FBO pairs ────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ function getUniformLoc(
  * Initialize the fluid simulation on a shared WebGL context.
  * Call once during startup (unified pipeline only).
  */
-export function initFluid(sharedGl: WebGLRenderingContext): void {
+export function initFluid(sharedGl: WebGL2RenderingContext): void {
 	gl = sharedGl;
 
 	try {
@@ -122,11 +122,8 @@ export function initFluid(sharedGl: WebGLRenderingContext): void {
 		return;
 	}
 
-	// Shared fullscreen quad geometry
-	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	quadBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+	// Shared fullscreen quad VAO
+	vao = createQuadVAO(gl);
 
 	// Create mask and motion upload textures
 	maskTexture = createTexture(gl);
@@ -258,34 +255,6 @@ function ensureFBOs(res: number): void {
 	gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
-// ── Shader pass helper ─────────────────────────────────────────────────────
-
-/**
- * Run a fullscreen shader pass into a target FBO.
- * Sets up the quad, calls setupUniforms for program-specific bindings,
- * then draws and unbinds.
- */
-function runPass(
-	program: WebGLProgram,
-	targetFbo: WebGLFramebuffer,
-	res: number,
-	setupUniforms: () => void,
-): void {
-	gl!.useProgram(program);
-	gl!.bindBuffer(gl!.ARRAY_BUFFER, quadBuffer);
-
-	const aPos = gl!.getAttribLocation(program, "a_position");
-	gl!.enableVertexAttribArray(aPos);
-	gl!.vertexAttribPointer(aPos, 2, gl!.FLOAT, false, 0, 0);
-
-	setupUniforms();
-
-	gl!.bindFramebuffer(gl!.FRAMEBUFFER, targetFbo);
-	gl!.viewport(0, 0, res, res);
-	gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
-	gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-}
-
 // ── Main update ────────────────────────────────────────────────────────────
 
 /**
@@ -304,6 +273,7 @@ export function updateFluid(
 ): void {
 	if (
 		!gl ||
+		!vao ||
 		!advectProgram ||
 		!forceProgram ||
 		!divergenceProgram ||
@@ -336,7 +306,7 @@ export function updateFluid(
 		const readVel = velPing ? velTexB : velTexA;
 		const writeFbo = velPing ? velFboA : velFboB;
 
-		runPass(advectProgram, writeFbo!, res, () => {
+		renderPass(gl!, advectProgram!, vao!, writeFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readVel);
 			gl!.uniform1i(getUniformLoc(advectProgram!, "u_field"), 0);
@@ -361,7 +331,7 @@ export function updateFluid(
 		const readVel = velPing ? velTexB : velTexA;
 		const writeFbo = velPing ? velFboA : velFboB;
 
-		runPass(forceProgram!, writeFbo!, res, () => {
+		renderPass(gl!, forceProgram!, vao!, writeFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readVel);
 			gl!.uniform1i(getUniformLoc(forceProgram!, "u_velocity"), 0);
@@ -392,7 +362,7 @@ export function updateFluid(
 	{
 		const readVel = velPing ? velTexB : velTexA;
 
-		runPass(divergenceProgram!, divFbo!, res, () => {
+		renderPass(gl!, divergenceProgram!, vao!, divFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readVel);
 			gl!.uniform1i(getUniformLoc(divergenceProgram!, "u_velocity"), 0);
@@ -410,7 +380,7 @@ export function updateFluid(
 		const readPres = presPing ? presTexB : presTexA;
 		const writeFbo = presPing ? presFboA : presFboB;
 
-		runPass(pressureProgram!, writeFbo!, res, () => {
+		renderPass(gl!, pressureProgram!, vao!, writeFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readPres);
 			gl!.uniform1i(getUniformLoc(pressureProgram!, "u_pressure"), 0);
@@ -437,7 +407,7 @@ export function updateFluid(
 		const readPres = presPing ? presTexB : presTexA;
 		const writeFbo = velPing ? velFboA : velFboB;
 
-		runPass(gradientProgram!, writeFbo!, res, () => {
+		renderPass(gl!, gradientProgram!, vao!, writeFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readVel);
 			gl!.uniform1i(getUniformLoc(gradientProgram!, "u_velocity"), 0);
@@ -461,7 +431,7 @@ export function updateFluid(
 		const readVel = velPing ? velTexB : velTexA;
 		const writeFbo = denPing ? denFboA : denFboB;
 
-		runPass(advectProgram!, writeFbo!, res, () => {
+		renderPass(gl!, advectProgram!, vao!, writeFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readDen);
 			gl!.uniform1i(getUniformLoc(advectProgram!, "u_field"), 0);
@@ -492,7 +462,7 @@ export function updateFluid(
 		const readDen = denPing ? denTexB : denTexA;
 		const writeFbo = denPing ? denFboA : denFboB;
 
-		runPass(drainProgram, writeFbo!, res, () => {
+		renderPass(gl!, drainProgram, vao!, writeFbo!, [res, res], () => {
 			gl!.activeTexture(gl!.TEXTURE0);
 			gl!.bindTexture(gl!.TEXTURE_2D, readDen);
 			gl!.uniform1i(getUniformLoc(drainProgram!, "u_density"), 0);

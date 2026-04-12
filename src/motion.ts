@@ -49,8 +49,10 @@ import trailVertSrc from "./shaders/trail.vert.glsl";
 import {
 	createFramebuffer,
 	createProgram,
+	createQuadVAO,
 	createTexture,
 	invalidateFramebuffer,
+	renderPass,
 	uploadFloatRGBTexture,
 	uploadFloatTexture,
 } from "./webgl-utils";
@@ -62,10 +64,9 @@ let prevRawMask: Float32Array | null = null;
 let trailBuffer: Float32Array | null = null;
 
 // ── GPU trail state — populated by initGpuTrail() ──────────────────────────
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
 let trailProgram: WebGLProgram | null = null;
-let quadBuffer: WebGLBuffer | null = null;
-let aPosLocation = -1;
+let trailVao: WebGLVertexArrayObject | null = null;
 
 // ── Ping-pong FBOs ─────────────────────────────────────────────────────────
 // Two FBOs alternate as read (previous trail) and write (new trail) targets.
@@ -117,7 +118,7 @@ let uDiffusionMode: WebGLUniformLocation | null = null;
  * @param sharedGl - The WebGL context shared with the compositor, so the trail
  *   texture can be sampled directly without copying.
  */
-export function initGpuTrail(sharedGl: WebGLRenderingContext): void {
+export function initGpuTrail(sharedGl: WebGL2RenderingContext): void {
 	gl = sharedGl;
 
 	try {
@@ -130,12 +131,8 @@ export function initGpuTrail(sharedGl: WebGLRenderingContext): void {
 
 	gl.useProgram(trailProgram);
 
-	// Full-screen quad (shared geometry)
-	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	quadBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-	aPosLocation = gl.getAttribLocation(trailProgram, "a_position");
+	// Full-screen quad VAO
+	trailVao = createQuadVAO(gl);
 
 	// Uniform locations
 	uPrevTrail = gl.getUniformLocation(trailProgram, "u_prevTrail");
@@ -255,7 +252,7 @@ export function updateGpuTrail(
 	h: number,
 	mask?: Float32Array | null,
 ): WebGLTexture | null {
-	if (!gl || !trailProgram || !quadBuffer || !motionTexture) return null;
+	if (!gl || !trailProgram || !trailVao || !motionTexture) return null;
 
 	ensureFBOs(w, h);
 	if (!fboA || !fboB || !fboTexA || !fboTexB) return null;
@@ -267,65 +264,51 @@ export function updateGpuTrail(
 	const writeFbo = pingPongState ? fboA : fboB;
 	const outputTex = pingPongState ? fboTexA : fboTexB;
 
-	// Save current GL state we'll modify
-	gl.useProgram(trailProgram);
+	renderPass(gl, trailProgram, trailVao, writeFbo, [w, h], () => {
+		// Upload motion map to texture unit 0.
+		// Anisotropic mode packs magnitude + direction into RGB; isotropic uses LUMINANCE.
+		gl!.activeTexture(gl!.TEXTURE0);
+		if (isImprint && params.density.diffusionMode === "anisotropic") {
+			const vectors = computeMotionVectors(motionMap, w, h);
+			uploadFloatRGBTexture(gl!, motionTexture!, vectors, w, h);
+		} else {
+			uploadFloatTexture(gl!, motionTexture!, motionMap, w, h);
+		}
+		gl!.uniform1i(uMotion, 0);
 
-	// Bind our vertex buffer
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.enableVertexAttribArray(aPosLocation);
-	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
+		// Bind previous trail as input
+		gl!.activeTexture(gl!.TEXTURE1);
+		gl!.bindTexture(gl!.TEXTURE_2D, readTex);
+		gl!.uniform1i(uPrevTrail, 1);
 
-	// Upload motion map to texture unit 0.
-	// Anisotropic mode packs magnitude + direction into RGB; isotropic uses LUMINANCE.
-	gl.activeTexture(gl.TEXTURE0);
-	if (isImprint && params.density.diffusionMode === "anisotropic") {
-		const vectors = computeMotionVectors(motionMap, w, h);
-		uploadFloatRGBTexture(gl, motionTexture, vectors, w, h);
-	} else {
-		uploadFloatTexture(gl, motionTexture, motionMap, w, h);
-	}
-	gl.uniform1i(uMotion, 0);
+		// Upload mask texture for imprint mode
+		if (isImprint && mask && maskTexture) {
+			gl!.activeTexture(gl!.TEXTURE2);
+			uploadFloatTexture(gl!, maskTexture, mask, w, h);
+			gl!.uniform1i(uMask, 2);
+		}
 
-	// Bind previous trail as input
-	gl.activeTexture(gl.TEXTURE1);
-	gl.bindTexture(gl.TEXTURE_2D, readTex);
-	gl.uniform1i(uPrevTrail, 1);
+		// Set common uniforms
+		gl!.uniform1f(uDeposition, params.motion.deposition);
+		gl!.uniform1f(uDecay, params.motion.decay);
 
-	// Upload mask texture for imprint mode
-	if (isImprint && mask && maskTexture) {
-		gl.activeTexture(gl.TEXTURE2);
-		uploadFloatTexture(gl, maskTexture, mask, w, h);
-		gl.uniform1i(uMask, 2);
-	}
-
-	// Set common uniforms
-	gl.uniform1f(uDeposition, params.motion.deposition);
-	gl.uniform1f(uDecay, params.motion.decay);
-
-	// Set imprint mode uniforms
-	gl.uniform1f(uMode, isImprint ? 1.0 : 0.0);
-	if (isImprint) {
-		gl.uniform1f(uCultivationRate, params.density.cultivationRate);
-		gl.uniform1f(uChannelStrength, params.density.channelStrength);
-		gl.uniform1f(uDrainRate, params.density.drainRate);
-		gl.uniform1f(uDiffusionRate, params.density.diffusionRate);
-		gl.uniform1f(uDecayVariance, params.density.decayVariance);
-		gl.uniform1f(uDisintSpeed, params.density.disintegrationSpeed);
-		gl.uniform1f(uTime, performance.now() / 1000);
-		gl.uniform2f(uTexelSize, w > 0 ? 1.0 / w : 0, h > 0 ? 1.0 / h : 0);
-		gl.uniform1f(
-			uDiffusionMode,
-			params.density.diffusionMode === "anisotropic" ? 1.0 : 0.0,
-		);
-	}
-
-	// Render into the target FBO
-	gl.bindFramebuffer(gl.FRAMEBUFFER, writeFbo);
-	gl.viewport(0, 0, w, h);
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-	// Restore default framebuffer
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		// Set imprint mode uniforms
+		gl!.uniform1f(uMode, isImprint ? 1.0 : 0.0);
+		if (isImprint) {
+			gl!.uniform1f(uCultivationRate, params.density.cultivationRate);
+			gl!.uniform1f(uChannelStrength, params.density.channelStrength);
+			gl!.uniform1f(uDrainRate, params.density.drainRate);
+			gl!.uniform1f(uDiffusionRate, params.density.diffusionRate);
+			gl!.uniform1f(uDecayVariance, params.density.decayVariance);
+			gl!.uniform1f(uDisintSpeed, params.density.disintegrationSpeed);
+			gl!.uniform1f(uTime, performance.now() / 1000);
+			gl!.uniform2f(uTexelSize, w > 0 ? 1.0 / w : 0, h > 0 ? 1.0 / h : 0);
+			gl!.uniform1f(
+				uDiffusionMode,
+				params.density.diffusionMode === "anisotropic" ? 1.0 : 0.0,
+			);
+		}
+	});
 
 	// Swap ping-pong so next frame reads from the FBO we just wrote to
 	pingPongState = !pingPongState;

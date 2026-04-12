@@ -7,13 +7,20 @@
 import { params } from "./params";
 import fragSrc from "./shaders/fog.frag.glsl";
 import vertSrc from "./shaders/fog.vert.glsl";
-import { createFramebuffer, createProgram, createTexture } from "./webgl-utils";
+import {
+	createFramebuffer,
+	createProgram,
+	createQuadVAO,
+	createTexture,
+	renderPass,
+} from "./webgl-utils";
 
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let startTime = 0;
 let frameCounter = 0;
+let vao: WebGLVertexArrayObject | null = null;
 
 // Uniform locations
 let uTime: WebGLUniformLocation | null = null;
@@ -25,11 +32,6 @@ let uColor: WebGLUniformLocation | null = null;
 let uOctaves: WebGLUniformLocation | null = null;
 let uCropOffset: WebGLUniformLocation | null = null;
 let uCropScale: WebGLUniformLocation | null = null;
-
-// Vertex buffer for fullscreen quad — must be re-bound before drawing
-// since other renderers on the shared GL context overwrite the binding.
-let quadBuffer: WebGLBuffer | null = null;
-let aPosLocation = 0;
 
 // FBO path for renderFogToTexture
 let fboTexture: WebGLTexture | null = null;
@@ -48,7 +50,9 @@ let fboHeight = 0;
  *
  * Returns the canvas element to be inserted into the DOM.
  */
-export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
+export function initFog(
+	externalGl?: WebGL2RenderingContext,
+): HTMLCanvasElement {
 	if (externalGl) {
 		gl = externalGl;
 		canvas = gl.canvas as HTMLCanvasElement;
@@ -57,9 +61,11 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 		canvas.style.cssText =
 			"position:fixed;inset:0;width:100%;height:100%;z-index:-1";
 
-		gl = canvas.getContext("webgl", { alpha: false });
+		gl = canvas.getContext("webgl2", {
+			alpha: false,
+		}) as WebGL2RenderingContext | null;
 		if (!gl) {
-			console.error("WebGL not available for fog renderer");
+			console.error("WebGL2 not available for fog renderer");
 			return canvas;
 		}
 	}
@@ -73,15 +79,8 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 
 	gl.useProgram(program);
 
-	// Full-screen quad
-	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	quadBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-	aPosLocation = gl.getAttribLocation(program, "a_position");
-	gl.enableVertexAttribArray(aPosLocation);
-	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
+	// Full-screen quad VAO
+	vao = createQuadVAO(gl);
 
 	// Get uniform locations
 	uTime = gl.getUniformLocation(program, "u_time");
@@ -165,18 +164,22 @@ function setFogUniforms(): void {
 
 /** Render one frame of the fog field directly to screen. */
 export function drawFog(): void {
-	if (!gl || !program) return;
+	if (!gl || !program || !vao) return;
 
 	frameCounter++;
 	if (params.fog.frameSkip > 1 && frameCounter % params.fog.frameSkip !== 0)
 		return;
 
-	setFogUniforms();
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.enableVertexAttribArray(aPosLocation);
-	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+	renderPass(
+		gl,
+		program,
+		vao,
+		null,
+		[gl.canvas.width, gl.canvas.height],
+		() => {
+			setFogUniforms();
+		},
+	);
 }
 
 /**
@@ -227,21 +230,11 @@ export function renderFogToTexture(): WebGLTexture | null {
 		return fboTexture;
 	}
 
-	setFogUniforms();
+	if (!vao) return fboTexture;
 
-	// Re-bind vertex buffer (shared GL context — other renderers overwrite this)
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.enableVertexAttribArray(aPosLocation);
-	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
-
-	// Render into the FBO
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-	gl.viewport(0, 0, w, h);
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-	// Restore default framebuffer and viewport
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-	gl.viewport(0, 0, w, h);
+	renderPass(gl, program, vao, fbo, [w, h], () => {
+		setFogUniforms();
+	});
 
 	return fboTexture;
 }

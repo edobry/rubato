@@ -51,7 +51,9 @@ import compFragSrc from "./shaders/composite.frag.glsl";
 import compVertSrc from "./shaders/composite.vert.glsl";
 import {
 	createProgram,
+	createQuadVAO,
 	createTexture,
+	renderPass,
 	uploadFloatTexture,
 	uploadVideoTexture,
 } from "./webgl-utils";
@@ -60,15 +62,14 @@ import {
 // The compositor owns the primary WebGL context. Fog rendering shares this
 // context via getCompositorGl(), writing to an offscreen FBO whose texture
 // is passed back into compositeFrame() as `fogTex`.
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let canvas: HTMLCanvasElement | null = null;
+let vao: WebGLVertexArrayObject | null = null;
 
 // Managed textures — fog texture is external (rendered by fog.ts into an FBO
 // on this same GL context), so it is received as a parameter, not stored here.
 let cameraTexture: WebGLTexture | null = null;
-let quadBuffer: WebGLBuffer | null = null;
-let aPosLocation = -1;
 let maskTexture: WebGLTexture | null = null;
 let trailTexture: WebGLTexture | null = null;
 
@@ -110,9 +111,12 @@ export function initCompositor(): HTMLCanvasElement | null {
 	canvas = document.createElement("canvas");
 	canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%";
 
-	gl = canvas.getContext("webgl", { alpha: false, premultipliedAlpha: false });
+	gl = canvas.getContext("webgl2", {
+		alpha: false,
+		premultipliedAlpha: false,
+	}) as WebGL2RenderingContext | null;
 	if (!gl) {
-		console.error("WebGL not available for compositor");
+		console.error("WebGL2 not available for compositor");
 		return null;
 	}
 
@@ -125,12 +129,8 @@ export function initCompositor(): HTMLCanvasElement | null {
 
 	gl.useProgram(program);
 
-	// Full-screen quad
-	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	quadBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-	aPosLocation = gl.getAttribLocation(program, "a_position");
+	// Full-screen quad VAO
+	vao = createQuadVAO(gl);
 
 	// Create textures with 1x1 placeholder data so they're renderable
 	// before the first real upload (avoids NPOT warnings on Pi)
@@ -206,7 +206,7 @@ export function initCompositor(): HTMLCanvasElement | null {
 }
 
 /** Get the compositor's WebGL context for shared use (e.g. fog rendering). */
-export function getCompositorGl(): WebGLRenderingContext | null {
+export function getCompositorGl(): WebGL2RenderingContext | null {
 	return gl;
 }
 
@@ -252,118 +252,113 @@ export function compositeFrame(
 	maskW: number,
 	maskH: number,
 ): void {
-	if (!gl || !program || !canvas || !quadBuffer) return;
+	if (!gl || !program || !canvas || !vao) return;
 
-	// Unbind any FBO left from fog/trail render pass — render to screen
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-	gl.viewport(0, 0, canvas.width, canvas.height);
+	renderPass(gl, program, vao, null, [canvas.width, canvas.height], () => {
+		// Bind fog texture (rendered by fog pass into FBO on same GL context)
+		gl!.activeTexture(gl!.TEXTURE0);
+		if (fogTex) {
+			gl!.bindTexture(gl!.TEXTURE_2D, fogTex);
+		}
 
-	gl.useProgram(program);
+		// Upload camera frame as texture
+		gl!.activeTexture(gl!.TEXTURE1);
+		uploadVideoTexture(gl!, cameraTexture!, video);
 
-	// Rebind our vertex buffer (fog/trail render passes use their own)
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-	gl.enableVertexAttribArray(aPosLocation);
-	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
+		// Upload mask as luminance texture
+		gl!.activeTexture(gl!.TEXTURE2);
+		if (mask && maskW > 0 && maskH > 0) {
+			uploadFloatTexture(gl!, maskTexture!, mask, maskW, maskH);
+		} else {
+			gl!.bindTexture(gl!.TEXTURE_2D, maskTexture!);
+		}
 
-	// Bind fog texture (rendered by fog pass into FBO on same GL context)
-	gl.activeTexture(gl.TEXTURE0);
-	if (fogTex) {
-		gl.bindTexture(gl.TEXTURE_2D, fogTex);
-	}
+		// Bind trail: either a GPU texture (WebGLTexture) or CPU data (Float32Array)
+		gl!.activeTexture(gl!.TEXTURE3);
+		if (trail instanceof WebGLTexture) {
+			// GPU trail — already on the same GL context, just bind it
+			gl!.bindTexture(gl!.TEXTURE_2D, trail);
+		} else if (trail && maskW > 0 && maskH > 0) {
+			uploadFloatTexture(gl!, trailTexture!, trail, maskW, maskH);
+		} else {
+			gl!.bindTexture(gl!.TEXTURE_2D, trailTexture!);
+		}
 
-	// Upload camera frame as texture
-	gl.activeTexture(gl.TEXTURE1);
-	uploadVideoTexture(gl, cameraTexture!, video);
+		// --- Set uniforms ---
+		// Crop transform: maps the camera's native aspect ratio to the display,
+		// producing UV offset/scale values that the shader uses to sample
+		// camera, mask, and trail textures in the correct region.
+		const { width: displayW, height: displayH } = canvas!;
+		const crop = computeCropUV(
+			video.videoWidth,
+			video.videoHeight,
+			displayW,
+			displayH,
+		);
 
-	// Upload mask as luminance texture
-	gl.activeTexture(gl.TEXTURE2);
-	if (mask && maskW > 0 && maskH > 0) {
-		uploadFloatTexture(gl, maskTexture!, mask, maskW, maskH);
-	} else {
-		gl.bindTexture(gl.TEXTURE_2D, maskTexture!);
-	}
+		gl!.uniform2f(
+			getUniform("u_cropOffset"),
+			crop.uvOffset[0],
+			crop.uvOffset[1],
+		);
+		gl!.uniform2f(getUniform("u_cropScale"), crop.uvScale[0], crop.uvScale[1]);
+		gl!.uniform1f(getUniform("u_mirror"), crop.mirror ? 1.0 : 0.0);
+		gl!.uniform1f(getUniform("u_showFeed"), params.camera.showFeed ? 1.0 : 0.0);
+		gl!.uniform1f(
+			getUniform("u_showOverlay"),
+			params.overlay.showOverlay ? 1.0 : 0.0,
+		);
+		gl!.uniform1f(getUniform("u_opacity"), params.overlay.opacity);
+		const [r, g, b] = hexToRgbNorm(params.overlay.color);
+		gl!.uniform3f(getUniform("u_overlayColor"), r, g, b);
+		gl!.uniform1f(getUniform("u_time"), performance.now() / 1000);
 
-	// Bind trail: either a GPU texture (WebGLTexture) or CPU data (Float32Array)
-	gl.activeTexture(gl.TEXTURE3);
-	if (trail instanceof WebGLTexture) {
-		// GPU trail — already on the same GL context, just bind it
-		gl.bindTexture(gl.TEXTURE_2D, trail);
-	} else if (trail && maskW > 0 && maskH > 0) {
-		uploadFloatTexture(gl, trailTexture!, trail, maskW, maskH);
-	} else {
-		gl.bindTexture(gl.TEXTURE_2D, trailTexture!);
-	}
-
-	// --- Set uniforms ---
-	// Crop transform: maps the camera's native aspect ratio to the display,
-	// producing UV offset/scale values that the shader uses to sample
-	// camera, mask, and trail textures in the correct region.
-	const { width: displayW, height: displayH } = canvas;
-	const crop = computeCropUV(
-		video.videoWidth,
-		video.videoHeight,
-		displayW,
-		displayH,
-	);
-
-	gl.uniform2f(getUniform("u_cropOffset"), crop.uvOffset[0], crop.uvOffset[1]);
-	gl.uniform2f(getUniform("u_cropScale"), crop.uvScale[0], crop.uvScale[1]);
-	gl.uniform1f(getUniform("u_mirror"), crop.mirror ? 1.0 : 0.0);
-	gl.uniform1f(getUniform("u_showFeed"), params.camera.showFeed ? 1.0 : 0.0);
-	gl.uniform1f(
-		getUniform("u_showOverlay"),
-		params.overlay.showOverlay ? 1.0 : 0.0,
-	);
-	gl.uniform1f(getUniform("u_opacity"), params.overlay.opacity);
-	const [r, g, b] = hexToRgbNorm(params.overlay.color);
-	gl.uniform3f(getUniform("u_overlayColor"), r, g, b);
-	gl.uniform1f(getUniform("u_time"), performance.now() / 1000);
-
-	// Map the color mode name to an integer code for the shader's
-	// computeOverlayColor() switch. Must stay in sync with composite.frag.glsl.
-	const colorModeMap: Record<string, number> = {
-		solid: 0,
-		rainbow: 1,
-		gradient: 2,
-		contour: 3,
-		invert: 4,
-		aura: 5,
-	};
-	gl.uniform1f(
-		getUniform("u_colorMode"),
-		colorModeMap[params.overlay.colorMode] ?? 0,
-	);
-	// u_cameraFill: 0 = camera visible only where mask detects a person,
-	// 1 = camera fills the entire frame (debug). Forced to 0 when feed is off.
-	// This is independent of fillAmount, which controls the crop/scale UV transform.
-	gl.uniform1f(getUniform("u_cameraFill"), params.camera.showFeed ? 1.0 : 0);
-	// Fog interaction uniforms:
-	// - u_fogMaskStrength: how much the body silhouette parts/clears the fog (0–1)
-	// - u_fogTrailStrength: how much accumulated trails modulate fog brightness (0–1)
-	// - u_fogMode: 0 = classic (bright fog, silhouette darkens), 1 = shadow (dark fog, silhouette lightens)
-	gl.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
-	gl.uniform1f(getUniform("u_fogTrailStrength"), params.fog.trailInteraction);
-	gl.uniform1f(
-		getUniform("u_fogMode"),
-		params.fog.mode === "shadow" ? 1.0 : 0.0,
-	);
-	// u_imprint: switches the shader to imprint mode, where the trail's G channel
-	// (density) illuminates the fog instead of the R channel modulating brightness.
-	// The body silhouette is never shown in this mode.
-	gl.uniform1f(
-		getUniform("u_imprint"),
-		params.overlay.visualize === "imprint" ? 1.0 : 0.0,
-	);
-	// u_blur: Gaussian blur radius applied to mask/trail in the shader (0 = off).
-	// u_maskTexelSize: reciprocal mask dimensions, used by the shader's blur kernel
-	// and the contour color mode's edge-detection gradient sampling.
-	gl.uniform1f(getUniform("u_blur"), params.overlay.blur);
-	gl.uniform2f(
-		getUniform("u_maskTexelSize"),
-		maskW > 0 ? 1.0 / maskW : 0,
-		maskH > 0 ? 1.0 / maskH : 0,
-	);
-
-	// Draw
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+		// Map the color mode name to an integer code for the shader's
+		// computeOverlayColor() switch. Must stay in sync with composite.frag.glsl.
+		const colorModeMap: Record<string, number> = {
+			solid: 0,
+			rainbow: 1,
+			gradient: 2,
+			contour: 3,
+			invert: 4,
+			aura: 5,
+		};
+		gl!.uniform1f(
+			getUniform("u_colorMode"),
+			colorModeMap[params.overlay.colorMode] ?? 0,
+		);
+		// u_cameraFill: 0 = camera visible only where mask detects a person,
+		// 1 = camera fills the entire frame (debug). Forced to 0 when feed is off.
+		// This is independent of fillAmount, which controls the crop/scale UV transform.
+		gl!.uniform1f(getUniform("u_cameraFill"), params.camera.showFeed ? 1.0 : 0);
+		// Fog interaction uniforms:
+		// - u_fogMaskStrength: how much the body silhouette parts/clears the fog (0–1)
+		// - u_fogTrailStrength: how much accumulated trails modulate fog brightness (0–1)
+		// - u_fogMode: 0 = classic (bright fog, silhouette darkens), 1 = shadow (dark fog, silhouette lightens)
+		gl!.uniform1f(getUniform("u_fogMaskStrength"), params.fog.maskInteraction);
+		gl!.uniform1f(
+			getUniform("u_fogTrailStrength"),
+			params.fog.trailInteraction,
+		);
+		gl!.uniform1f(
+			getUniform("u_fogMode"),
+			params.fog.mode === "shadow" ? 1.0 : 0.0,
+		);
+		// u_imprint: switches the shader to imprint mode, where the trail's G channel
+		// (density) illuminates the fog instead of the R channel modulating brightness.
+		// The body silhouette is never shown in this mode.
+		gl!.uniform1f(
+			getUniform("u_imprint"),
+			params.overlay.visualize === "imprint" ? 1.0 : 0.0,
+		);
+		// u_blur: Gaussian blur radius applied to mask/trail in the shader (0 = off).
+		// u_maskTexelSize: reciprocal mask dimensions, used by the shader's blur kernel
+		// and the contour color mode's edge-detection gradient sampling.
+		gl!.uniform1f(getUniform("u_blur"), params.overlay.blur);
+		gl!.uniform2f(
+			getUniform("u_maskTexelSize"),
+			maskW > 0 ? 1.0 / maskW : 0,
+			maskH > 0 ? 1.0 / maskH : 0,
+		);
+	});
 }

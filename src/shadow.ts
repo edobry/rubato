@@ -8,13 +8,20 @@
 import { params } from "./params";
 import vertSrc from "./shaders/fog.vert.glsl";
 import fragSrc from "./shaders/shadow.frag.glsl";
-import { createFramebuffer, createProgram, createTexture } from "./webgl-utils";
+import {
+	createFramebuffer,
+	createProgram,
+	createQuadVAO,
+	createTexture,
+	renderPass,
+} from "./webgl-utils";
 
-let gl: WebGLRenderingContext | null = null;
+let gl: WebGL2RenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let startTime = 0;
 let frameCounter = 0;
+let vao: WebGLVertexArrayObject | null = null;
 
 // Uniform locations
 let uDensity: WebGLUniformLocation | null = null;
@@ -38,8 +45,6 @@ let fboHeight = 0;
 // Crop bounds (same as fog)
 let cropOffset: [number, number] = [0, 0];
 let cropScale: [number, number] = [0, 0];
-let shadowQuadBuffer: WebGLBuffer | null = null;
-let shadowAPosLocation = 0;
 
 function hexToRgbNorm(hex: string): [number, number, number] {
 	const n = Number.parseInt(hex.replace("#", ""), 16);
@@ -50,7 +55,7 @@ function hexToRgbNorm(hex: string): [number, number, number] {
  * Initialize the shadow renderer on a shared WebGL context.
  * Call once during startup.
  */
-export function initShadow(externalGl: WebGLRenderingContext): void {
+export function initShadow(externalGl: WebGL2RenderingContext): void {
 	gl = externalGl;
 	canvas = gl.canvas as HTMLCanvasElement;
 
@@ -63,15 +68,8 @@ export function initShadow(externalGl: WebGLRenderingContext): void {
 
 	gl.useProgram(program);
 
-	// Full-screen quad
-	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	shadowQuadBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, shadowQuadBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-	shadowAPosLocation = gl.getAttribLocation(program, "a_position");
-	gl.enableVertexAttribArray(shadowAPosLocation);
-	gl.vertexAttribPointer(shadowAPosLocation, 2, gl.FLOAT, false, 0, 0);
+	// Full-screen quad VAO
+	vao = createQuadVAO(gl);
 
 	// Cache uniform locations
 	uDensity = gl.getUniformLocation(program, "u_density");
@@ -154,50 +152,39 @@ export function renderShadowToTexture(
 		return fboTexture;
 	}
 
-	// Set up program and vertex state (re-bind for shared GL context)
-	gl.useProgram(program);
-	gl.bindBuffer(gl.ARRAY_BUFFER, shadowQuadBuffer);
-	gl.enableVertexAttribArray(shadowAPosLocation);
-	gl.vertexAttribPointer(shadowAPosLocation, 2, gl.FLOAT, false, 0, 0);
+	if (!vao) return fboTexture;
 
-	const time = performance.now() / 1000 - startTime;
-	gl.uniform1f(uTime, time);
-	gl.uniform1f(uNoiseScale, params.shadow.noiseScale);
-	gl.uniform1f(uNoiseSpeed, params.shadow.noiseSpeed);
-	gl.uniform1f(uNoiseAmount, params.shadow.noiseAmount);
+	renderPass(gl, program, vao, fbo, [w, h], () => {
+		const time = performance.now() / 1000 - startTime;
+		gl!.uniform1f(uTime, time);
+		gl!.uniform1f(uNoiseScale, params.shadow.noiseScale);
+		gl!.uniform1f(uNoiseSpeed, params.shadow.noiseSpeed);
+		gl!.uniform1f(uNoiseAmount, params.shadow.noiseAmount);
 
-	const [br, bg, bb] = hexToRgbNorm(params.shadow.baseColor);
-	gl.uniform3f(uBaseColor, br, bg, bb);
+		const [br, bg, bb] = hexToRgbNorm(params.shadow.baseColor);
+		gl!.uniform3f(uBaseColor, br, bg, bb);
 
-	const [hr, hg, hb] = hexToRgbNorm(params.shadow.highlightColor);
-	gl.uniform3f(uHighlightColor, hr, hg, hb);
-	gl.uniform1f(uBaseDensity, params.shadow.baseDensity);
+		const [hr, hg, hb] = hexToRgbNorm(params.shadow.highlightColor);
+		gl!.uniform3f(uHighlightColor, hr, hg, hb);
+		gl!.uniform1f(uBaseDensity, params.shadow.baseDensity);
 
-	gl.uniform2f(uCropOffset, cropOffset[0], cropOffset[1]);
-	gl.uniform2f(uCropScale, cropScale[0], cropScale[1]);
+		gl!.uniform2f(uCropOffset, cropOffset[0], cropOffset[1]);
+		gl!.uniform2f(uCropScale, cropScale[0], cropScale[1]);
 
-	// Bind density texture to TEXTURE0
-	gl.activeTexture(gl.TEXTURE0);
-	if (densityTex) {
-		gl.bindTexture(gl.TEXTURE_2D, densityTex);
-	}
-	gl.uniform1i(uDensity, 0);
+		// Bind density texture to TEXTURE0
+		gl!.activeTexture(gl!.TEXTURE0);
+		if (densityTex) {
+			gl!.bindTexture(gl!.TEXTURE_2D, densityTex);
+		}
+		gl!.uniform1i(uDensity, 0);
 
-	// Bind velocity texture to TEXTURE1
-	gl.activeTexture(gl.TEXTURE1);
-	if (velocityTex) {
-		gl.bindTexture(gl.TEXTURE_2D, velocityTex);
-	}
-	gl.uniform1i(uVelocity, 1);
-
-	// Render into the FBO
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-	gl.viewport(0, 0, w, h);
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-	// Restore default framebuffer and viewport
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-	gl.viewport(0, 0, w, h);
+		// Bind velocity texture to TEXTURE1
+		gl!.activeTexture(gl!.TEXTURE1);
+		if (velocityTex) {
+			gl!.bindTexture(gl!.TEXTURE_2D, velocityTex);
+		}
+		gl!.uniform1i(uVelocity, 1);
+	});
 
 	return fboTexture;
 }

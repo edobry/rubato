@@ -5,7 +5,7 @@
 
 /** Compile a single shader stage and return it. Throws on error. */
 export function compileShader(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	type: number,
 	source: string,
 ): WebGLShader {
@@ -23,7 +23,7 @@ export function compileShader(
 
 /** Compile vertex + fragment sources and link into a program. Throws on error. */
 export function createProgram(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	vertSrc: string,
 	fragSrc: string,
 ): WebGLProgram {
@@ -33,6 +33,7 @@ export function createProgram(
 	if (!prog) throw new Error("Failed to create program");
 	gl.attachShader(prog, vert);
 	gl.attachShader(prog, frag);
+	gl.bindAttribLocation(prog, 0, "a_position");
 	gl.linkProgram(prog);
 	if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
 		const info = gl.getProgramInfoLog(prog);
@@ -42,7 +43,7 @@ export function createProgram(
 }
 
 /** Create a texture with NEAREST filtering and CLAMP_TO_EDGE wrapping. */
-export function createTexture(gl: WebGLRenderingContext): WebGLTexture {
+export function createTexture(gl: WebGL2RenderingContext): WebGLTexture {
 	const tex = gl.createTexture();
 	if (!tex) throw new Error("Failed to create texture");
 	gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -57,7 +58,7 @@ export function createTexture(gl: WebGLRenderingContext): WebGLTexture {
 
 /** Create a framebuffer with the given texture attached as COLOR_ATTACHMENT0. */
 export function createFramebuffer(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	texture: WebGLTexture,
 ): WebGLFramebuffer {
 	const fbo = gl.createFramebuffer();
@@ -91,7 +92,7 @@ export function createFramebuffer(
  */
 let uploadBuf: Uint8Array | null = null;
 export function uploadFloatTexture(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	texture: WebGLTexture,
 	data: Float32Array,
 	width: number,
@@ -132,7 +133,7 @@ export function uploadFloatTexture(
  */
 let uploadBufRGB: Uint8Array | null = null;
 export function uploadFloatRGBTexture(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	texture: WebGLTexture,
 	data: Float32Array,
 	width: number,
@@ -175,7 +176,7 @@ export function uploadFloatRGBTexture(
  * NOTE: caller must bind the correct texture unit first. Texture stays bound after call.
  */
 export function uploadVideoTexture(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	texture: WebGLTexture,
 	video: HTMLVideoElement,
 ): void {
@@ -188,15 +189,59 @@ export function uploadVideoTexture(
  * Invalidate a framebuffer's color attachment after reading from it.
  * On tile-based mobile GPUs (Adreno, Mali, Apple), this tells the driver
  * it doesn't need to write the tile data back to main memory, saving bandwidth.
- * No-op on WebGL1 contexts (invalidateFramebuffer is WebGL2-only).
  */
 export function invalidateFramebuffer(
-	gl: WebGLRenderingContext,
+	gl: WebGL2RenderingContext,
 	fbo: WebGLFramebuffer,
 ): void {
-	const gl2 = gl as WebGL2RenderingContext;
-	if (typeof gl2.invalidateFramebuffer !== "function") return;
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-	gl2.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]);
+	gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+/** Create a fullscreen quad VAO. Uses attribute location 0 (a_position). */
+export function createQuadVAO(
+	gl: WebGL2RenderingContext,
+): WebGLVertexArrayObject {
+	const buf = gl.createBuffer();
+	if (!buf) throw new Error("Failed to create quad buffer");
+	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+	gl.bufferData(
+		gl.ARRAY_BUFFER,
+		new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+		gl.STATIC_DRAW,
+	);
+
+	const vao = gl.createVertexArray();
+	if (!vao) throw new Error("Failed to create VAO");
+	gl.bindVertexArray(vao);
+	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+	gl.enableVertexAttribArray(0);
+	gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+	gl.bindVertexArray(null);
+
+	return vao;
+}
+
+/**
+ * Execute a fullscreen quad render pass with complete state management.
+ * Binds program, VAO, FBO, and viewport; runs setup callback for
+ * renderer-specific uniforms and textures; draws; then unbinds VAO and FBO.
+ */
+export function renderPass(
+	gl: WebGL2RenderingContext,
+	program: WebGLProgram,
+	vao: WebGLVertexArrayObject,
+	target: WebGLFramebuffer | null,
+	viewport: [number, number],
+	setup: () => void,
+): void {
+	gl.useProgram(program);
+	gl.bindVertexArray(vao);
+	setup();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, target);
+	gl.viewport(0, 0, viewport[0], viewport[1]);
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+	gl.bindVertexArray(null);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
