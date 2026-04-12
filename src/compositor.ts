@@ -111,9 +111,12 @@ export function initCompositor(): HTMLCanvasElement | null {
 	canvas = document.createElement("canvas");
 	canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%";
 
+	const testMode = new URLSearchParams(window.location.search).has("test");
 	gl = canvas.getContext("webgl2", {
 		alpha: false,
 		premultipliedAlpha: false,
+		antialias: false,
+		preserveDrawingBuffer: testMode,
 	}) as WebGL2RenderingContext | null;
 	if (!gl) {
 		console.error("WebGL2 not available for compositor");

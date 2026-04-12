@@ -829,6 +829,17 @@ async function main(ws?: WsClient): Promise<void> {
 			return JSON.parse(JSON.stringify(params));
 		},
 		pipeline,
+		applyPreset: (name: string) => {
+			const bundled = getBundledPresets();
+			const user = getUserPresets();
+			const preset = user[name] ?? bundled[name];
+			if (preset) {
+				applyPreset(preset);
+				setLastPreset(name);
+			}
+		},
+		getPresetNames: () =>
+			Object.keys({ ...getBundledPresets(), ...getUserPresets() }),
 	};
 }
 
