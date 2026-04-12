@@ -7,6 +7,7 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 import { buildInfo } from "./server/build-info.js";
 import { presetSyncPlugin } from "./server/preset-api.js";
 import { FilePresetStore } from "./server/preset-store.js";
+import { remoteConsolePlugin } from "./server/remote-console.js";
 import { wsPlugin } from "./src/ws/plugin.js";
 
 /** Try running a Tailscale CLI command at the given path. */
@@ -100,6 +101,7 @@ export default defineConfig(({ mode }) => {
 				new FilePresetStore(resolve(__dirname, "custom-presets.json")),
 			),
 			wsPlugin(),
+			remoteConsolePlugin(),
 			viteStaticCopy({
 				targets: [
 					{

@@ -840,9 +840,34 @@ function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 }
 
 function boot(): void {
-	// Mobile dev console — only in dev mode
+	// Mobile dev console + remote logging — only in dev mode
 	if (import.meta.env.DEV) {
 		void import("eruda").then((eruda) => eruda.default.init());
+
+		// Forward console output to dev server for remote debugging
+		for (const level of ["log", "warn", "error", "info"] as const) {
+			const original = console[level];
+			console[level] = (...args: unknown[]) => {
+				original.apply(console, args);
+				try {
+					const payload = {
+						level,
+						args: args.map((a) =>
+							typeof a === "object" ? JSON.stringify(a) : String(a),
+						),
+						timestamp: new Date().toISOString(),
+						url: location.pathname,
+					};
+					void fetch("/api/console", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload),
+					});
+				} catch {
+					// Never break the app for logging
+				}
+			};
+		}
 	}
 
 	const ws = new WsClient("piece");

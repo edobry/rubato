@@ -6,3 +6,6 @@ test-results/
 vnc
 custom-presets.json
 .clips/
+
+# Remote console logs
+remote-console.log
