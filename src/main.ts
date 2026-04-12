@@ -175,8 +175,6 @@ async function main(ws?: WsClient): Promise<void> {
 		params.fog.octaves = 3;
 		params.fog.renderScale = 0.5;
 		params.fog.frameSkip = 2;
-		// Lower FPS target for thermal headroom
-		params.autoTune.targetFps = 24;
 		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
 		showStatus("Mobile device — optimized defaults applied", 3000);
 	}
@@ -330,6 +328,26 @@ async function main(ws?: WsClient): Promise<void> {
 			}
 		}
 	});
+
+	// Triple-tap to toggle HUD on mobile (equivalent to 'S' key)
+	{
+		let tapCount = 0;
+		let tapTimer: ReturnType<typeof setTimeout> | null = null;
+		document.addEventListener("touchend", (e) => {
+			// Only count single-finger taps, ignore multi-touch
+			if (e.changedTouches.length !== 1) return;
+			tapCount++;
+			if (tapTimer) clearTimeout(tapTimer);
+			if (tapCount >= 3) {
+				tapCount = 0;
+				toggleHud();
+			} else {
+				tapTimer = setTimeout(() => {
+					tapCount = 0;
+				}, 400);
+			}
+		});
+	}
 
 	const fps = new FpsCounter();
 
@@ -517,6 +535,12 @@ async function main(ws?: WsClient): Promise<void> {
 		if (!video) return;
 
 		perfFrameStart();
+
+		// Enforce lower FPS target on mobile (thermal headroom, reduces thrashing)
+		if (isMobile() && params.autoTune.targetFps > 24) {
+			params.autoTune.targetFps = 24;
+		}
+
 		autoTuneTick();
 
 		// Check if resolution changed via GUI (or auto-tuner)
