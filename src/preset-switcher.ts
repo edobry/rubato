@@ -17,6 +17,7 @@ import {
 	getUserPresets,
 	setLastPreset,
 } from "./presets";
+import { showToast } from "./toast";
 
 /** Build the ordered list of preset names (bundled + user). */
 function getPresetNames(): string[] {
@@ -35,47 +36,6 @@ function resolvePreset(displayName: string): CreativePreset | null {
 		if (name in user) return user[name]!;
 	}
 	return null;
-}
-
-// ── Toast ────────────────────────────────────────────────────────────
-
-let toastEl: HTMLElement | null = null;
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showToast(text: string): void {
-	if (!toastEl) {
-		toastEl = document.createElement("div");
-		toastEl.style.cssText = `
-			position: fixed;
-			bottom: 48px;
-			left: 50%;
-			transform: translateX(-50%);
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-			font-size: 20px;
-			font-weight: 300;
-			letter-spacing: 0.12em;
-			color: #fff;
-			text-shadow: 0 0 12px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7);
-			background: rgba(0,0,0,0.4);
-			padding: 8px 20px;
-			border-radius: 8px;
-			z-index: 9000;
-			pointer-events: none;
-			opacity: 0;
-			transition: opacity 0.3s ease;
-			-webkit-font-smoothing: antialiased;
-		`;
-		document.body.appendChild(toastEl);
-	}
-
-	toastEl.textContent = text;
-	toastEl.style.opacity = "1";
-
-	if (toastTimer) clearTimeout(toastTimer);
-	toastTimer = setTimeout(() => {
-		if (toastEl) toastEl.style.opacity = "0";
-		toastTimer = null;
-	}, 2000);
 }
 
 // ── Cycling ──────────────────────────────────────────────────────────

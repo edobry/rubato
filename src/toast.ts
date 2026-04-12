@@ -1,58 +1,44 @@
 /**
- * Minimal toast notification — a brief, non-intrusive message pill.
- * Used for user-facing feedback on mobile (camera flip, optimization, etc.).
+ * Shared toast notification — a brief, non-intrusive message overlay.
+ * Used for preset names, mobile feedback, camera flip, etc.
+ * Single instance: new toasts replace the current one.
  */
 
-let currentToast: HTMLElement | null = null;
+let toastEl: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function showToast(message: string, durationMs = 2000): void {
-	// Remove any existing toast
-	if (currentToast) {
-		currentToast.remove();
-		if (hideTimer) clearTimeout(hideTimer);
+	if (!toastEl) {
+		toastEl = document.createElement("div");
+		toastEl.style.cssText = [
+			"position: fixed",
+			"bottom: calc(48px + env(safe-area-inset-bottom, 0px))",
+			"left: 50%",
+			"transform: translateX(-50%)",
+			"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+			"font-size: 20px",
+			"font-weight: 300",
+			"letter-spacing: 0.12em",
+			"color: #fff",
+			"text-shadow: 0 0 12px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7)",
+			"background: rgba(0,0,0,0.4)",
+			"padding: 8px 20px",
+			"border-radius: 8px",
+			"z-index: 10000",
+			"pointer-events: none",
+			"opacity: 0",
+			"transition: opacity 0.3s ease",
+			"-webkit-font-smoothing: antialiased",
+		].join(";");
+		document.body.appendChild(toastEl);
 	}
 
-	const el = document.createElement("div");
-	el.textContent = message;
-	el.style.cssText = [
-		"position: fixed",
-		"bottom: calc(80px + env(safe-area-inset-bottom, 0px))",
-		"left: 50%",
-		"transform: translateX(-50%)",
-		"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
-		"font-size: 13px",
-		"font-weight: 400",
-		"letter-spacing: 0.03em",
-		"color: rgba(255,255,255,0.85)",
-		"background: rgba(255,255,255,0.12)",
-		"backdrop-filter: blur(12px)",
-		"-webkit-backdrop-filter: blur(12px)",
-		"padding: 8px 18px",
-		"border-radius: 20px",
-		"z-index: 10000",
-		"pointer-events: none",
-		"opacity: 0",
-		"transition: opacity 0.3s ease",
-		"-webkit-font-smoothing: antialiased",
-	].join(";");
+	toastEl.textContent = message;
+	toastEl.style.opacity = "1";
 
-	document.body.appendChild(el);
-	currentToast = el;
-
-	// Fade in
-	requestAnimationFrame(() => {
-		el.style.opacity = "1";
-	});
-
-	// Fade out and remove
+	if (hideTimer) clearTimeout(hideTimer);
 	hideTimer = setTimeout(() => {
-		el.style.opacity = "0";
-		setTimeout(() => {
-			if (currentToast === el) {
-				el.remove();
-				currentToast = null;
-			}
-		}, 300);
+		if (toastEl) toastEl.style.opacity = "0";
+		hideTimer = null;
 	}, durationMs);
 }
