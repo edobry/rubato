@@ -26,6 +26,11 @@ let uOctaves: WebGLUniformLocation | null = null;
 let uCropOffset: WebGLUniformLocation | null = null;
 let uCropScale: WebGLUniformLocation | null = null;
 
+// Vertex buffer for fullscreen quad — must be re-bound before drawing
+// since other renderers on the shared GL context overwrite the binding.
+let quadBuffer: WebGLBuffer | null = null;
+let aPosLocation = 0;
+
 // FBO path for renderFogToTexture
 let fboTexture: WebGLTexture | null = null;
 let fbo: WebGLFramebuffer | null = null;
@@ -70,13 +75,13 @@ export function initFog(externalGl?: WebGLRenderingContext): HTMLCanvasElement {
 
 	// Full-screen quad
 	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	const buf = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+	quadBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
-	const aPos = gl.getAttribLocation(program, "a_position");
-	gl.enableVertexAttribArray(aPos);
-	gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+	aPosLocation = gl.getAttribLocation(program, "a_position");
+	gl.enableVertexAttribArray(aPosLocation);
+	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 
 	// Get uniform locations
 	uTime = gl.getUniformLocation(program, "u_time");
@@ -167,6 +172,9 @@ export function drawFog(): void {
 		return;
 
 	setFogUniforms();
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+	gl.enableVertexAttribArray(aPosLocation);
+	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
@@ -220,6 +228,11 @@ export function renderFogToTexture(): WebGLTexture | null {
 	}
 
 	setFogUniforms();
+
+	// Re-bind vertex buffer (shared GL context — other renderers overwrite this)
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+	gl.enableVertexAttribArray(aPosLocation);
+	gl.vertexAttribPointer(aPosLocation, 2, gl.FLOAT, false, 0, 0);
 
 	// Render into the FBO
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);

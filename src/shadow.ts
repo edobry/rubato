@@ -38,6 +38,8 @@ let fboHeight = 0;
 // Crop bounds (same as fog)
 let cropOffset: [number, number] = [0, 0];
 let cropScale: [number, number] = [0, 0];
+let shadowQuadBuffer: WebGLBuffer | null = null;
+let shadowAPosLocation = 0;
 
 function hexToRgbNorm(hex: string): [number, number, number] {
 	const n = Number.parseInt(hex.replace("#", ""), 16);
@@ -63,13 +65,13 @@ export function initShadow(externalGl: WebGLRenderingContext): void {
 
 	// Full-screen quad
 	const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-	const buf = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+	shadowQuadBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, shadowQuadBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
-	const aPos = gl.getAttribLocation(program, "a_position");
-	gl.enableVertexAttribArray(aPos);
-	gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+	shadowAPosLocation = gl.getAttribLocation(program, "a_position");
+	gl.enableVertexAttribArray(shadowAPosLocation);
+	gl.vertexAttribPointer(shadowAPosLocation, 2, gl.FLOAT, false, 0, 0);
 
 	// Cache uniform locations
 	uDensity = gl.getUniformLocation(program, "u_density");
@@ -152,8 +154,11 @@ export function renderShadowToTexture(
 		return fboTexture;
 	}
 
-	// Set up program and uniforms
+	// Set up program and vertex state (re-bind for shared GL context)
 	gl.useProgram(program);
+	gl.bindBuffer(gl.ARRAY_BUFFER, shadowQuadBuffer);
+	gl.enableVertexAttribArray(shadowAPosLocation);
+	gl.vertexAttribPointer(shadowAPosLocation, 2, gl.FLOAT, false, 0, 0);
 
 	const time = performance.now() / 1000 - startTime;
 	gl.uniform1f(uTime, time);
