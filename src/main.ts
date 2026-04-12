@@ -163,7 +163,8 @@ async function main(ws?: WsClient): Promise<void> {
 	}
 
 	// Apply mobile-friendly defaults on first visit (or when version changes)
-	const MOBILE_DEFAULTS_VERSION = "2";
+	const MOBILE_DEFAULTS_VERSION = "3";
+	let mobileDefaultsApplied = false;
 	if (
 		isMobile() &&
 		localStorage.getItem("rubato-mobile-configured") !== MOBILE_DEFAULTS_VERSION
@@ -177,7 +178,7 @@ async function main(ws?: WsClient): Promise<void> {
 		params.fog.renderScale = 0.5;
 		params.fog.frameSkip = 2;
 		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
-		showToast("Optimized for mobile", 2500);
+		mobileDefaultsApplied = true;
 	}
 
 	// Initialize the WebGL compositor
@@ -381,6 +382,9 @@ async function main(ws?: WsClient): Promise<void> {
 	const { modelUrl, delegate } = resolveModelConfig();
 	await pipeline.init(modelUrl, delegate);
 	hideLoading(loadingEl);
+	if (mobileDefaultsApplied) {
+		showToast("Optimized for mobile", 2500);
+	}
 
 	// Show autotune actions as brief status notifications
 	onLogChange((log) => {
