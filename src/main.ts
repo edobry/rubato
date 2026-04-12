@@ -9,7 +9,7 @@ import {
 	onLogChange,
 	resetAutoTuneFrames,
 } from "./autotune";
-import { initCamera } from "./camera";
+import { flipCamera, initCamera } from "./camera";
 import { removeCameraError, showCameraError } from "./camera-error";
 import {
 	compositeFrame,
@@ -18,7 +18,7 @@ import {
 	resizeCompositor,
 } from "./compositor";
 import { computeDisplayBounds } from "./coords";
-import { detectDevice } from "./device";
+import { detectDevice, isMobile } from "./device";
 import {
 	getDensityTexture,
 	getFluidVelocityTexture,
@@ -36,6 +36,7 @@ import {
 } from "./help-overlay";
 import { initInfoWatermark } from "./info-watermark";
 import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
+import { initMobileControls } from "./mobile-controls";
 import {
 	detectMotion,
 	detectMotionMap,
@@ -155,6 +156,16 @@ async function main(ws?: WsClient): Promise<void> {
 		);
 	}
 
+	// Apply mobile-friendly defaults on first visit
+	if (isMobile() && !localStorage.getItem("rubato-mobile-configured")) {
+		console.log("Mobile device detected, applying mobile defaults");
+		params.camera.resolution = "480p";
+		params.segmentation.frameSkip = Math.max(params.segmentation.frameSkip, 2);
+		params.overlay.downsample = Math.max(params.overlay.downsample, 2);
+		localStorage.setItem("rubato-mobile-configured", "true");
+		showStatus("Mobile device — optimized defaults applied", 3000);
+	}
+
 	// Initialize the WebGL compositor
 	const maybeCanvas = initCompositor();
 	if (!maybeCanvas) {
@@ -237,8 +248,9 @@ async function main(ws?: WsClient): Promise<void> {
 				pointer-events: none;
 				-webkit-font-smoothing: antialiased;
 			`;
-			hint.textContent =
-				"press Tab to customize \u00b7 \u2190 \u2192 to browse presets";
+			hint.textContent = isMobile()
+				? "swipe left or right to browse presets"
+				: "press Tab to customize \u00b7 \u2190 \u2192 to browse presets";
 			document.body.appendChild(hint);
 
 			// Fade in
@@ -581,6 +593,34 @@ async function main(ws?: WsClient): Promise<void> {
 		applyPreset(urlPreset);
 		console.log("[rubato] Applied preset from URL");
 	}
+
+	// Mobile controls — camera flip + fullscreen
+	void initMobileControls({
+		onFlipCamera: () => {
+			void flipCamera(params.camera.resolution)
+				.then((v) => {
+					video = v;
+					// Reset segmentation pipeline since camera dimensions may change
+					pipeline.reset();
+					resetMotion();
+					resetFluid();
+					currentFrame = {
+						mask: null,
+						motion: null,
+						trail: null,
+						trailTex: null,
+						maskW: 0,
+						maskH: 0,
+						generation: currentFrame.generation + 1,
+					};
+					showStatus("Camera flipped");
+				})
+				.catch((err) => {
+					console.error("Failed to flip camera:", err);
+					showStatus("Camera flip failed");
+				});
+		},
+	});
 
 	requestAnimationFrame(loop);
 

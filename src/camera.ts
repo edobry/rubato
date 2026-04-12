@@ -11,6 +11,7 @@ export const CAMERA_RESOLUTIONS: Record<string, [number, number]> = {
 };
 
 let currentVideo: HTMLVideoElement | null = null;
+let currentFacingMode: "user" | "environment" = "user";
 
 export async function initCamera(
 	resolution = "720p",
@@ -38,7 +39,7 @@ export async function initCamera(
 		video: {
 			width: { ideal: width },
 			height: { ideal: height },
-			facingMode: "user",
+			facingMode: currentFacingMode,
 		},
 		audio: false,
 	});
@@ -48,4 +49,33 @@ export async function initCamera(
 
 	currentVideo = video;
 	return video;
+}
+
+export async function flipCamera(
+	resolution?: string,
+): Promise<HTMLVideoElement> {
+	// Stop all tracks on the current stream
+	if (currentVideo?.srcObject instanceof MediaStream) {
+		for (const track of currentVideo.srcObject.getTracks()) {
+			track.stop();
+		}
+	}
+
+	// Force initCamera to create a fresh stream
+	currentVideo = null;
+
+	// Toggle facing mode
+	currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+
+	return await initCamera(resolution);
+}
+
+export function getCurrentFacingMode(): "user" | "environment" {
+	return currentFacingMode;
+}
+
+export async function hasMultipleCameras(): Promise<boolean> {
+	const devices = await navigator.mediaDevices.enumerateDevices();
+	const videoInputs = devices.filter((d) => d.kind === "videoinput");
+	return videoInputs.length > 1;
 }

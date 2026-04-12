@@ -24,20 +24,20 @@ const STYLES = {
 		flex-direction: column;
 		align-items: center;
 		gap: 40px;
-		padding: 48px 24px;
+		padding: 48px clamp(16px, 5vw, 24px);
 	`,
 	titleBlock: `
 		text-align: center;
 	`,
 	titleMain: `
-		font-size: 96px;
+		font-size: clamp(48px, 12vw, 96px);
 		font-weight: 300;
 		letter-spacing: 0.05em;
 		line-height: 1.1;
 		margin: 0;
 	`,
 	titleSub: `
-		font-size: 24px;
+		font-size: clamp(14px, 4vw, 24px);
 		font-weight: 300;
 		letter-spacing: 0.3em;
 		text-transform: uppercase;
@@ -75,7 +75,7 @@ const STYLES = {
 		animation: lobbyBounce 2s ease-in-out infinite;
 	`,
 	aboutSection: `
-		padding: 40px 24px 120px;
+		padding: 40px clamp(16px, 5vw, 24px) 120px;
 		margin-top: -40px;
 		display: flex;
 		flex-direction: column;
@@ -155,7 +155,10 @@ export function showLobby(): HTMLElement {
 		margin-top: 32px;
 		text-transform: uppercase;
 	`;
-	tapHint.textContent = "click anywhere to begin";
+	tapHint.textContent =
+		"ontouchstart" in window
+			? "tap anywhere to begin"
+			: "click anywhere to begin";
 	inner.appendChild(tapHint);
 
 	hero.appendChild(inner);
@@ -226,62 +229,68 @@ export function showLobby(): HTMLElement {
 	aboutInner.appendChild(credit);
 
 	// Remote control section — QR code for multi-device setups
-	const tsHost: string | null = (globalThis as Record<string, unknown>)
-		.__TAILSCALE_HOST__ as string | null;
-	const port = location.port ? `:${location.port}` : "";
-	const origin = tsHost ? `https://${tsHost}${port}` : window.location.origin;
-	const adminUrl = `${origin}/admin/`;
+	// Hide on mobile touch devices where scanning your own QR code is not useful
+	const showRemoteControl = !(
+		"ontouchstart" in window && window.innerWidth < 768
+	);
+	if (showRemoteControl) {
+		const tsHost: string | null = (globalThis as Record<string, unknown>)
+			.__TAILSCALE_HOST__ as string | null;
+		const port = location.port ? `:${location.port}` : "";
+		const origin = tsHost ? `https://${tsHost}${port}` : window.location.origin;
+		const adminUrl = `${origin}/admin/`;
 
-	const remoteSep = document.createElement("hr");
-	remoteSep.style.cssText = `
-		width: 40px;
-		height: 1px;
-		background: #333;
-		border: none;
-		margin: 48px auto 32px;
-	`;
-	aboutInner.appendChild(remoteSep);
+		const remoteSep = document.createElement("hr");
+		remoteSep.style.cssText = `
+			width: 40px;
+			height: 1px;
+			background: #333;
+			border: none;
+			margin: 48px auto 32px;
+		`;
+		aboutInner.appendChild(remoteSep);
 
-	const remoteLabel = document.createElement("p");
-	remoteLabel.style.cssText = `
-		font-size: 12px;
-		font-weight: 300;
-		color: #555;
-		letter-spacing: 0.05em;
-		text-align: center;
-		margin: 0 0 16px 0;
-	`;
-	remoteLabel.textContent = "Control from another device";
-	aboutInner.appendChild(remoteLabel);
+		const remoteLabel = document.createElement("p");
+		remoteLabel.style.cssText = `
+			font-size: 12px;
+			font-weight: 300;
+			color: #555;
+			letter-spacing: 0.05em;
+			text-align: center;
+			margin: 0 0 16px 0;
+		`;
+		remoteLabel.textContent = "Control from another device";
+		aboutInner.appendChild(remoteLabel);
 
-	const qrWrapper = document.createElement("div");
-	qrWrapper.style.cssText = `
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 12px;
-	`;
+		const qrWrapper = document.createElement("div");
+		qrWrapper.style.cssText = `
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 12px;
+		`;
 
-	const canvas = document.createElement("canvas");
-	QRCode.toCanvas(canvas, adminUrl, {
-		width: 140,
-		margin: 0,
-		color: { dark: "#888888", light: "#000000" },
-	});
+		const canvas = document.createElement("canvas");
+		QRCode.toCanvas(canvas, adminUrl, {
+			width: 140,
+			margin: 0,
+			color: { dark: "#888888", light: "#000000" },
+		});
 
-	const urlText = document.createElement("p");
-	urlText.style.cssText = `
-		font-size: 11px;
-		color: #444;
-		font-family: "SF Mono", Menlo, Consolas, monospace;
-		letter-spacing: 0.02em;
-		margin: 0;
-	`;
-	urlText.textContent = adminUrl;
+		const urlText = document.createElement("p");
+		urlText.style.cssText = `
+			font-size: 11px;
+			color: #444;
+			font-family: "SF Mono", Menlo, Consolas, monospace;
+			letter-spacing: 0.02em;
+			margin: 0;
+		`;
+		urlText.textContent = adminUrl;
 
-	qrWrapper.appendChild(canvas);
-	qrWrapper.appendChild(urlText);
-	aboutInner.appendChild(qrWrapper);
+		qrWrapper.appendChild(canvas);
+		qrWrapper.appendChild(urlText);
+		aboutInner.appendChild(qrWrapper);
+	}
 
 	about.appendChild(aboutInner);
 	overlay.appendChild(about);

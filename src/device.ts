@@ -49,6 +49,10 @@ export function detectDevice(): DeviceInfo {
 	return cached;
 }
 
+export function isMobile(): boolean {
+	return "ontouchstart" in window && window.innerWidth < 1024;
+}
+
 /** Create a throwaway WebGL context to read the GPU renderer string. */
 function getGpuRenderer(): string {
 	try {
