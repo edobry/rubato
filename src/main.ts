@@ -73,6 +73,7 @@ import {
 import { initShadow, renderShadowToTexture, setShadowCrop } from "./shadow";
 import { showStatus } from "./status";
 import { initStreaming } from "./stream.js";
+import { showToast } from "./toast";
 import { WsClient } from "./ws/client.js";
 
 /** Serialize all params to a plain object for WS transmission. */
@@ -176,7 +177,7 @@ async function main(ws?: WsClient): Promise<void> {
 		params.fog.renderScale = 0.5;
 		params.fog.frameSkip = 2;
 		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
-		showStatus("Mobile device — optimized defaults applied", 3000);
+		showToast("Optimized for mobile", 2500);
 	}
 
 	// Initialize the WebGL compositor
@@ -654,10 +655,12 @@ async function main(ws?: WsClient): Promise<void> {
 						generation: currentFrame.generation + 1,
 					};
 					showStatus("Camera flipped");
+					showToast("Camera flipped");
 				})
 				.catch((err) => {
 					console.error("Failed to flip camera:", err);
 					showStatus("Camera flip failed");
+					showToast("Camera flip failed");
 				});
 		},
 	});
