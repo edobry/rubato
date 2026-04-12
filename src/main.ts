@@ -35,6 +35,7 @@ import {
 	toggleHelpOverlay,
 } from "./help-overlay";
 import { initInfoWatermark } from "./info-watermark";
+import { hideLoading, showLoading } from "./loading";
 import { destroyLobby, showLobby, updateLobbyStatus } from "./lobby.js";
 import { initMobileControls } from "./mobile-controls";
 import {
@@ -134,6 +135,10 @@ interface FrameState {
 }
 
 async function main(ws?: WsClient): Promise<void> {
+	// Show loading overlay while camera + model initialize
+	const loadingEl = showLoading();
+	document.body.appendChild(loadingEl);
+
 	// Auto-apply constrained device defaults on first visit
 	const device = detectDevice();
 	if (
@@ -346,6 +351,7 @@ async function main(ws?: WsClient): Promise<void> {
 	showStatus("Loading segmentation model...");
 	const { modelUrl, delegate } = resolveModelConfig();
 	await pipeline.init(modelUrl, delegate);
+	hideLoading(loadingEl);
 
 	// Show autotune actions as brief status notifications
 	onLogChange((log) => {
