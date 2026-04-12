@@ -384,6 +384,10 @@ async function main(ws?: WsClient): Promise<void> {
 	hideLoading(loadingEl);
 	if (mobileDefaultsApplied) {
 		showToast("Optimized for mobile", 2500);
+		// Show initial preset name after the optimization toast clears
+		setTimeout(() => showToast(getLastPreset(), 2000), 2800);
+	} else {
+		showToast(getLastPreset(), 2000);
 	}
 
 	// Show autotune actions as brief status notifications
