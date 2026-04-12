@@ -20,7 +20,7 @@
  * fog and density align spatially. Outside the crop, the screen is black.
  */
 
-precision mediump float;
+precision highp float;
 
 varying vec2 v_uv;
 

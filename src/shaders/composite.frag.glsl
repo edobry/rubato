@@ -39,7 +39,7 @@
  * the overlay/density is rendered — see computeOverlayColor() below.
  */
 
-precision mediump float;
+precision highp float;
 
 varying vec2 v_uv;
 

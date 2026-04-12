@@ -868,6 +868,33 @@ function boot(): void {
 				}
 			};
 		}
+
+		// Capture uncaught errors and promise rejections (skip Vite HMR noise)
+		const sendError = (source: string, err: unknown) => {
+			if (isViteError(err)) return;
+			try {
+				const msg =
+					err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+				void fetch("/api/console", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						level: "error",
+						args: [`[uncaught ${source}] ${msg}`],
+						timestamp: new Date().toISOString(),
+						url: location.pathname,
+					}),
+				});
+			} catch {
+				// Never break the app for logging
+			}
+		};
+		window.addEventListener("error", (e) =>
+			sendError("error", e.error ?? e.message),
+		);
+		window.addEventListener("unhandledrejection", (e) =>
+			sendError("rejection", e.reason),
+		);
 	}
 
 	const ws = new WsClient("piece");

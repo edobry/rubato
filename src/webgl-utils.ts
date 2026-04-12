@@ -70,6 +70,10 @@ export function createFramebuffer(
 		texture,
 		0,
 	);
+	const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+	if (status !== gl.FRAMEBUFFER_COMPLETE) {
+		console.error(`Framebuffer incomplete: 0x${status.toString(16)}`);
+	}
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	return fbo;
 }

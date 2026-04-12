@@ -1,4 +1,4 @@
-precision mediump float;
+precision highp float;
 varying vec2 v_uv;
 
 uniform sampler2D u_field;     // field to advect (velocity RG or density R)

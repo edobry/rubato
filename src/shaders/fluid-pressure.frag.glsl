@@ -1,4 +1,4 @@
-precision mediump float;
+precision highp float;
 varying vec2 v_uv;
 
 uniform sampler2D u_pressure;    // previous iteration's pressure (R, 0.5-centered)

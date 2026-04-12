@@ -1,4 +1,4 @@
-precision mediump float;
+precision highp float;
 
 /*
  * 時痕 Rubato — Trail Fragment Shader (Imprint Density System)

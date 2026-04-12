@@ -4,7 +4,7 @@
  * Stillness cultivates faster; motion lets the fluid sim disperse
  * the gathered energy outward through the shadow field.
  */
-precision mediump float;
+precision highp float;
 varying vec2 v_uv;
 
 uniform sampler2D u_density;

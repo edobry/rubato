@@ -85,7 +85,8 @@ export default defineConfig(({ mode }) => {
 			hmr: isLive
 				? false
 				: {
-						host: tailscaleHost ?? "localhost",
+						// Omit host so the client connects back to whatever hostname
+						// it used to load the page (fixes LAN/phone clients).
 						protocol: "wss",
 					},
 			watch: isLive ? { ignored: ["**"] } : undefined,
