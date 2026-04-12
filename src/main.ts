@@ -406,13 +406,18 @@ async function main(ws?: WsClient): Promise<void> {
 		generation: 0,
 	};
 
-	// Clear cached frame state when visualization mode changes, and
-	// re-initialize the pipeline when the segmentation model or delegate changes.
+	// Track previous values to avoid unnecessary resets on no-op param writes
+	// (e.g., preset application re-writing the same value).
+	let prevVisualize = params.overlay.visualize;
+	let prevShowOverlay = params.overlay.showOverlay;
+
+	// Re-initialize rendering state when visualization mode actually changes.
+	// Only reset the pipeline generation (so stale segmentation results are
+	// discarded); preserve trail/motion FBOs to avoid visible trail wipes.
 	onParamChange((section, key) => {
-		if (
-			section === "overlay" &&
-			(key === "visualize" || key === "showOverlay")
-		) {
+		if (section === "overlay" && key === "visualize") {
+			if (params.overlay.visualize === prevVisualize) return;
+			prevVisualize = params.overlay.visualize;
 			currentFrame = {
 				mask: null,
 				motion: null,
@@ -423,8 +428,13 @@ async function main(ws?: WsClient): Promise<void> {
 				generation: currentFrame.generation + 1,
 			};
 			pipeline.reset();
-			resetMotion();
+			// Don't resetMotion() — trail data is still valid across mode changes
 			resetFluid();
+		}
+		if (section === "overlay" && key === "showOverlay") {
+			if (params.overlay.showOverlay === prevShowOverlay) return;
+			prevShowOverlay = params.overlay.showOverlay;
+			pipeline.reset();
 		}
 
 		if (section === "segmentation" && (key === "model" || key === "delegate")) {
