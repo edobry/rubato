@@ -6,6 +6,7 @@ import {
 import {
 	autoTuneState,
 	autoTuneTick,
+	onExpensiveChange,
 	onLogChange,
 	resetAutoTuneFrames,
 } from "./autotune";
@@ -400,6 +401,16 @@ async function main(ws?: WsClient): Promise<void> {
 			showStatus(`autotune: ${msg}`, 3000);
 		}
 	});
+
+	// Toast on mobile when autotune makes a visible quality change
+	if (isMobile()) {
+		onExpensiveChange((direction) => {
+			showToast(
+				direction === "up" ? "Quality improved" : "Optimizing performance…",
+				1500,
+			);
+		});
+	}
 
 	// Track the model/delegate so we can detect changes via GUI/presets
 	let workerModel = params.segmentation.model;

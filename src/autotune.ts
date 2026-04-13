@@ -135,6 +135,15 @@ export const autoTuneState = {
 type LogChangeListener = (log: string[]) => void;
 const logListeners: LogChangeListener[] = [];
 
+type ExpensiveChangeListener = (direction: "up" | "down") => void;
+let expensiveChangeListener: ExpensiveChangeListener | null = null;
+
+/** Subscribe to expensive autotune changes (resolution, model, downsample).
+ *  These cause visible flicker — the listener can show user feedback. */
+export function onExpensiveChange(fn: ExpensiveChangeListener): void {
+	expensiveChangeListener = fn;
+}
+
 /** Subscribe to autotune log changes. Returns an unsubscribe function. */
 export function onLogChange(fn: LogChangeListener): () => void {
 	logListeners.push(fn);
@@ -338,6 +347,10 @@ function switchConfig(
 	log(
 		`${tag} ${fps}fps (target ${target}) | ${oldKey} → ${newKey} | ${reason}`,
 	);
+
+	if (isExpensive && expensiveChangeListener) {
+		expensiveChangeListener(direction === "↑" ? "up" : "down");
+	}
 }
 
 // --- Public API ---
