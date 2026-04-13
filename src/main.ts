@@ -163,20 +163,21 @@ async function main(ws?: WsClient): Promise<void> {
 	}
 
 	// Apply mobile-friendly defaults on first visit (or when version changes)
-	const MOBILE_DEFAULTS_VERSION = "3";
+	const MOBILE_DEFAULTS_VERSION = "4";
 	let mobileDefaultsApplied = false;
 	if (
 		isMobile() &&
 		localStorage.getItem("rubato-mobile-configured") !== MOBILE_DEFAULTS_VERSION
 	) {
 		console.log("Mobile device detected, applying mobile defaults");
-		// Camera & segmentation
+		// Camera
 		params.camera.resolution = "480p";
-		params.segmentation.frameSkip = Math.max(params.segmentation.frameSkip, 2);
 		// Fog: reduce octaves, render at half res, skip every other frame
 		params.fog.octaves = 3;
 		params.fog.renderScale = 0.5;
 		params.fog.frameSkip = 2;
+		// Snappier body tracking (gallery default 0.8 is too smooth for handheld)
+		params.segmentation.temporalSmoothing = 0.5;
 		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
 		mobileDefaultsApplied = true;
 	}

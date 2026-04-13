@@ -126,6 +126,7 @@
 			"motionThreshold": 0.8
 		},
 		"fog": {
+			"mode": "classic",
 			"speed": 0.21,
 			"scale": 2.5,
 			"density": 2.4,
@@ -156,6 +157,7 @@
 			"motionThreshold": 0.08
 		},
 		"fog": {
+			"mode": "classic",
 			"speed": 0.05,
 			"scale": 6.0,
 			"density": 1.5,

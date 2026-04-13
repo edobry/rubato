@@ -162,6 +162,7 @@ export function getBundledPresets(): Record<string, CreativePreset> {
 				motionThreshold: d.segmentation.motionThreshold,
 			},
 			fog: {
+				mode: d.fog.mode,
 				speed: d.fog.speed,
 				scale: d.fog.scale,
 				density: d.fog.density,

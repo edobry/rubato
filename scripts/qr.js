@@ -4,6 +4,8 @@
  * Usage: node scripts/qr.js [port]
  */
 import { networkInterfaces } from "node:os";
+import { execSync } from "node:child_process";
+import { join } from "node:path";
 import QRCode from "qrcode";
 
 const port = process.argv[2] || "5173";
@@ -19,6 +21,15 @@ if (!ip) {
 
 const url = `https://${ip}:${port}/`;
 
-const qr = await QRCode.toString(url, { type: "terminal", small: true });
-console.log(qr);
-console.log(`  ${url}\n`);
+// Generate PNG and open it
+const pngPath = join(process.cwd(), "qr.png");
+await QRCode.toFile(pngPath, url, { width: 400 });
+console.log(`\n  ${url}\n`);
+
+// Open the image (macOS: open, Linux: xdg-open)
+try {
+	const cmd = process.platform === "darwin" ? "open" : "xdg-open";
+	execSync(`${cmd} ${pngPath}`, { stdio: "ignore" });
+} catch {
+	console.log(`QR code saved to ${pngPath}`);
+}
