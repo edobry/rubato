@@ -90,6 +90,17 @@ app.get("/clips/:filename", async (c) => {
 });
 
 // Static files from dist/ -------------------------------------------------
+// Hashed assets (JS/CSS) can be cached indefinitely — the filename changes
+// on each build. HTML files must revalidate so deploys take effect immediately.
+app.use("/*", async (c, next) => {
+	await next();
+	const url = c.req.url;
+	if (url.includes("/assets/")) {
+		c.header("Cache-Control", "public, max-age=31536000, immutable");
+	} else if (url.endsWith(".html") || url.endsWith("/") || !url.includes(".")) {
+		c.header("Cache-Control", "no-cache");
+	}
+});
 app.use(
 	"/*",
 	serveStatic({
