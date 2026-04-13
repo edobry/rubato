@@ -4,6 +4,7 @@
  * The fog is the idle-state visual — what viewers see before approaching.
  */
 
+import { isMobile } from "./device";
 import { params } from "./params";
 import fragSrc from "./shaders/fog.frag.glsl";
 import vertSrc from "./shaders/fog.vert.glsl";
@@ -18,6 +19,7 @@ import {
 let gl: WebGL2RenderingContext | null = null;
 let program: WebGLProgram | null = null;
 let canvas: HTMLCanvasElement | null = null;
+let sharedContext = false;
 let startTime = 0;
 let frameCounter = 0;
 let vao: WebGLVertexArrayObject | null = null;
@@ -56,11 +58,13 @@ export function initFog(
 	if (externalGl) {
 		gl = externalGl;
 		canvas = gl.canvas as HTMLCanvasElement;
+		sharedContext = true;
 	} else {
 		canvas = document.createElement("canvas");
 		canvas.style.cssText =
 			"position:fixed;inset:0;width:100%;height:100%;z-index:-1";
 
+		sharedContext = false;
 		gl = canvas.getContext("webgl2", {
 			alpha: false,
 		}) as WebGL2RenderingContext | null;
@@ -114,13 +118,11 @@ export function initFog(
 
 /** Resize the fog canvas to match the window. Call on window resize. */
 export function resizeFog(): void {
-	if (!canvas) return;
+	if (!canvas || !gl || sharedContext) return;
 	const scale = params.fog.renderScale;
 	canvas.width = Math.round(window.innerWidth * scale);
 	canvas.height = Math.round(window.innerHeight * scale);
-	if (gl) {
-		gl.viewport(0, 0, canvas.width, canvas.height);
-	}
+	gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
 /** Set uniforms for the current frame. */
@@ -154,7 +156,10 @@ function setFogUniforms(): void {
 	gl.uniform1f(uSpeed, params.fog.speed);
 	gl.uniform1f(uScale, params.fog.scale);
 	gl.uniform1f(uDensity, params.fog.density);
-	gl.uniform1f(uBrightness, params.fog.brightness);
+	const brightness = isMobile()
+		? Math.max(params.fog.brightness, 0.15)
+		: params.fog.brightness;
+	gl.uniform1f(uBrightness, brightness);
 	const [r, g, b] = hexToRgbNorm(params.fog.color);
 	gl.uniform3f(uColor, r, g, b);
 	gl.uniform1f(uOctaves, params.fog.octaves);
@@ -192,8 +197,9 @@ export function renderFogToTexture(): WebGLTexture | null {
 
 	frameCounter++;
 
-	const w = canvas.width;
-	const h = canvas.height;
+	const scale = params.fog.renderScale;
+	const w = Math.round(window.innerWidth * scale);
+	const h = Math.round(window.innerHeight * scale);
 
 	// (Re-)allocate the FBO and its colour attachment when the size changes.
 	if (!fboTexture || !fbo || w !== fboWidth || h !== fboHeight) {

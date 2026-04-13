@@ -114,8 +114,8 @@ export function renderShadowToTexture(
 	frameCounter++;
 
 	const scale = params.fog.renderScale;
-	const w = Math.round(canvas.width * scale);
-	const h = Math.round(canvas.height * scale);
+	const w = Math.round(window.innerWidth * scale);
+	const h = Math.round(window.innerHeight * scale);
 
 	// (Re-)allocate the FBO and its colour attachment when the size changes.
 	if (!fboTexture || !fbo || w !== fboWidth || h !== fboHeight) {
