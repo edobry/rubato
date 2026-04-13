@@ -116,20 +116,31 @@ export function extractPreset(name: string): CreativePreset {
 
 /** Apply a preset by writing its values back into the reactive params.
  *  All writes are batched so listeners fire once after all changes,
- *  preventing intermediate-state bugs. */
+ *  preventing intermediate-state bugs.
+ *
+ *  IMPORTANT: Creative params are reset to defaults BEFORE the preset is
+ *  applied. This prevents state leakage between presets — a preset that
+ *  doesn't specify a param (e.g. fog.mode) won't inherit it from the
+ *  previously active preset. Instead it gets the default value. */
 export function applyPreset(preset: CreativePreset): void {
+	const defaultParams = defaults as Record<string, Record<string, unknown>>;
+	const presetParams = preset as unknown as Record<
+		string,
+		Record<string, unknown>
+	>;
+
 	batchParamUpdate(() => {
 		for (const section of CREATIVE_PARAMS) {
 			for (const control of section.controls) {
-				const presetSection = (
-					preset as unknown as Record<string, Record<string, unknown>>
-				)[control.section];
-				if (!presetSection || !(control.key in presetSection)) continue;
-
 				const paramSection = params[control.section as keyof typeof params];
 				if (!paramSection || !(control.key in paramSection)) continue;
 
-				const value = presetSection[control.key];
+				// Use preset value if present, otherwise reset to default
+				const presetSection = presetParams[control.section];
+				const defaultSection = defaultParams[control.section];
+				const value =
+					presetSection?.[control.key] ?? defaultSection?.[control.key];
+
 				if (value !== undefined) {
 					(paramSection as Record<string, unknown>)[control.key] = value;
 				}
