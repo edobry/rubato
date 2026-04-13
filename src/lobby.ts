@@ -12,7 +12,7 @@ const STYLES = {
 		-webkit-font-smoothing: antialiased;
 	`,
 	hero: `
-		min-height: 100vh;
+		min-height: 100dvh;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -62,7 +62,7 @@ const STYLES = {
 	`,
 	scrollIndicator: `
 		position: absolute;
-		bottom: 24px;
+		bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;

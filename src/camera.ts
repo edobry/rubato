@@ -37,7 +37,7 @@ export async function initCamera(
 
 	// getUserMedia can hang indefinitely on mobile when another tab holds
 	// the camera. Race against a timeout to surface a helpful error.
-	const CAMERA_TIMEOUT_MS = 10000;
+	const CAMERA_TIMEOUT_MS = 5000;
 	const stream = await Promise.race([
 		navigator.mediaDevices.getUserMedia({
 			video: {
