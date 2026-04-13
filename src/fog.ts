@@ -157,7 +157,7 @@ function setFogUniforms(): void {
 	gl.uniform1f(uScale, params.fog.scale);
 	gl.uniform1f(uDensity, params.fog.density);
 	const brightness = isMobile()
-		? Math.max(params.fog.brightness, 0.15)
+		? Math.max(params.fog.brightness, 0.35)
 		: params.fog.brightness;
 	gl.uniform1f(uBrightness, brightness);
 	const [r, g, b] = hexToRgbNorm(params.fog.color);

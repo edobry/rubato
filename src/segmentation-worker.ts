@@ -58,8 +58,16 @@ async function handleInit(
 	wasmPath: string,
 	delegate: "GPU" | "CPU",
 ): Promise<void> {
+	// In production, the worker can't resolve bare specifiers like
+	// "@mediapipe/tasks-vision". Import from the static-copied bundle instead.
+	// In dev, Vite's module server resolves the package name; in production,
+	// we use the absolute URL path to the copied vision_bundle.mjs.
+	const mediapipeUrl =
+		typeof import.meta.env !== "undefined" && import.meta.env.DEV
+			? "@mediapipe/tasks-vision"
+			: "/mediapipe/vision_bundle.mjs";
 	const { FilesetResolver, ImageSegmenter } = await import(
-		/* @vite-ignore */ "@mediapipe/tasks-vision"
+		/* @vite-ignore */ mediapipeUrl
 	);
 	// Pass the full WASM directory URL — in a blob-URL worker context,
 	// relative paths don't resolve to the dev server.

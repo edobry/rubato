@@ -109,6 +109,10 @@ export default defineConfig(({ mode }) => {
 						src: "node_modules/@mediapipe/tasks-vision/wasm/*",
 						dest: "mediapipe/wasm",
 					},
+					{
+						src: "node_modules/@mediapipe/tasks-vision/vision_bundle.mjs",
+						dest: "mediapipe",
+					},
 				],
 			}),
 		],
