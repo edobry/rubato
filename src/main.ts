@@ -164,7 +164,7 @@ async function main(ws?: WsClient): Promise<void> {
 	}
 
 	// Apply mobile-friendly defaults on first visit (or when version changes)
-	const MOBILE_DEFAULTS_VERSION = "4";
+	const MOBILE_DEFAULTS_VERSION = "5";
 	let mobileDefaultsApplied = false;
 	if (
 		isMobile() &&
@@ -177,8 +177,12 @@ async function main(ws?: WsClient): Promise<void> {
 		params.fog.octaves = 3;
 		params.fog.renderScale = 0.5;
 		params.fog.frameSkip = 2;
+		// Use fast (smaller) segmentation model — minimal quality difference on phone screens
+		params.segmentation.model = "fast";
 		// Snappier body tracking (gallery default 0.8 is too smooth for handheld)
-		params.segmentation.temporalSmoothing = 0.5;
+		params.segmentation.temporalSmoothing = 0.3;
+		// Extend upgrade hysteresis so brief startup FPS bursts don't trigger 720p upgrade
+		params.autoTune.upgradeHysteresis = 8000;
 		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
 		mobileDefaultsApplied = true;
 	}
@@ -385,7 +389,7 @@ async function main(ws?: WsClient): Promise<void> {
 	await pipeline.init(modelUrl, delegate);
 	hideLoading(loadingEl);
 	if (mobileDefaultsApplied) {
-		showToast("Optimized for mobile", 2500);
+		showToast("✓ optimized for mobile", 2500);
 		// Show initial preset name after the optimization toast clears
 		setTimeout(() => showToast(getLastPreset(), 2000), 2800);
 	} else {
@@ -406,7 +410,7 @@ async function main(ws?: WsClient): Promise<void> {
 	if (isMobile()) {
 		onExpensiveChange((direction) => {
 			showToast(
-				direction === "up" ? "Quality improved" : "Optimizing performance…",
+				direction === "up" ? "✓ quality improved" : "⠋ optimizing…",
 				1500,
 			);
 		});
