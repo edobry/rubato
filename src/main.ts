@@ -651,11 +651,19 @@ async function main(ws?: WsClient): Promise<void> {
 		requestAnimationFrame(loop);
 	}
 
-	// Apply preset from URL hash if present
+	// Apply initial preset: URL hash takes priority, otherwise last-used preset
 	const urlPreset = getPresetFromUrl();
 	if (urlPreset) {
 		applyPreset(urlPreset);
 		console.log("[rubato] Applied preset from URL");
+	} else {
+		const lastPresetName = getLastPreset();
+		const allPresets = { ...getBundledPresets(), ...getUserPresets() };
+		const lastPreset = allPresets[lastPresetName];
+		if (lastPreset) {
+			applyPreset(lastPreset);
+			console.log(`[rubato] Applied preset: ${lastPresetName}`);
+		}
 	}
 
 	// Mobile controls — camera flip + fullscreen
