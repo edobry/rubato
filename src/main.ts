@@ -657,12 +657,21 @@ async function main(ws?: WsClient): Promise<void> {
 		applyPreset(urlPreset);
 		console.log("[rubato] Applied preset from URL");
 	} else {
-		const lastPresetName = getLastPreset();
+		let presetName = getLastPreset();
 		const allPresets = { ...getBundledPresets(), ...getUserPresets() };
-		const lastPreset = allPresets[lastPresetName];
-		if (lastPreset) {
-			applyPreset(lastPreset);
-			console.log(`[rubato] Applied preset: ${lastPresetName}`);
+		// On mobile, skip imprint-mode presets — the body is intentionally
+		// hidden in imprint mode, which confuses handheld users.
+		if (isMobile()) {
+			const preset = allPresets[presetName];
+			if (preset?.overlay?.visualize === "imprint") {
+				presetName = "default";
+			}
+		}
+		const preset = allPresets[presetName];
+		if (preset) {
+			applyPreset(preset);
+			setLastPreset(presetName);
+			console.log(`[rubato] Applied preset: ${presetName}`);
 		}
 	}
 
