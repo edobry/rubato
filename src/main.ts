@@ -165,7 +165,6 @@ async function main(ws?: WsClient): Promise<void> {
 
 	// Apply mobile-friendly defaults on first visit (or when version changes)
 	const MOBILE_DEFAULTS_VERSION = "5";
-	let mobileDefaultsApplied = false;
 	if (
 		isMobile() &&
 		localStorage.getItem("rubato-mobile-configured") !== MOBILE_DEFAULTS_VERSION
@@ -184,7 +183,6 @@ async function main(ws?: WsClient): Promise<void> {
 		// Extend upgrade hysteresis so brief startup FPS bursts don't trigger 720p upgrade
 		params.autoTune.upgradeHysteresis = 8000;
 		localStorage.setItem("rubato-mobile-configured", MOBILE_DEFAULTS_VERSION);
-		mobileDefaultsApplied = true;
 	}
 
 	// Initialize the WebGL compositor
@@ -388,13 +386,7 @@ async function main(ws?: WsClient): Promise<void> {
 	const { modelUrl, delegate } = resolveModelConfig();
 	await pipeline.init(modelUrl, delegate);
 	hideLoading(loadingEl);
-	if (mobileDefaultsApplied) {
-		showToast("optimized for mobile ✓", 2500);
-		// Show initial preset name after the optimization toast clears
-		setTimeout(() => showToast(getLastPreset(), 2000), 2800);
-	} else {
-		showToast(getLastPreset(), 2000);
-	}
+	showToast(getLastPreset(), 2000);
 
 	// Show autotune actions as brief status notifications
 	onLogChange((log) => {
