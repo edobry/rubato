@@ -389,7 +389,7 @@ async function main(ws?: WsClient): Promise<void> {
 	await pipeline.init(modelUrl, delegate);
 	hideLoading(loadingEl);
 	if (mobileDefaultsApplied) {
-		showToast("✓ optimized for mobile", 2500);
+		showToast("optimized for mobile ✓", 2500);
 		// Show initial preset name after the optimization toast clears
 		setTimeout(() => showToast(getLastPreset(), 2000), 2800);
 	} else {
@@ -409,10 +409,7 @@ async function main(ws?: WsClient): Promise<void> {
 	// Toast on mobile when autotune makes a visible quality change
 	if (isMobile()) {
 		onExpensiveChange((direction) => {
-			showToast(
-				direction === "up" ? "✓ quality improved" : "⠋ optimizing…",
-				1500,
-			);
+			showToast(direction === "up" ? "optimized ✓" : "optimizing ⠋", 1500);
 		});
 	}
 
