@@ -9,3 +9,7 @@ custom-presets.json
 
 # Remote console logs
 remote-console.log
+
+# Generated files
+qr.png
+.playwright-mcp/
