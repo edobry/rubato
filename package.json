@@ -19,6 +19,8 @@
 		"typecheck": "tsc --noEmit",
 		"check": "biome check . && tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && tsc --noEmit -p tsconfig.server.json && vitest run && vite build",
 		"test:e2e": "npx playwright test e2e/preview.spec.ts",
+		"test:golden": "npx playwright test e2e/golden.spec.ts",
+		"test:pipeline": "npx playwright test e2e/pipeline.spec.ts",
 		"screenshot": "npx playwright test e2e/preview.spec.ts --grep screenshot",
 		"qr": "node scripts/qr.js",
 		"interact": "INTERACT=1 HEADED=1 npx playwright test e2e/preview.spec.ts --grep interact",

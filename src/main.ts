@@ -840,6 +840,80 @@ async function main(ws?: WsClient): Promise<void> {
 		},
 		getPresetNames: () =>
 			Object.keys({ ...getBundledPresets(), ...getUserPresets() }),
+		/**
+		 * Inject a synthetic segmentation mask for testing.
+		 * Bypasses the ML segmentation pipeline and feeds the mask directly
+		 * into motion detection → trail accumulation → frame state.
+		 */
+		injectTestFrame: (maskData: number[], w: number, h: number) => {
+			const mask = new Float32Array(maskData);
+			let motion: Float32Array | null = currentFrame.motion;
+			let trail: Float32Array | null = currentFrame.trail;
+			let trailTex: WebGLTexture | null = currentFrame.trailTex;
+
+			if (params.overlay.visualize !== "mask") {
+				if (isGpuTrailActive()) {
+					const motionMap = detectMotionMap(mask, w, h);
+					motion = motionMap;
+					const maskForTrail =
+						params.overlay.visualize === "imprint" ? mask : null;
+					trailTex = updateGpuTrail(motionMap, w, h, maskForTrail) ?? trailTex;
+					trail = null;
+				} else {
+					const motionResult = detectMotion(mask, w, h);
+					motion = motionResult.motion;
+					trail = motionResult.trail;
+				}
+			}
+
+			currentFrame = {
+				mask,
+				motion,
+				trail,
+				trailTex,
+				maskW: w,
+				maskH: h,
+				generation: currentFrame.generation + 1,
+			};
+		},
+		/** Read pixels from the trail FBO for test verification. */
+		readTrailPixels: (x: number, y: number) => {
+			const compositorGl = getCompositorGl();
+			if (!compositorGl || !currentFrame.trailTex) return null;
+			const debugFbo = compositorGl.createFramebuffer();
+			compositorGl.bindFramebuffer(compositorGl.FRAMEBUFFER, debugFbo);
+			compositorGl.framebufferTexture2D(
+				compositorGl.FRAMEBUFFER,
+				compositorGl.COLOR_ATTACHMENT0,
+				compositorGl.TEXTURE_2D,
+				currentFrame.trailTex,
+				0,
+			);
+			const px = new Uint8Array(4);
+			compositorGl.readPixels(
+				x,
+				y,
+				1,
+				1,
+				compositorGl.RGBA,
+				compositorGl.UNSIGNED_BYTE,
+				px,
+			);
+			compositorGl.bindFramebuffer(compositorGl.FRAMEBUFFER, null);
+			compositorGl.deleteFramebuffer(debugFbo);
+			return { r: px[0], g: px[1], b: px[2], a: px[3] };
+		},
+		/** Get current frame state for test inspection. */
+		get frame() {
+			return {
+				hasMask: currentFrame.mask !== null,
+				hasMotion: currentFrame.motion !== null,
+				hasTrail: currentFrame.trail !== null || currentFrame.trailTex !== null,
+				maskW: currentFrame.maskW,
+				maskH: currentFrame.maskH,
+				generation: currentFrame.generation,
+			};
+		},
 	};
 }
 
