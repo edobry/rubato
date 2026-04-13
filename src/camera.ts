@@ -35,14 +35,30 @@ export async function initCamera(
 	video.playsInline = true;
 	video.muted = true;
 
-	const stream = await navigator.mediaDevices.getUserMedia({
-		video: {
-			width: { ideal: width },
-			height: { ideal: height },
-			facingMode: currentFacingMode,
-		},
-		audio: false,
-	});
+	// getUserMedia can hang indefinitely on mobile when another tab holds
+	// the camera. Race against a timeout to surface a helpful error.
+	const CAMERA_TIMEOUT_MS = 10000;
+	const stream = await Promise.race([
+		navigator.mediaDevices.getUserMedia({
+			video: {
+				width: { ideal: width },
+				height: { ideal: height },
+				facingMode: currentFacingMode,
+			},
+			audio: false,
+		}),
+		new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error(
+							"Camera timed out — it may be in use by another tab or app",
+						),
+					),
+				CAMERA_TIMEOUT_MS,
+			),
+		),
+	]);
 
 	video.srcObject = stream;
 	await video.play();

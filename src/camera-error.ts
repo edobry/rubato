@@ -5,7 +5,7 @@
 
 const OVERLAY_ID = "rubato-camera-error";
 
-export function showCameraError(onRetry: () => void): void {
+export function showCameraError(onRetry: () => void, reason?: string): void {
 	// Don't double-create
 	if (document.getElementById(OVERLAY_ID)) return;
 
@@ -54,8 +54,10 @@ export function showCameraError(onRetry: () => void): void {
 		margin: 0;
 		color: #888;
 	`;
-	hint.textContent =
-		"Please allow camera access and reload, or check your browser settings.";
+	const isTimeout = reason?.includes("timed out");
+	hint.textContent = isTimeout
+		? "The camera may be in use by another tab or app. Close other tabs using the camera and try again."
+		: "Please allow camera access and reload, or check your browser settings.";
 
 	const button = document.createElement("button");
 	button.style.cssText = `

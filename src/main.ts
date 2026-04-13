@@ -363,20 +363,20 @@ async function main(ws?: WsClient): Promise<void> {
 		showStatus("Camera ready");
 	} catch (err) {
 		console.error("Camera unavailable:", err);
+		const reason = err instanceof Error ? err.message : String(err);
+		hideLoading(loadingEl);
 		showCameraError(() => {
-			// Re-attempt camera init on "Try again"
 			void initCamera(params.camera.resolution)
 				.then((v) => {
 					video = v;
 					showStatus("Camera ready");
 					removeCameraError();
-					// Continue with the rest of init by reloading
 					location.reload();
 				})
 				.catch((retryErr) => {
 					console.error("Camera retry failed:", retryErr);
 				});
-		});
+		}, reason);
 		return;
 	}
 
