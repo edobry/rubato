@@ -126,6 +126,43 @@ async function changeResolution(resolution: string): Promise<void> {
 	}
 }
 
+/**
+ * Persistent banner for fatal pipeline failures — no auto-dismiss.
+ * Unlike toasts (transient, replaced by newer toasts) and the status log
+ * (only visible in the hidden HUD), this stays on screen so a mobile user
+ * knows the piece is degraded instead of assuming fog-only is the artwork.
+ */
+let fatalBannerEl: HTMLElement | null = null;
+
+function showFatalBanner(message: string): void {
+	if (!fatalBannerEl) {
+		fatalBannerEl = document.createElement("div");
+		fatalBannerEl.style.cssText = [
+			"position: fixed",
+			"top: calc(16px + env(safe-area-inset-top, 0px))",
+			"left: 50%",
+			"transform: translateX(-50%)",
+			"max-width: min(90vw, 480px)",
+			"text-align: center",
+			"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+			"font-size: 14px",
+			"font-weight: 400",
+			"letter-spacing: 0.04em",
+			"line-height: 1.5",
+			"color: #fff",
+			"text-shadow: 0 0 8px rgba(0,0,0,0.8)",
+			"background: rgba(120,20,20,0.75)",
+			"padding: 10px 18px",
+			"border-radius: 8px",
+			"z-index: 10001",
+			"pointer-events: none",
+			"-webkit-font-smoothing: antialiased",
+		].join(";");
+		document.body.appendChild(fatalBannerEl);
+	}
+	fatalBannerEl.textContent = message;
+}
+
 interface FrameState {
 	readonly mask: Float32Array | null;
 	readonly motion: Float32Array | null;
@@ -386,6 +423,15 @@ async function main(ws?: WsClient): Promise<void> {
 	const { modelUrl, delegate } = resolveModelConfig();
 	await pipeline.init(modelUrl, delegate);
 	hideLoading(loadingEl);
+
+	// Segmentation init failure is fatal for body tracking — the piece
+	// degrades to fog-only. Surface it persistently on mobile, where the
+	// HUD (triple-tap) and console are effectively unreachable.
+	if (isMobile() && pipeline.getState().status === "failed") {
+		showFatalBanner(
+			"Body tracking failed to load — showing fog only. Reload to retry.",
+		);
+	}
 	showToast(getLastPreset(), 2000);
 
 	// Show autotune actions as brief status notifications
@@ -660,11 +706,25 @@ async function main(ws?: WsClient): Promise<void> {
 		let presetName = getLastPreset();
 		const allPresets = { ...getBundledPresets(), ...getUserPresets() };
 		// On mobile, skip imprint-mode presets — the body is intentionally
-		// hidden in imprint mode, which confuses handheld users.
+		// hidden in imprint mode, which confuses handheld users. Fall back to
+		// a body-visible preset (never another imprint preset — the "default"
+		// preset copies params.json defaults, which are imprint).
 		if (isMobile()) {
 			const preset = allPresets[presetName];
 			if (preset?.overlay?.visualize === "imprint") {
-				presetName = "default";
+				const bodyVisible = (name: string): boolean => {
+					const p = allPresets[name];
+					return p !== undefined && p.overlay?.visualize !== "imprint";
+				};
+				const fallback = bodyVisible("taichi")
+					? "taichi"
+					: Object.keys(getBundledPresets()).find(bodyVisible);
+				if (fallback) {
+					console.log(
+						`[rubato] Mobile: replacing imprint preset "${presetName}" with "${fallback}"`,
+					);
+					presetName = fallback;
+				}
 			}
 		}
 		const preset = allPresets[presetName];
@@ -1008,10 +1068,19 @@ function startPiece(ws: WsClient, lobbyEl?: HTMLElement): void {
 }
 
 function boot(): void {
-	// Mobile dev console + remote logging — only in dev mode
-	if (import.meta.env.DEV) {
+	// Mobile dev console — always in dev; in production behind a URL debug
+	// flag (https://rubato.dobry.me/?debug or #debug) so errors can be
+	// inspected on a phone without a tethered devtools session.
+	const debugRequested =
+		new URLSearchParams(location.search).has("debug") ||
+		location.hash.includes("debug");
+	if (import.meta.env.DEV || debugRequested) {
 		void import("eruda").then((eruda) => eruda.default.init());
+	}
 
+	// Remote logging — only in dev mode (the /api/console endpoint only
+	// exists on the Vite dev server)
+	if (import.meta.env.DEV) {
 		// Forward console output to dev server for remote debugging
 		for (const level of ["log", "warn", "error", "info"] as const) {
 			const original = console[level];
