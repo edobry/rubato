@@ -7,9 +7,10 @@
  */
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
-import { detectDevice } from "./device";
+import { detectDevice, isMobile } from "./device";
 import { params, SEGMENTATION_MODELS } from "./params";
 import { hideStatus, showStatus } from "./status";
+import { showToast } from "./toast";
 import type {
 	WorkerInMessage,
 	WorkerOutMessage,
@@ -109,6 +110,10 @@ async function createSegmenter(
 // ---------------------------------------------------------------------------
 
 const GPU_FAIL_THRESHOLD = 10;
+/** Consecutive worker frame errors before switching delegate / falling back. */
+const WORKER_ERROR_THRESHOLD = 5;
+/** Consecutive createImageBitmap failures before falling back to sync mode. */
+const BITMAP_FAIL_THRESHOLD = 30;
 
 class SegmentationPipelineImpl implements SegmentationPipeline {
 	private state: SegState = { status: "uninitialized" };
@@ -123,6 +128,20 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	private worker: Worker | null = null;
 	private workerBusy = false;
 	private workerSendGeneration = 0;
+	/** Delegate the current worker was successfully initialized with. */
+	private workerDelegate: "GPU" | "CPU" | null = null;
+	/** Consecutive worker frame errors (reset on every successful result). */
+	private workerErrorStreak = 0;
+	/** Consecutive createImageBitmap failures (reset on every success). */
+	private bitmapFailStreak = 0;
+	/**
+	 * Zero-mask probe counter for the worker path (mirrors sync gpuFailCount):
+	 * >= 0 while probing for silent GPU failure, -1 once a usable mask has
+	 * been seen or probing is disabled.
+	 */
+	private workerProbeCount = -1;
+	/** Guards against overlapping automatic recovery attempts. */
+	private recovering = false;
 
 	// --- Sync state ---
 	private segmenter: ImageSegmenter | null = null;
@@ -133,6 +152,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	} | null = null;
 	private gpuFailCount = 0;
 	private currentModelUrl: string | null = null;
+	private currentDelegate: string | null = null;
 
 	getState(): SegState {
 		return this.state;
@@ -155,12 +175,13 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 
 		this.state = { status: "initializing", mode: "worker" };
 		this.currentModelUrl = modelUrl;
+		this.currentDelegate = delegate;
 
 		// Try async worker first
 		try {
-			await this.initWorker(modelUrl, delegate);
+			await this.initWorkerWithFallback(modelUrl, delegate);
 			this.state = { status: "ready", mode: "worker" };
-			console.log("segmentation ready (Web Worker)");
+			console.log(`segmentation ready (Web Worker, ${this.workerDelegate})`);
 			showStatus(
 				"Segmentation ready (worker) — stand in front of camera",
 				3000,
@@ -170,6 +191,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			console.warn(
 				"Worker init failed, falling back to synchronous segmentation",
 			);
+			showStatus("Segmentation worker unavailable — using fallback mode", 3000);
 		}
 
 		// Fall back to synchronous
@@ -179,6 +201,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			this.state = { status: "ready", mode: "sync" };
 			console.log("segmentation ready (sync)");
 			showStatus("Segmentation ready — stand in front of camera", 3000);
+			showToast("Segmentation running in fallback mode", 4000);
 		} catch (err) {
 			const errorMsg = err instanceof Error ? err.message : String(err);
 			this.state = { status: "failed", error: errorMsg };
@@ -224,17 +247,14 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.generation++;
 		this.latestResult = null;
 		this.currentModelUrl = modelUrl;
+		this.currentDelegate = delegate;
 
 		if (prevMode === "worker") {
 			// Terminate old worker and re-init
-			if (this.worker) {
-				this.worker.terminate();
-				this.worker = null;
-			}
-			this.workerBusy = false;
+			this.terminateWorker();
 
 			try {
-				await this.initWorker(modelUrl, delegate);
+				await this.initWorkerWithFallback(modelUrl, delegate);
 				this.state = { status: "ready", mode: "worker" };
 				showStatus("Segmentation model reloaded", 2000);
 				return;
@@ -286,7 +306,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	// Worker internals
 	// -----------------------------------------------------------------------
 
-	private initWorker(modelUrl: string, delegate: string): Promise<void> {
+	private initWorker(modelUrl: string, delegate: "GPU" | "CPU"): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			try {
 				this.worker = new Worker(
@@ -315,9 +335,11 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 						break;
 
 					case "error":
-						console.error("Segmentation worker error:", msg.error);
 						if (!resolved) {
+							console.error("Segmentation worker init error:", msg.error);
 							reject(new Error(msg.error));
+						} else {
+							this.handleWorkerFrameError(msg.error);
 						}
 						break;
 				}
@@ -328,24 +350,192 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 				console.error("Worker runtime error:", e);
 				if (!resolved) {
 					reject(e);
+				} else {
+					this.handleWorkerFrameError(e.message || "worker runtime error");
 				}
 			});
-
-			const resolvedDelegate: "GPU" | "CPU" =
-				delegate === "CPU" ? "CPU" : "GPU";
 
 			const initMsg: WorkerInMessage = {
 				type: "init",
 				modelUrl,
 				wasmPath: `${location.origin}/mediapipe/wasm`,
-				delegate: resolvedDelegate,
+				delegate,
 			};
 			this.worker.postMessage(initMsg);
 		});
 	}
 
+	/**
+	 * Initialize the worker, retrying once with the CPU delegate if the GPU
+	 * delegate fails. The GPU failure is only persisted when the CPU retry
+	 * succeeds, so unrelated worker failures (module loading, WASM fetch)
+	 * don't permanently blacklist the GPU on this device.
+	 */
+	private async initWorkerWithFallback(
+		modelUrl: string,
+		delegate: string,
+	): Promise<void> {
+		const gpuFailed = localStorage.getItem("rubato-gpu-failed") === "true";
+		const resolved: "GPU" | "CPU" =
+			delegate === "CPU" || (delegate === "auto" && gpuFailed) ? "CPU" : "GPU";
+
+		try {
+			await this.initWorker(modelUrl, resolved);
+			this.onWorkerInitialized(resolved);
+			return;
+		} catch (err) {
+			this.terminateWorker();
+			if (resolved === "CPU") throw err;
+			console.warn(
+				"[pipeline] worker GPU init failed, retrying with CPU delegate:",
+				err,
+			);
+		}
+
+		try {
+			await this.initWorker(modelUrl, "CPU");
+		} catch (err) {
+			this.terminateWorker();
+			throw err;
+		}
+		// GPU init failed but CPU works — remember that on this device
+		localStorage.setItem("rubato-gpu-failed", "true");
+		console.warn("[pipeline] GPU delegate unavailable — worker using CPU");
+		showStatus("GPU unavailable — switched to CPU", 3000);
+		showToast("GPU unavailable — switched to CPU segmentation", 4000);
+		this.onWorkerInitialized("CPU");
+	}
+
+	/** Reset per-worker health tracking after a successful worker init. */
+	private onWorkerInitialized(delegate: "GPU" | "CPU"): void {
+		this.workerDelegate = delegate;
+		this.workerBusy = false;
+		this.workerErrorStreak = 0;
+		this.bitmapFailStreak = 0;
+		// Probe for silent GPU failure (all-zero masks) only on GPU
+		this.workerProbeCount = delegate === "GPU" ? 0 : -1;
+	}
+
+	private terminateWorker(): void {
+		if (this.worker) {
+			this.worker.terminate();
+			this.worker = null;
+		}
+		this.workerBusy = false;
+	}
+
+	/**
+	 * Handle an error reply from the worker for a single frame.
+	 * Always clears workerBusy — a reply arrived, even if it's an error —
+	 * so one failed frame can't deadlock frame sending forever.
+	 */
+	private handleWorkerFrameError(error: string): void {
+		this.workerBusy = false;
+		if (this.state.status === "processing") {
+			this.state = { status: "ready", mode: "worker" };
+		}
+
+		this.workerErrorStreak++;
+		console.error(
+			`[pipeline] worker frame error (${this.workerErrorStreak} consecutive): ${error}`,
+		);
+		if (this.workerErrorStreak < WORKER_ERROR_THRESHOLD) return;
+		this.workerErrorStreak = 0;
+
+		if (this.workerDelegate === "GPU") {
+			localStorage.setItem("rubato-gpu-failed", "true");
+			params.segmentation.delegate = "CPU";
+			showStatus("GPU segmentation failing — switching to CPU", 3000);
+			void this.recover(
+				"worker-cpu",
+				`${WORKER_ERROR_THRESHOLD} consecutive worker errors on GPU`,
+			);
+		} else {
+			showStatus("Segmentation worker failing — switching to fallback", 3000);
+			void this.recover(
+				"sync",
+				`${WORKER_ERROR_THRESHOLD} consecutive worker errors on CPU`,
+			);
+		}
+	}
+
+	/**
+	 * Automatic runtime recovery: re-init the worker on the CPU delegate, or
+	 * fall back to the sync main-thread pipeline. Triggered by worker error
+	 * streaks, the zero-mask GPU probe, and createImageBitmap failures.
+	 * Bumps the generation (like reinit) so in-flight results are discarded.
+	 */
+	private async recover(
+		target: "worker-cpu" | "sync",
+		reason: string,
+	): Promise<void> {
+		if (this.recovering) return;
+		if (
+			this.state.status === "uninitialized" ||
+			this.state.status === "failed"
+		) {
+			return;
+		}
+		this.recovering = true;
+		console.warn(`[pipeline] recovering (${target}): ${reason}`);
+
+		// Invalidate in-flight frames/results, like reinit()
+		this.generation++;
+		this.state = {
+			status: "reinitializing",
+			mode: target === "worker-cpu" ? "worker" : "sync",
+		};
+		this.terminateWorker();
+
+		const modelUrl = this.currentModelUrl;
+		if (!modelUrl) {
+			this.state = { status: "failed", error: "no model configured" };
+			this.recovering = false;
+			return;
+		}
+
+		try {
+			if (target === "worker-cpu") {
+				try {
+					await this.initWorker(modelUrl, "CPU");
+					this.onWorkerInitialized("CPU");
+					this.state = { status: "ready", mode: "worker" };
+					console.log("[pipeline] worker reinitialized with CPU delegate");
+					showStatus("Segmentation switched to CPU", 3000);
+					showToast("Segmentation switched to CPU", 4000);
+					return;
+				} catch (err) {
+					this.terminateWorker();
+					console.warn(
+						"[pipeline] worker CPU re-init failed, falling back to sync:",
+						err,
+					);
+				}
+			}
+
+			try {
+				await this.initSync(modelUrl, this.currentDelegate ?? "auto");
+				this.state = { status: "ready", mode: "sync" };
+				console.log("[pipeline] segmentation fell back to sync mode");
+				showStatus("Segmentation running in fallback mode", 3000);
+				showToast("Segmentation running in fallback mode", 4000);
+			} catch (err) {
+				const errorMsg = err instanceof Error ? err.message : String(err);
+				this.state = { status: "failed", error: errorMsg };
+				console.error(
+					"[pipeline] recovery failed, segmentation unavailable:",
+					err,
+				);
+				showStatus("Segmentation failed", 5000);
+			}
+		} finally {
+			this.recovering = false;
+		}
+	}
+
 	private handleWorkerResult(msg: WorkerResultMessage): void {
 		this.workerBusy = false;
+		this.workerErrorStreak = 0;
 
 		// Discard results from before the last reset/reinit
 		if (this.workerSendGeneration !== this.generation) {
@@ -353,6 +543,11 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 				`[pipeline] discarding stale result: sendGen=${this.workerSendGeneration}, gen=${this.generation}`,
 			);
 			return;
+		}
+
+		// Silent GPU failure detection during the initial probe window
+		if (this.workerProbeCount >= 0) {
+			this.probeWorkerMask(msg.mask);
 		}
 
 		this.latestResult = {
@@ -367,17 +562,82 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		}
 	}
 
+	/**
+	 * Probe worker masks for silent GPU failure (mirrors the sync path's
+	 * zero-mask probe in sendFrameSync). Only runs during an initial window
+	 * after worker init; disabled permanently once a usable mask is seen.
+	 */
+	private probeWorkerMask(mask: Float32Array): void {
+		let hasNonZero = false;
+		for (let i = 0; i < mask.length; i += 100) {
+			if (mask[i]! > 0.01) {
+				hasNonZero = true;
+				break;
+			}
+		}
+		if (hasNonZero) {
+			if (this.workerProbeCount > 0) {
+				hideStatus();
+				showStatus("Ready", 2000);
+			}
+			this.workerProbeCount = -1; // Probe complete — GPU confirmed
+			return;
+		}
+
+		this.workerProbeCount++;
+
+		// Only auto-switch on constrained or mobile devices (like the sync
+		// path): on desktop GPUs, all-zero masks just mean no person in frame.
+		const device = detectDevice();
+		const canSwitch =
+			this.workerDelegate === "GPU" &&
+			(device.isConstrained || isMobile()) &&
+			(params.segmentation.delegate === "auto" ||
+				params.segmentation.delegate === "GPU");
+		if (!canSwitch) {
+			// Bounded window — stop scanning after a while
+			if (this.workerProbeCount >= GPU_FAIL_THRESHOLD + 20) {
+				this.workerProbeCount = -1;
+			}
+			return;
+		}
+
+		if (this.workerProbeCount < GPU_FAIL_THRESHOLD) {
+			showStatus("Probing GPU... step in front of camera", 0, true);
+			return;
+		}
+
+		console.warn(
+			`[pipeline] no usable mask output for ${GPU_FAIL_THRESHOLD} worker frames — GPU not working, switching to CPU`,
+		);
+		showStatus("GPU unavailable — switched to CPU", 3000);
+		localStorage.setItem("rubato-gpu-failed", "true");
+		params.segmentation.delegate = "CPU";
+		if (device.isConstrained && !params.autoTune.enabled) {
+			params.autoTune.enabled = true;
+			console.log("Auto-tune enabled to optimize for constrained hardware");
+		}
+		void this.recover("worker-cpu", "all-zero masks on GPU delegate");
+	}
+
 	private sendFrameWorker(video: HTMLVideoElement, threshold: number): void {
 		if (!this.worker || this.workerBusy) return;
 
 		this.state = { status: "processing", mode: "worker" };
 		this.workerBusy = true;
 		this.workerSendGeneration = this.generation;
+		const gen = this.generation;
 
 		// createImageBitmap is async — fire-and-forget to avoid blocking
 		createImageBitmap(video)
 			.then((bitmap) => {
-				if (!this.worker) return;
+				// Worker replaced or generation bumped (reset/reinit/recovery)
+				// while the bitmap was in flight — drop the frame.
+				if (!this.worker || gen !== this.generation) {
+					bitmap.close();
+					return;
+				}
+				this.bitmapFailStreak = 0;
 
 				const frameMsg: WorkerInMessage = {
 					type: "frame",
@@ -389,10 +649,29 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 				this.worker.postMessage(frameMsg, [bitmap]);
 			})
 			.catch((err) => {
-				console.warn("createImageBitmap failed:", err);
 				this.workerBusy = false;
-				// Worker may have been invalidated
-				this.state = { status: "ready", mode: "worker" };
+				if (this.state.status === "processing") {
+					this.state = { status: "ready", mode: "worker" };
+				}
+
+				this.bitmapFailStreak++;
+				if (this.bitmapFailStreak === 1) {
+					console.warn(
+						"[pipeline] createImageBitmap failed (suppressing repeats):",
+						err,
+					);
+				}
+				if (this.bitmapFailStreak >= BITMAP_FAIL_THRESHOLD) {
+					this.bitmapFailStreak = 0;
+					console.warn(
+						`[pipeline] createImageBitmap failed ${BITMAP_FAIL_THRESHOLD} times in a row — worker mode unusable`,
+					);
+					showStatus("Frame capture unavailable — switching to fallback", 3000);
+					void this.recover(
+						"sync",
+						`${BITMAP_FAIL_THRESHOLD} consecutive createImageBitmap failures`,
+					);
+				}
 			});
 	}
 
@@ -429,12 +708,13 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			}
 		}
 
+		let segResult: ReturnType<ImageSegmenter["segmentForVideo"]> | null = null;
 		let confidenceMasks:
 			| ReturnType<ImageSegmenter["segmentForVideo"]>["confidenceMasks"]
 			| null = null;
 		try {
-			const result = this.segmenter.segmentForVideo(video, performance.now());
-			confidenceMasks = result.confidenceMasks;
+			segResult = this.segmenter.segmentForVideo(video, performance.now());
+			confidenceMasks = segResult.confidenceMasks;
 		} catch (err) {
 			console.warn("segmentForVideo threw:", err);
 		}
@@ -462,6 +742,8 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		}
 
 		if (maskFailed) {
+			// Done reading rawData — free the MediaPipe-owned masks
+			segResult?.close();
 			// Only probe for GPU failure on constrained devices (Pi etc).
 			// On desktop GPUs, all-zero masks just mean no person in frame.
 			const device = detectDevice();
@@ -517,6 +799,10 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		for (let i = 0; i < pixelCount; i++) {
 			rawMask[i] = maskData[i]! > threshold ? maskData[i]! : 0;
 		}
+
+		// Done reading rawData — free the MediaPipe-owned masks. Without this
+		// each frame leaks an MPMask (WebKit warns about it explicitly).
+		segResult?.close();
 
 		// Build the smoothed mask
 		const smoothedMask = new Float32Array(rawMask);

@@ -123,6 +123,7 @@ function handleFrame(
 
 	const confidenceMasks = result.confidenceMasks;
 	if (!confidenceMasks || confidenceMasks.length === 0) {
+		result.close();
 		reply({
 			type: "error",
 			error: "No confidence masks returned",
@@ -130,15 +131,27 @@ function handleFrame(
 		return;
 	}
 
-	const rawData = confidenceMasks[0]!.getAsFloat32Array();
 	const pixelCount = width * height;
-
-	// Create a new Float32Array with thresholding applied.
-	// We must allocate a new buffer because we will transfer ownership
-	// to the main thread, and the MediaPipe-internal buffer must stay intact.
 	const mask = new Float32Array(pixelCount);
-	for (let i = 0; i < pixelCount; i++) {
-		mask[i] = rawData[i]! > threshold ? rawData[i]! : 0;
+	try {
+		const rawData = confidenceMasks[0]!.getAsFloat32Array();
+
+		// Copy with thresholding applied. We must allocate a new buffer
+		// because we will transfer ownership to the main thread, and the
+		// MediaPipe-internal buffer must stay intact until close().
+		for (let i = 0; i < pixelCount; i++) {
+			mask[i] = rawData[i]! > threshold ? rawData[i]! : 0;
+		}
+	} finally {
+		// Free the MediaPipe-owned masks (ImageSegmenterResult.close()
+		// closes every MPMask it holds). Without this each frame leaks an
+		// MPMask — WebKit warns "You seem to be creating MPMask instances
+		// without invoking .close()" — and memory-constrained devices
+		// eventually stall. Runs after the rawData reads, since the
+		// extracted array may alias MediaPipe's buffer; `mask` is our copy.
+		// If getAsFloat32Array throws, the onmessage handler replies with
+		// an error — but the result is still closed here.
+		result.close();
 	}
 
 	const inferenceMs = performance.now() - t0;
