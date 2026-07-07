@@ -8,6 +8,7 @@
 
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
 import { detectDevice, isMobile } from "./device";
+import { isGpuFailed, setGpuFailed } from "./gpu-flag";
 import { params, SEGMENTATION_MODELS } from "./params";
 import { hideStatus, showStatus } from "./status";
 import { showToast } from "./toast";
@@ -40,6 +41,12 @@ export interface SegmentationPipeline {
 	init(modelUrl: string, delegate: string): Promise<void>;
 	sendFrame(video: HTMLVideoElement, threshold: number): void;
 	getLatestResult(): SegmentationResult | null;
+	/**
+	 * EMA estimate of segmentation results delivered per second (worker or
+	 * sync). Returns 0 until a few results have arrived; decays toward 0 when
+	 * results stop. Lets autotune detect when inference is the bottleneck.
+	 */
+	getResultRate(): number;
 	reinit(modelUrl: string, delegate: string): Promise<void>;
 	reset(): void;
 }
@@ -79,9 +86,8 @@ async function createSegmenter(
 		return ImageSegmenter.createFromOptions(vision, options);
 	}
 
-	// "auto": check if we previously failed GPU on this device
-	const gpuFailed = localStorage.getItem("rubato-gpu-failed") === "true";
-	if (gpuFailed) {
+	// "auto": check if we recently failed GPU on this device
+	if (isGpuFailed()) {
 		console.log("Skipping GPU probe (previously failed on this device)");
 		options.baseOptions.delegate = "CPU";
 		const seg = await ImageSegmenter.createFromOptions(vision, options);
@@ -97,7 +103,7 @@ async function createSegmenter(
 		return seg;
 	} catch {
 		console.warn("GPU delegate failed, falling back to CPU");
-		localStorage.setItem("rubato-gpu-failed", "true");
+		setGpuFailed();
 		options.baseOptions.delegate = "CPU";
 		const seg = await ImageSegmenter.createFromOptions(vision, options);
 		console.log("Segmentation using CPU delegate");
@@ -114,6 +120,27 @@ const GPU_FAIL_THRESHOLD = 10;
 const WORKER_ERROR_THRESHOLD = 5;
 /** Consecutive createImageBitmap failures before falling back to sync mode. */
 const BITMAP_FAIL_THRESHOLD = 30;
+
+/**
+ * Reference inter-result interval for temporalSmoothing, ~30 results/s.
+ * The EMA factor in params was tuned when production segmentation ran on the
+ * sync path at roughly this rate, so `temporalSmoothing` is interpreted as
+ * "retention per 33.3ms tick" and rescaled to the actual interval between
+ * results: sEff = s^(dt / TICK). This keeps the smoothing time-constant
+ * identical regardless of how fast results arrive (worker vs sync, fast vs
+ * slow hardware).
+ */
+const SMOOTHING_TICK_MS = 1000 / 30;
+
+/** EMA time-constant for the results-per-second estimate (~2s window). */
+const RESULT_RATE_WINDOW_MS = 2000;
+/** Inter-result intervals required before getResultRate() reports non-zero. */
+const RESULT_RATE_MIN_SAMPLES = 3;
+
+/** dt-normalized EMA retention: `s` per SMOOTHING_TICK_MS, rescaled to dtMs. */
+function effectiveSmoothing(s: number, dtMs: number): number {
+	return s ** (dtMs / SMOOTHING_TICK_MS);
+}
 
 class SegmentationPipelineImpl implements SegmentationPipeline {
 	private state: SegState = { status: "uninitialized" };
@@ -143,9 +170,30 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 	/** Guards against overlapping automatic recovery attempts. */
 	private recovering = false;
 
+	// --- Worker-path temporal smoothing ---
+	/**
+	 * Previous smoothed mask, private to the pipeline (never handed to
+	 * consumers). Reused across results; reallocated only on dimension change.
+	 */
+	private workerPrevMask: Float32Array | null = null;
+	/** Generation workerPrevMask was written in — stale gens never blend. */
+	private workerPrevMaskGen = -1;
+	/** performance.now() when workerPrevMask was written; -1 = invalid. */
+	private workerPrevMaskTs = -1;
+
+	// --- Result-rate tracking (both modes) ---
+	/** performance.now() of the previous accepted result; -1 = none yet. */
+	private rateLastTs = -1;
+	/** EMA of the inter-result interval in ms; -1 until seeded. */
+	private rateEmaIntervalMs = -1;
+	/** Number of inter-result intervals observed so far. */
+	private rateSampleCount = 0;
+
 	// --- Sync state ---
 	private segmenter: ImageSegmenter | null = null;
 	private prevMask: Float32Array | null = null;
+	/** performance.now() when prevMask was written; -1 = invalid. */
+	private syncPrevMaskTs = -1;
 	private prevSyncResult: {
 		raw: Float32Array;
 		smoothed: Float32Array;
@@ -233,6 +281,45 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		return this.latestResult;
 	}
 
+	getResultRate(): number {
+		if (
+			this.rateSampleCount < RESULT_RATE_MIN_SAMPLES ||
+			this.rateEmaIntervalMs <= 0 ||
+			this.rateLastTs < 0
+		) {
+			return 0;
+		}
+		// Decay toward 0 when results stop arriving: once the gap since the
+		// last result exceeds the smoothed interval, the gap dominates.
+		const gap = performance.now() - this.rateLastTs;
+		return 1000 / Math.max(this.rateEmaIntervalMs, gap);
+	}
+
+	/** Record an accepted result for the results/s estimate. Allocation-free. */
+	private noteResult(now: number): void {
+		if (this.rateLastTs >= 0) {
+			const dt = now - this.rateLastTs;
+			if (this.rateEmaIntervalMs < 0) {
+				this.rateEmaIntervalMs = dt;
+			} else {
+				// dt-weighted EMA so the window is time-based, not sample-based
+				const alpha = 1 - Math.exp(-dt / RESULT_RATE_WINDOW_MS);
+				this.rateEmaIntervalMs += alpha * (dt - this.rateEmaIntervalMs);
+			}
+			this.rateSampleCount++;
+		}
+		this.rateLastTs = now;
+	}
+
+	/**
+	 * Skip the next inter-result interval (e.g. across reinit/recovery, whose
+	 * downtime would pollute the interval EMA). Keeps the smoothed estimate so
+	 * autotune isn't blinded by every preset switch.
+	 */
+	private skipNextRateInterval(): void {
+		this.rateLastTs = -1;
+	}
+
 	/**
 	 * Re-initialize with a new model/delegate.
 	 * Clears all cached state atomically, then re-initializes.
@@ -246,6 +333,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.state = { status: "reinitializing", mode: prevMode };
 		this.generation++;
 		this.latestResult = null;
+		this.skipNextRateInterval();
 		this.currentModelUrl = modelUrl;
 		this.currentDelegate = delegate;
 
@@ -293,6 +381,10 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.workerBusy = false;
 		this.prevMask = null;
 		this.prevSyncResult = null;
+		this.syncPrevMaskTs = -1;
+		// Worker smoothing history is invalidated by the generation bump
+		// (workerPrevMaskGen no longer matches); the buffer itself is reused.
+		this.skipNextRateInterval();
 		// Ensure state allows new frames after reset
 		if (this.state.status === "processing" || this.state.status === "ready") {
 			this.state = { status: "ready", mode: this.state.mode };
@@ -375,9 +467,10 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		modelUrl: string,
 		delegate: string,
 	): Promise<void> {
-		const gpuFailed = localStorage.getItem("rubato-gpu-failed") === "true";
 		const resolved: "GPU" | "CPU" =
-			delegate === "CPU" || (delegate === "auto" && gpuFailed) ? "CPU" : "GPU";
+			delegate === "CPU" || (delegate === "auto" && isGpuFailed())
+				? "CPU"
+				: "GPU";
 
 		try {
 			await this.initWorker(modelUrl, resolved);
@@ -399,7 +492,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			throw err;
 		}
 		// GPU init failed but CPU works — remember that on this device
-		localStorage.setItem("rubato-gpu-failed", "true");
+		setGpuFailed();
 		console.warn("[pipeline] GPU delegate unavailable — worker using CPU");
 		showStatus("GPU unavailable — switched to CPU", 3000);
 		showToast("GPU unavailable — switched to CPU segmentation", 4000);
@@ -443,7 +536,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.workerErrorStreak = 0;
 
 		if (this.workerDelegate === "GPU") {
-			localStorage.setItem("rubato-gpu-failed", "true");
+			setGpuFailed();
 			params.segmentation.delegate = "CPU";
 			showStatus("GPU segmentation failing — switching to CPU", 3000);
 			void this.recover(
@@ -481,6 +574,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 
 		// Invalidate in-flight frames/results, like reinit()
 		this.generation++;
+		this.skipNextRateInterval();
 		this.state = {
 			status: "reinitializing",
 			mode: target === "worker-cpu" ? "worker" : "sync",
@@ -545,11 +639,27 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			return;
 		}
 
+		// Capture before the probe: probeWorkerMask can kick off recover(),
+		// which bumps the generation synchronously.
+		const gen = this.generation;
+		const now = performance.now();
+		// Before the probe, so recover()'s skipNextRateInterval() excludes the
+		// recovery downtime from the rate EMA.
+		this.noteResult(now);
+
 		// Silent GPU failure detection during the initial probe window
+		// (reads the raw mask, before temporal smoothing)
 		if (this.workerProbeCount >= 0) {
 			this.probeWorkerMask(msg.mask);
 		}
 
+		this.applyWorkerSmoothing(msg.mask, gen, now);
+
+		// msg.mask arrived via transfer, so this thread owns it exclusively:
+		// it is smoothed in place above and that same array is handed to
+		// consumers. Every worker message carries a fresh Float32Array, so
+		// consumers comparing mask references (main.ts new-result detection)
+		// see a new object per result.
 		this.latestResult = {
 			mask: msg.mask,
 			width: msg.width,
@@ -560,6 +670,54 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		if (this.state.status === "processing") {
 			this.state = { status: "ready", mode: "worker" };
 		}
+	}
+
+	/**
+	 * Blend the incoming worker mask with the previous smoothed mask, in
+	 * place: mask[i] = prev[i] * sEff + mask[i] * (1 - sEff), with sEff
+	 * dt-normalized via effectiveSmoothing so the smoothing time-constant is
+	 * independent of the result rate (identical semantics to the sync path).
+	 *
+	 * Buffer ownership: `mask` is the transferred worker buffer, exclusively
+	 * owned by this thread — smoothing it in place costs no allocation. The
+	 * running history lives in workerPrevMask, a private reused buffer that is
+	 * never exposed to consumers.
+	 */
+	private applyWorkerSmoothing(
+		mask: Float32Array,
+		gen: number,
+		now: number,
+	): void {
+		const s = params.segmentation.temporalSmoothing;
+		if (s <= 0) {
+			// Smoothing disabled — drop history so re-enabling starts fresh
+			this.workerPrevMaskTs = -1;
+			return;
+		}
+
+		const prev = this.workerPrevMask;
+		const canBlend =
+			prev !== null &&
+			prev.length === mask.length && // dimension change → reseed
+			this.workerPrevMaskGen === gen && // reset/reinit/recover → reseed
+			this.workerPrevMaskTs >= 0;
+
+		if (canBlend) {
+			const sEff = effectiveSmoothing(s, now - this.workerPrevMaskTs);
+			const inv = 1 - sEff;
+			for (let i = 0; i < mask.length; i++) {
+				mask[i] = prev[i]! * sEff + mask[i]! * inv;
+			}
+		}
+
+		// Persist the smoothed mask as the new history; the buffer is kept
+		// across resets and reallocated only on dimension change.
+		if (!this.workerPrevMask || this.workerPrevMask.length !== mask.length) {
+			this.workerPrevMask = new Float32Array(mask.length);
+		}
+		this.workerPrevMask.set(mask);
+		this.workerPrevMaskGen = gen;
+		this.workerPrevMaskTs = now;
 	}
 
 	/**
@@ -611,7 +769,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			`[pipeline] no usable mask output for ${GPU_FAIL_THRESHOLD} worker frames — GPU not working, switching to CPU`,
 		);
 		showStatus("GPU unavailable — switched to CPU", 3000);
-		localStorage.setItem("rubato-gpu-failed", "true");
+		setGpuFailed();
 		params.segmentation.delegate = "CPU";
 		if (device.isConstrained && !params.autoTune.enabled) {
 			params.autoTune.enabled = true;
@@ -688,6 +846,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		this.segmenter = await createSegmenter(modelUrl, delegate);
 		this.prevMask = null;
 		this.prevSyncResult = null;
+		this.syncPrevMaskTs = -1;
 		this.gpuFailCount = 0;
 	}
 
@@ -761,7 +920,7 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 						`No usable mask output for ${GPU_FAIL_THRESHOLD} frames — GPU not working, switching to CPU`,
 					);
 					showStatus("GPU unavailable — switched to CPU", 3000);
-					localStorage.setItem("rubato-gpu-failed", "true");
+					setGpuFailed();
 					params.segmentation.delegate = "CPU";
 					this.state = { status: "reinitializing", mode: "sync" };
 					void this.initSync(this.currentModelUrl!, "CPU");
@@ -804,13 +963,21 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 		// each frame leaks an MPMask (WebKit warns about it explicitly).
 		segResult?.close();
 
-		// Build the smoothed mask
+		// Build the smoothed mask (dt-normalized EMA — identical semantics to
+		// the worker path in applyWorkerSmoothing)
 		const smoothedMask = new Float32Array(rawMask);
 		const smooth = params.segmentation.temporalSmoothing;
-		if (smooth > 0 && this.prevMask && this.prevMask.length === pixelCount) {
+		const now = performance.now();
+		if (
+			smooth > 0 &&
+			this.prevMask &&
+			this.prevMask.length === pixelCount &&
+			this.syncPrevMaskTs >= 0
+		) {
+			const sEff = effectiveSmoothing(smooth, now - this.syncPrevMaskTs);
+			const inv = 1 - sEff;
 			for (let i = 0; i < pixelCount; i++) {
-				smoothedMask[i] =
-					this.prevMask[i]! * smooth + smoothedMask[i]! * (1 - smooth);
+				smoothedMask[i] = this.prevMask[i]! * sEff + smoothedMask[i]! * inv;
 			}
 		}
 
@@ -818,6 +985,8 @@ class SegmentationPipelineImpl implements SegmentationPipeline {
 			this.prevMask = new Float32Array(pixelCount);
 		}
 		this.prevMask.set(smoothedMask);
+		this.syncPrevMaskTs = now;
+		this.noteResult(now);
 
 		this.prevSyncResult = { raw: rawMask, smoothed: smoothedMask };
 		this.latestResult = {
@@ -845,9 +1014,6 @@ export function resolveModelConfig(): {
 } {
 	const modelUrl = (SEGMENTATION_MODELS[params.segmentation.model] ??
 		SEGMENTATION_MODELS.fast)!;
-	const delegate =
-		localStorage.getItem("rubato-gpu-failed") === "true"
-			? "CPU"
-			: params.segmentation.delegate;
+	const delegate = isGpuFailed() ? "CPU" : params.segmentation.delegate;
 	return { modelUrl, delegate };
 }
