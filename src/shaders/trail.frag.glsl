@@ -50,7 +50,15 @@ uniform sampler2D u_motion;     // motion map (R=magnitude, GB=direction when an
 uniform sampler2D u_mask;       // segmentation mask — body silhouette for cultivation bounds
 
 uniform float u_deposition;     // (legacy mode) how much motion adds to trail
-uniform float u_decay;          // base multiplicative decay per frame
+uniform float u_decay;          // base multiplicative decay per reference tick
+
+// Frame-rate decoupling. The trail pass runs every rendered frame, but all
+// tuned rates (decay, cultivation, diffusion, drain) are expressed per
+// reference tick (see TRAIL_TICK_MS in motion.ts). u_dtTicks measures how
+// many reference ticks elapsed since the previous pass, so evolution advances
+// at the same wall-clock speed regardless of frame or segmentation rate.
+uniform float u_dtTicks;        // elapsed ticks since last trail pass
+uniform float u_depositScale;   // 1 = fresh segmentation result (deposit motion), 0 = evolve-only
 
 // Imprint density system uniforms
 uniform float u_mode;             // 0 = legacy trail, 1 = imprint density system
@@ -113,8 +121,8 @@ void main() {
 
     // Legacy trail mode (u_mode == 0)
     if (u_mode < 0.5) {
-        float trail = min(1.0, prev + motion * u_deposition);
-        trail *= u_decay;
+        float trail = min(1.0, prev + motion * u_deposition * u_depositScale);
+        trail *= pow(u_decay, u_dtTicks);
         trail = trail < 0.005 ? 0.0 : trail;
         gl_FragColor = vec4(trail, trail, trail, 1.0);
         return;
@@ -130,22 +138,24 @@ void main() {
     // silhouette interior, not just still regions. The body is a vessel
     // filling with potential. isPresent is binary: inside body or not.
     float isPresent = step(0.1, mask);
-    float newCultivation = prevCultivation + isPresent * u_cultivationRate;
+    float newCultivation = prevCultivation + isPresent * u_cultivationRate * u_dtTicks;
 
     // --- Phase 2a: Direct motion deposition ---
     // Motion deposits density only where the body has DEPARTED (not arrived),
     // preventing bright edges from outlining the current body position.
-    float newDensity = prevDensity + motion * u_deposition * (1.0 - isPresent);
+    // Deposition is per-event (the band traversed since the last result),
+    // not per-tick, so it is gated by u_depositScale instead of u_dtTicks.
+    float newDensity = prevDensity + motion * u_deposition * u_depositScale * (1.0 - isPresent);
 
     // --- Phase 2b: Cultivation leakage ---
     // Cultivation continuously bleeds into density while body is present,
     // filling the body interior with a visible glow that builds during stillness.
-    newDensity += prevCultivation * isPresent * u_cultivationRate;
+    newDensity += prevCultivation * isPresent * u_cultivationRate * u_dtTicks;
 
     // --- Phase 2c: Channeling (departure-based release) ---
     // When the body moves away, cultivation converts to visible density.
     float departure = (1.0 - isPresent) * step(0.005, prevCultivation);
-    float retainFactor = mix(1.0, u_drainRate, departure);
+    float retainFactor = pow(mix(1.0, u_drainRate, departure), u_dtTicks);
     float drained = prevCultivation * (1.0 - retainFactor);
     newDensity += drained * u_channelStrength;
 
@@ -158,11 +168,17 @@ void main() {
     // faster, others linger, producing an organic dissolution that
     // resembles corrupting memory or misfiring neurons.
     float noiseVal = snoise(v_uv * 8.0 + u_time * u_disintSpeed);
-    float localDecay = u_decay * (1.0 + noiseVal * u_decayVariance);
-    newDensity *= clamp(localDecay, 0.0, 1.0);
+    // Clamp BEFORE the dt exponent: pixels whose noise pushes localDecay to
+    // exactly 1.0 must stay immortal at any frame rate (pow(1, dt) == 1) —
+    // that lingering speckle texture is intended behavior.
+    float localDecay = clamp(u_decay * (1.0 + noiseVal * u_decayVariance), 0.0, 1.0);
+    newDensity *= pow(localDecay, u_dtTicks);
 
     // Spatial diffusion — density bleeds into neighboring pixels.
     // This softens hard edges and lets traces spread organically.
+    // The per-tick blend rate is converted to an equivalent per-frame alpha
+    // (compound-interest form) so spread speed is frame-rate independent.
+    float diffusionAlpha = 1.0 - pow(1.0 - u_diffusionRate, u_dtTicks);
     if (u_diffusionMode > 0.5) {
         // Anisotropic diffusion: density spreads preferentially along the
         // direction of motion, creating elongated "meridian" traces rather
@@ -184,7 +200,7 @@ void main() {
             float perp2 = texture2D(u_prevTrail, v_uv - stepPerp).g;
 
             float neighbors = (along1 + along2) * 0.35 + (perp1 + perp2) * 0.15;
-            newDensity = mix(newDensity, neighbors, u_diffusionRate);
+            newDensity = mix(newDensity, neighbors, diffusionAlpha);
         } else {
             float neighbors = (
                 texture2D(u_prevTrail, v_uv + vec2(u_texelSize.x, 0.0)).g +
@@ -192,7 +208,7 @@ void main() {
                 texture2D(u_prevTrail, v_uv + vec2(0.0, u_texelSize.y)).g +
                 texture2D(u_prevTrail, v_uv - vec2(0.0, u_texelSize.y)).g
             ) * 0.25;
-            newDensity = mix(newDensity, neighbors, u_diffusionRate);
+            newDensity = mix(newDensity, neighbors, diffusionAlpha);
         }
     } else {
         // Isotropic diffusion: equal spread in all directions (uniform blur)
@@ -202,7 +218,7 @@ void main() {
             texture2D(u_prevTrail, v_uv + vec2(0.0, u_texelSize.y)).g +
             texture2D(u_prevTrail, v_uv - vec2(0.0, u_texelSize.y)).g
         ) * 0.25;
-        newDensity = mix(newDensity, neighbors, u_diffusionRate);
+        newDensity = mix(newDensity, neighbors, diffusionAlpha);
     }
 
     // Clamp

@@ -57,6 +57,26 @@ import {
 	uploadFloatTexture,
 } from "./webgl-utils";
 
+/**
+ * Reference tick length for trail evolution, in milliseconds.
+ *
+ * All decay/cultivation/diffusion/drain parameters were hand-tuned when the
+ * trail pass ran once per segmentation result on a healthy desktop. Measured
+ * on the dev MacBook (M3 Max, prod build, quality model @720p, GPU delegate,
+ * 2026-07-07): ~86 results/s → 11.6 ms per tick. u_dtTicks = elapsed_ms /
+ * TRAIL_TICK_MS, so tuned per-tick rates keep their wall-clock feel on
+ * devices with slower segmentation (phones) or different display rates.
+ */
+const TRAIL_TICK_MS = 11.6;
+
+/** Clamp bounds for dtTicks: the lower bound guards 240Hz displays, the
+ * upper bound prevents a tab-background resume from wiping the field. */
+const MIN_DT_TICKS = 0.25;
+const MAX_DT_TICKS = 8;
+
+/** Wall-clock time of the last trail pass — anchors dtTicks. */
+let lastTrailPassMs: number | null = null;
+
 /** Previous frame's segmentation mask, retained for frame-to-frame diffing. */
 let prevRawMask: Float32Array | null = null;
 
@@ -90,7 +110,9 @@ let uPrevTrail: WebGLUniformLocation | null = null; // sampler: previous trail F
 let uMotion: WebGLUniformLocation | null = null; // sampler: current motion map
 let uMask: WebGLUniformLocation | null = null; // sampler: current segmentation mask
 let uDeposition: WebGLUniformLocation | null = null; // how much motion adds to trail
-let uDecay: WebGLUniformLocation | null = null; // per-frame multiplicative decay
+let uDecay: WebGLUniformLocation | null = null; // per-tick multiplicative decay
+let uDtTicks: WebGLUniformLocation | null = null; // elapsed reference ticks since last pass
+let uDepositScale: WebGLUniformLocation | null = null; // 1 = deposit frame, 0 = evolve-only
 
 // Imprint density mode uniforms — only used when visualize === "imprint"
 let uMode: WebGLUniformLocation | null = null;
@@ -129,6 +151,17 @@ export function initGpuTrail(sharedGl: WebGL2RenderingContext): void {
 		return;
 	}
 
+	// Half-float trail FBOs: with per-frame decay multipliers close to 1.0
+	// (high fps → small dtTicks), 8-bit values quantize back to themselves and
+	// fades stall. RGBA16F needs EXT_color_buffer_float to be renderable in
+	// WebGL2 (16F linear filtering is core), so probe renderability once here.
+	trailFloat = checkHalfFloatRenderable(gl);
+	if (!trailFloat) {
+		console.warn(
+			"EXT_color_buffer_float unavailable — trail FBOs fall back to 8-bit; slow fades may stall at high frame rates",
+		);
+	}
+
 	gl.useProgram(trailProgram);
 
 	// Full-screen quad VAO
@@ -140,6 +173,8 @@ export function initGpuTrail(sharedGl: WebGL2RenderingContext): void {
 	uMask = gl.getUniformLocation(trailProgram, "u_mask");
 	uDeposition = gl.getUniformLocation(trailProgram, "u_deposition");
 	uDecay = gl.getUniformLocation(trailProgram, "u_decay");
+	uDtTicks = gl.getUniformLocation(trailProgram, "u_dtTicks");
+	uDepositScale = gl.getUniformLocation(trailProgram, "u_depositScale");
 
 	// Imprint mode uniform locations
 	uMode = gl.getUniformLocation(trailProgram, "u_mode");
@@ -165,6 +200,55 @@ export function isGpuTrailActive(): boolean {
 	return gl !== null && trailProgram !== null;
 }
 
+// Whether the trail FBOs are allocated as half-float (see ensureFBOs).
+let trailFloat = false;
+
+/** Whether the trail FBO textures use a float format (affects readback type). */
+export function isGpuTrailFloat(): boolean {
+	return trailFloat;
+}
+
+/**
+ * Probe whether RGBA16F textures are renderable (color-attachable).
+ * WebGL2 requires EXT_color_buffer_float for float color attachments; a tiny
+ * FBO completeness check guards against drivers that advertise the extension
+ * but fail attachment.
+ */
+function checkHalfFloatRenderable(ctx: WebGL2RenderingContext): boolean {
+	if (!ctx.getExtension("EXT_color_buffer_float")) return false;
+
+	const tex = ctx.createTexture();
+	const fbo = ctx.createFramebuffer();
+	if (!tex || !fbo) return false;
+	ctx.bindTexture(ctx.TEXTURE_2D, tex);
+	ctx.texImage2D(
+		ctx.TEXTURE_2D,
+		0,
+		ctx.RGBA16F,
+		1,
+		1,
+		0,
+		ctx.RGBA,
+		ctx.HALF_FLOAT,
+		null,
+	);
+	ctx.bindFramebuffer(ctx.FRAMEBUFFER, fbo);
+	ctx.framebufferTexture2D(
+		ctx.FRAMEBUFFER,
+		ctx.COLOR_ATTACHMENT0,
+		ctx.TEXTURE_2D,
+		tex,
+		0,
+	);
+	const complete =
+		ctx.checkFramebufferStatus(ctx.FRAMEBUFFER) === ctx.FRAMEBUFFER_COMPLETE;
+	ctx.bindFramebuffer(ctx.FRAMEBUFFER, null);
+	ctx.bindTexture(ctx.TEXTURE_2D, null);
+	ctx.deleteFramebuffer(fbo);
+	ctx.deleteTexture(tex);
+	return complete;
+}
+
 /**
  * Ensure the ping-pong FBOs are allocated at the correct resolution.
  *
@@ -183,34 +267,42 @@ function ensureFBOs(w: number, h: number): void {
 	if (fboA) gl.deleteFramebuffer(fboA);
 	if (fboB) gl.deleteFramebuffer(fboB);
 
-	// Allocate two RGBA textures for ping-pong
-	fboTexA = createTexture(gl);
-	gl.bindTexture(gl.TEXTURE_2D, fboTexA);
-	gl.texImage2D(
-		gl.TEXTURE_2D,
-		0,
-		gl.RGBA,
-		w,
-		h,
-		0,
-		gl.RGBA,
-		gl.UNSIGNED_BYTE,
-		null,
-	);
+	// Allocate two RGBA textures for ping-pong. Half-float when renderable
+	// (see initGpuTrail) so slow per-frame decay multipliers don't quantize
+	// away in 8 bits; byte fallback otherwise.
+	const allocTrailTexture = (): WebGLTexture => {
+		const tex = createTexture(gl!);
+		gl!.bindTexture(gl!.TEXTURE_2D, tex);
+		if (trailFloat) {
+			gl!.texImage2D(
+				gl!.TEXTURE_2D,
+				0,
+				gl!.RGBA16F,
+				w,
+				h,
+				0,
+				gl!.RGBA,
+				gl!.HALF_FLOAT,
+				null,
+			);
+		} else {
+			gl!.texImage2D(
+				gl!.TEXTURE_2D,
+				0,
+				gl!.RGBA,
+				w,
+				h,
+				0,
+				gl!.RGBA,
+				gl!.UNSIGNED_BYTE,
+				null,
+			);
+		}
+		return tex;
+	};
 
-	fboTexB = createTexture(gl);
-	gl.bindTexture(gl.TEXTURE_2D, fboTexB);
-	gl.texImage2D(
-		gl.TEXTURE_2D,
-		0,
-		gl.RGBA,
-		w,
-		h,
-		0,
-		gl.RGBA,
-		gl.UNSIGNED_BYTE,
-		null,
-	);
+	fboTexA = allocTrailTexture();
+	fboTexB = allocTrailTexture();
 
 	fboA = createFramebuffer(gl, fboTexA);
 	fboB = createFramebuffer(gl, fboTexB);
@@ -223,34 +315,38 @@ function ensureFBOs(w: number, h: number): void {
 }
 
 /**
- * Run one GPU trail accumulation step (the core of the FBO ping-pong).
+ * Run one GPU trail pass (the core of the FBO ping-pong).
+ *
+ * The same shader pass serves two roles:
+ * - **Deposit pass** (`deposit === true`, fresh segmentation result): uploads
+ *   the new motion map (+ mask in imprint mode) and adds motion deposition.
+ * - **Evolve pass** (`deposit === false`, every other rendered frame): reuses
+ *   the previously uploaded motion/mask textures with u_depositScale = 0, so
+ *   only decay/cultivation/diffusion advance.
+ *
+ * Evolution is dt-normalized: u_dtTicks = elapsed ms since the previous pass
+ * divided by TRAIL_TICK_MS, clamped to [0.25, 8]. Motion deposition is
+ * per-event (already rate-invariant in total) and is never dt-scaled.
  *
  * Each invocation:
  * 1. Ensures FBOs are allocated at the correct resolution
  * 2. Selects the read FBO (previous trail state) and write FBO (output)
- * 3. Uploads the motion map — as LUMINANCE for isotropic mode, or as RGB
- *    (magnitude + direction vectors) for anisotropic diffusion
- * 4. Optionally uploads the segmentation mask for imprint density mode
- * 5. Sets all trail/density uniforms from the live params
- * 6. Draws a full-screen quad to run trail.frag.glsl into the write FBO
- * 7. Swaps the ping-pong state so next frame reads from what we just wrote
+ * 3. On deposit passes, uploads the motion map — LUMINANCE for isotropic
+ *    mode, RGB (magnitude + direction) for anisotropic diffusion — and the
+ *    segmentation mask for imprint density mode
+ * 4. Sets all trail/density uniforms from the live params
+ * 5. Draws a full-screen quad to run trail.frag.glsl into the write FBO
+ * 6. Swaps the ping-pong state so next frame reads from what we just wrote
  *
  * Returns the trail texture (the FBO attachment we just rendered into) so the
  * compositor can bind it directly — no CPU readback needed.
- *
- * @param motionMap - Per-pixel motion magnitude from {@link detectMotionMap}
- * @param w - Width of the motion map (matches segmentation mask resolution)
- * @param h - Height of the motion map
- * @param mask - Optional segmentation mask for imprint density mode. When
- *   provided and visualize === "imprint", enables the cultivation/channeling/
- *   disintegration pipeline in the shader.
- * @returns The trail texture to sample, or null if GPU trail is not initialized.
  */
-export function updateGpuTrail(
-	motionMap: Float32Array,
+function runTrailPass(
+	motionMap: Float32Array | null,
 	w: number,
 	h: number,
-	mask?: Float32Array | null,
+	mask: Float32Array | null,
+	deposit: boolean,
 ): WebGLTexture | null {
 	if (!gl || !trailProgram || !trailVao || !motionTexture) return null;
 
@@ -259,20 +355,38 @@ export function updateGpuTrail(
 
 	const isImprint = params.overlay.visualize === "imprint";
 
+	// dt-normalization: how many reference ticks elapsed since the last pass.
+	const now = performance.now();
+	const dtTicks =
+		lastTrailPassMs === null
+			? 1
+			: Math.min(
+					MAX_DT_TICKS,
+					Math.max(MIN_DT_TICKS, (now - lastTrailPassMs) / TRAIL_TICK_MS),
+				);
+	lastTrailPassMs = now;
+
 	// Determine which FBO to read from (previous trail) and write to (new trail)
 	const readTex = pingPongState ? fboTexB : fboTexA;
 	const writeFbo = pingPongState ? fboA : fboB;
 	const outputTex = pingPongState ? fboTexA : fboTexB;
 
 	renderPass(gl, trailProgram, trailVao, writeFbo, [w, h], () => {
-		// Upload motion map to texture unit 0.
-		// Anisotropic mode packs magnitude + direction into RGB; isotropic uses LUMINANCE.
+		// Motion map on texture unit 0. Deposit passes upload fresh data;
+		// evolve passes rebind the last-uploaded map (its direction channels
+		// still steer anisotropic diffusion; deposition is zeroed by
+		// u_depositScale so stale magnitudes are inert).
 		gl!.activeTexture(gl!.TEXTURE0);
-		if (isImprint && params.density.diffusionMode === "anisotropic") {
-			const vectors = computeMotionVectors(motionMap, w, h);
-			uploadFloatRGBTexture(gl!, motionTexture!, vectors, w, h);
+		if (deposit && motionMap) {
+			// Anisotropic mode packs magnitude + direction into RGB; isotropic uses LUMINANCE.
+			if (isImprint && params.density.diffusionMode === "anisotropic") {
+				const vectors = computeMotionVectors(motionMap, w, h);
+				uploadFloatRGBTexture(gl!, motionTexture!, vectors, w, h);
+			} else {
+				uploadFloatTexture(gl!, motionTexture!, motionMap, w, h);
+			}
 		} else {
-			uploadFloatTexture(gl!, motionTexture!, motionMap, w, h);
+			gl!.bindTexture(gl!.TEXTURE_2D, motionTexture);
 		}
 		gl!.uniform1i(uMotion, 0);
 
@@ -281,16 +395,23 @@ export function updateGpuTrail(
 		gl!.bindTexture(gl!.TEXTURE_2D, readTex);
 		gl!.uniform1i(uPrevTrail, 1);
 
-		// Upload mask texture for imprint mode
-		if (isImprint && mask && maskTexture) {
+		// Mask texture for imprint mode. Evolve passes hold the most recent
+		// mask so cultivation keeps charging between segmentation results.
+		if (isImprint && maskTexture) {
 			gl!.activeTexture(gl!.TEXTURE2);
-			uploadFloatTexture(gl!, maskTexture, mask, w, h);
+			if (deposit && mask) {
+				uploadFloatTexture(gl!, maskTexture, mask, w, h);
+			} else {
+				gl!.bindTexture(gl!.TEXTURE_2D, maskTexture);
+			}
 			gl!.uniform1i(uMask, 2);
 		}
 
 		// Set common uniforms
 		gl!.uniform1f(uDeposition, params.motion.deposition);
 		gl!.uniform1f(uDecay, params.motion.decay);
+		gl!.uniform1f(uDtTicks, dtTicks);
+		gl!.uniform1f(uDepositScale, deposit ? 1.0 : 0.0);
 
 		// Set imprint mode uniforms
 		gl!.uniform1f(uMode, isImprint ? 1.0 : 0.0);
@@ -318,6 +439,40 @@ export function updateGpuTrail(
 	return outputTex;
 }
 
+/**
+ * Run a deposit trail pass with a fresh motion map (call once per new
+ * segmentation result).
+ *
+ * @param motionMap - Per-pixel motion magnitude from {@link detectMotionMap}
+ * @param w - Width of the motion map (matches segmentation mask resolution)
+ * @param h - Height of the motion map
+ * @param mask - Optional segmentation mask for imprint density mode. When
+ *   provided and visualize === "imprint", enables the cultivation/channeling/
+ *   disintegration pipeline in the shader.
+ * @returns The trail texture to sample, or null if GPU trail is not initialized.
+ */
+export function updateGpuTrail(
+	motionMap: Float32Array,
+	w: number,
+	h: number,
+	mask?: Float32Array | null,
+): WebGLTexture | null {
+	return runTrailPass(motionMap, w, h, mask ?? null, true);
+}
+
+/**
+ * Run an evolve-only trail pass (call every rendered frame without a fresh
+ * segmentation result). Decay, cultivation, and diffusion advance by the
+ * elapsed wall-clock time; no new motion is deposited.
+ *
+ * @param w - Trail buffer width (must match the last deposit pass)
+ * @param h - Trail buffer height
+ * @returns The trail texture to sample, or null if GPU trail is not initialized.
+ */
+export function evolveGpuTrail(w: number, h: number): WebGLTexture | null {
+	return runTrailPass(null, w, h, null, false);
+}
+
 /** Get the current trail texture without running an update (for frames where motion isn't recomputed). */
 export function getGpuTrailTexture(): WebGLTexture | null {
 	// The last written texture is the current output
@@ -338,6 +493,7 @@ export function getGpuTrailTexture(): WebGLTexture | null {
 export function resetMotion(): void {
 	prevRawMask = null;
 	trailBuffer = null;
+	lastTrailPassMs = null;
 
 	// Clear GPU trail FBOs by deleting them — they'll be reallocated on next frame
 	if (gl) {

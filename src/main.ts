@@ -42,8 +42,10 @@ import { initMobileControls } from "./mobile-controls";
 import {
 	detectMotion,
 	detectMotionMap,
+	evolveGpuTrail,
 	initGpuTrail,
 	isGpuTrailActive,
+	isGpuTrailFloat,
 	resetMotion,
 	updateGpuTrail,
 } from "./motion";
@@ -530,6 +532,36 @@ async function main(ws?: WsClient): Promise<void> {
 
 	let frameCount = 0;
 
+	// Set when a fresh segmentation result produced a new motion map; the next
+	// trail pass in loop() deposits it, then clears the flag. All other frames
+	// run evolve-only passes (decay/cultivation/diffusion, no deposition).
+	let pendingTrailDeposit = false;
+
+	// Timestamps of recently accepted segmentation results — used by the
+	// __rubato.resultRate debug field to report results/sec (the trail
+	// deposit cadence). Kept as a permanent debug/calibration aid.
+	const resultTimestamps: number[] = [];
+	let resultCount = 0;
+
+	function recordResultTimestamp(): void {
+		const now = performance.now();
+		resultCount++;
+		resultTimestamps.push(now);
+		// Keep a bounded window (~4s at 120 results/s)
+		if (resultTimestamps.length > 512) resultTimestamps.shift();
+	}
+
+	function measureResultRate(): number {
+		const now = performance.now();
+		const windowMs = 2000;
+		let count = 0;
+		for (let i = resultTimestamps.length - 1; i >= 0; i--) {
+			if (now - resultTimestamps[i]! > windowMs) break;
+			count++;
+		}
+		return (count / windowMs) * 1000;
+	}
+
 	function produceFrameData(): FrameState {
 		const pipelineState = pipeline.getState();
 		const isReady =
@@ -552,28 +584,16 @@ async function main(ws?: WsClient): Promise<void> {
 			// Check for new results
 			const result = pipeline.getLatestResult();
 			if (result && result.mask !== currentFrame.mask) {
+				recordResultTimestamp();
 				let motion: Float32Array | null = currentFrame.motion;
 				let trail: Float32Array | null = currentFrame.trail;
-				let trailTex: WebGLTexture | null = currentFrame.trailTex;
 				if (params.overlay.visualize !== "mask") {
 					if (isGpuTrailActive()) {
-						// GPU trail path: compute motion diff on CPU, accumulate on GPU
-						const motionMap = detectMotionMap(
-							result.mask,
-							result.width,
-							result.height,
-						);
-						motion = motionMap;
-						// In imprint mode, pass the mask to the trail shader for cultivation
-						const maskForTrail =
-							params.overlay.visualize === "imprint" ? result.mask : null;
-						trailTex =
-							updateGpuTrail(
-								motionMap,
-								result.width,
-								result.height,
-								maskForTrail,
-							) ?? trailTex;
+						// GPU trail path: compute the motion diff on the CPU here;
+						// the GPU pass itself runs in loop() (every frame, with
+						// deposition enabled only when this flag is set).
+						motion = detectMotionMap(result.mask, result.width, result.height);
+						pendingTrailDeposit = true;
 						trail = null; // not used in GPU path
 					} else {
 						// Legacy CPU trail path
@@ -590,7 +610,7 @@ async function main(ws?: WsClient): Promise<void> {
 					mask: result.mask,
 					motion,
 					trail,
-					trailTex,
+					trailTex: currentFrame.trailTex,
 					maskW: result.width,
 					maskH: result.height,
 					generation: currentFrame.generation + 1,
@@ -618,8 +638,32 @@ async function main(ws?: WsClient): Promise<void> {
 			void changeResolution(params.camera.resolution);
 		}
 
-		const data = produceFrameData();
+		let data = produceFrameData();
 		perfMark("segmentation", "#ff4444");
+
+		// Trail pass — runs EVERY rendered frame so fades advance in wall-clock
+		// time (dt-normalized in the shader), decoupled from the segmentation
+		// result cadence. Motion is deposited only on frames where a fresh
+		// result arrived; other frames evolve the field (decay, cultivation,
+		// diffusion) using the held mask/motion textures.
+		if (
+			isGpuTrailActive() &&
+			params.overlay.visualize !== "mask" &&
+			data.maskW > 0 &&
+			data.maskH > 0
+		) {
+			const maskForTrail =
+				params.overlay.visualize === "imprint" ? data.mask : null;
+			const trailTex =
+				pendingTrailDeposit && data.motion
+					? updateGpuTrail(data.motion, data.maskW, data.maskH, maskForTrail)
+					: evolveGpuTrail(data.maskW, data.maskH);
+			pendingTrailDeposit = false;
+			if (trailTex && trailTex !== data.trailTex) {
+				currentFrame = { ...currentFrame, trailTex };
+				data = currentFrame;
+			}
+		}
 
 		// Update fog crop to match camera's visible region
 		if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -905,10 +949,23 @@ async function main(ws?: WsClient): Promise<void> {
 				resolution: params.camera.resolution,
 				frameSkip: params.segmentation.frameSkip,
 				downsample: params.overlay.downsample,
+				trailFloat: isGpuTrailFloat(),
 			};
 		},
 		get params() {
 			return JSON.parse(JSON.stringify(params));
+		},
+		/** Fresh segmentation results per second (2s sliding window). */
+		get resultRate() {
+			return measureResultRate();
+		},
+		/** Total accepted segmentation results since start (monotonic). */
+		get resultCount() {
+			return resultCount;
+		},
+		/** Camera video element (not in the DOM) — for test/debug control. */
+		get video() {
+			return video;
 		},
 		pipeline,
 		applyPreset: (name: string) => {
@@ -958,8 +1015,13 @@ async function main(ws?: WsClient): Promise<void> {
 				generation: currentFrame.generation + 1,
 			};
 		},
-		/** Read pixels from the trail FBO for test verification. */
-		readTrailPixels: (x: number, y: number) => {
+		/**
+		 * Read pixels from the trail FBO for test verification.
+		 * With just (x, y): returns a single {r,g,b,a} pixel (0-255 scale).
+		 * With (x, y, w, h): returns a flat RGBA array (0-255 scale) — one
+		 * readback for the whole rect, so polling stays cheap.
+		 */
+		readTrailPixels: (x: number, y: number, w = 1, h = 1) => {
 			const compositorGl = getCompositorGl();
 			if (!compositorGl || !currentFrame.trailTex) return null;
 			const debugFbo = compositorGl.createFramebuffer();
@@ -971,19 +1033,43 @@ async function main(ws?: WsClient): Promise<void> {
 				currentFrame.trailTex,
 				0,
 			);
-			const px = new Uint8Array(4);
-			compositorGl.readPixels(
-				x,
-				y,
-				1,
-				1,
-				compositorGl.RGBA,
-				compositorGl.UNSIGNED_BYTE,
-				px,
-			);
+			const count = w * h * 4;
+			const bytes = new Array<number>(count);
+			// Float trail FBOs must be read back as FLOAT (RGBA/UNSIGNED_BYTE is
+			// only valid for normalized fixed-point color buffers).
+			if (isGpuTrailFloat()) {
+				const px = new Float32Array(count);
+				compositorGl.readPixels(
+					x,
+					y,
+					w,
+					h,
+					compositorGl.RGBA,
+					compositorGl.FLOAT,
+					px,
+				);
+				for (let i = 0; i < count; i++) {
+					bytes[i] = Math.round(Math.min(1, Math.max(0, px[i]!)) * 255);
+				}
+			} else {
+				const px = new Uint8Array(count);
+				compositorGl.readPixels(
+					x,
+					y,
+					w,
+					h,
+					compositorGl.RGBA,
+					compositorGl.UNSIGNED_BYTE,
+					px,
+				);
+				for (let i = 0; i < count; i++) bytes[i] = px[i]!;
+			}
 			compositorGl.bindFramebuffer(compositorGl.FRAMEBUFFER, null);
 			compositorGl.deleteFramebuffer(debugFbo);
-			return { r: px[0], g: px[1], b: px[2], a: px[3] };
+			if (w === 1 && h === 1) {
+				return { r: bytes[0], g: bytes[1], b: bytes[2], a: bytes[3] };
+			}
+			return { w, h, pixels: bytes };
 		},
 		/** Get current frame state for test inspection. */
 		get frame() {

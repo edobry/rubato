@@ -34,6 +34,19 @@ import {
 	uploadFloatTexture,
 } from "./webgl-utils";
 
+/**
+ * Reference tick for the fluid sim: one 60Hz rAF frame. The sim's pseudo-dt
+ * (0.4), damping, and creep were tuned when updateFluid ran once per rAF on a
+ * 60Hz desktop. dtTicks = elapsed_ms / FLUID_TICK_MS rescales those per-pass
+ * factors so the sim advances at the same wall-clock rate on 120Hz displays
+ * or when updates are skipped. At exactly 60Hz, dtTicks = 1 → tuned behavior
+ * is bit-identical.
+ */
+const FLUID_TICK_MS = 1000 / 60;
+
+/** Wall-clock time of the last actual fluid update — anchors dtTicks. */
+let lastFluidUpdateMs: number | null = null;
+
 // ── Module-level GL state ───────────────────────────────────────────────────
 let gl: WebGL2RenderingContext | null = null;
 let vao: WebGLVertexArrayObject | null = null;
@@ -286,10 +299,21 @@ export function updateFluid(
 	ensureFBOs(res);
 
 	const texelSize = 1.0 / res;
+
+	// Wall-clock normalization: one tick = one 60Hz frame (the tuned rate).
+	// Anchored to the last actual update, so skipped frames are compensated.
+	const now = performance.now();
+	const dtTicks =
+		lastFluidUpdateMs === null
+			? 1
+			: Math.min(4, Math.max(0.25, (now - lastFluidUpdateMs) / FLUID_TICK_MS));
+	lastFluidUpdateMs = now;
+
 	// dt is a visual speed parameter, not a real timestep.
 	// In GPU fluid sims, dt controls advection distance and force magnitude.
 	// 0.016 (real 60fps dt) makes advection microscopic; 0.3-0.5 is typical.
-	const dt = 0.4;
+	// Scaled by dtTicks so advection distance per wall-clock second is fixed.
+	const dt = 0.4 * dtTicks;
 
 	// Upload mask and motion textures
 	if (mask && maskW > 0 && maskH > 0) {
@@ -316,9 +340,10 @@ export function updateFluid(
 			gl!.uniform1i(getUniformLoc(advectProgram!, "u_velocity"), 1);
 
 			gl!.uniform1f(getUniformLoc(advectProgram!, "u_dt"), dt);
+			// Per-tick damping exponentiated by elapsed ticks → rate-invariant
 			gl!.uniform1f(
 				getUniformLoc(advectProgram!, "u_dissipation"),
-				params.shadow.damping,
+				params.shadow.damping ** dtTicks,
 			);
 			// Velocity decays toward zero (0.5 encoded)
 			gl!.uniform1f(getUniformLoc(advectProgram!, "u_source"), 0.5);
@@ -441,11 +466,12 @@ export function updateFluid(
 			gl!.uniform1i(getUniformLoc(advectProgram!, "u_velocity"), 1);
 
 			gl!.uniform1f(getUniformLoc(advectProgram!, "u_dt"), dt);
-			// Density creeps back toward baseDensity via dissipation blend
+			// Density creeps back toward baseDensity via dissipation blend.
+			// Per-tick retention (1 - creep) exponentiated by elapsed ticks.
 			const creep = params.shadow.creepSpeed;
 			gl!.uniform1f(
 				getUniformLoc(advectProgram!, "u_dissipation"),
-				1.0 - creep,
+				(1.0 - creep) ** dtTicks,
 			);
 			gl!.uniform1f(
 				getUniformLoc(advectProgram!, "u_source"),
@@ -475,9 +501,10 @@ export function updateFluid(
 			gl!.bindTexture(gl!.TEXTURE_2D, motionTexture);
 			gl!.uniform1i(getUniformLoc(drainProgram!, "u_motion"), 2);
 
+			// Additive per-pass accumulation → scales linearly with elapsed ticks
 			gl!.uniform1f(
 				getUniformLoc(drainProgram!, "u_cultivationRate"),
-				params.shadow.creepSpeed * 2.0,
+				params.shadow.creepSpeed * 2.0 * dtTicks,
 			);
 		});
 		denPing = !denPing;
@@ -537,6 +564,7 @@ export function resetFluid(): void {
 	velPing = true;
 	denPing = true;
 	presPing = true;
+	lastFluidUpdateMs = null;
 
 	uniformCache.clear();
 }
