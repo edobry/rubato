@@ -13,3 +13,4 @@ remote-console.log
 # Generated files
 qr.png
 .playwright-mcp/
+e2e/pipeline.png

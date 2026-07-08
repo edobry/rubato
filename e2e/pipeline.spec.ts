@@ -44,7 +44,10 @@ function emptyMask(): number[] {
 async function startAndWait(
 	page: import("@playwright/test").Page,
 ): Promise<void> {
-	await page.goto(`${BASE_URL}?test`);
+	// ?inject makes injected masks authoritative: the real segmentation
+	// pipeline (fed by the fake test camera) is suppressed so it can't
+	// overwrite frame state or deposit competing motion between injections.
+	await page.goto(`${BASE_URL}?test&inject`);
 	await page.waitForSelector("[data-role='hero']");
 	await page.locator("[data-role='hero']").click();
 	await page.waitForFunction(() => (window as any).__rubato?.fps > 0, {

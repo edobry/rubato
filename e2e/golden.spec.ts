@@ -33,7 +33,10 @@ function createBodyMask(): number[] {
 async function startAndWait(
 	page: import("@playwright/test").Page,
 ): Promise<void> {
-	await page.goto(`${BASE_URL}?test`);
+	// ?inject makes injected masks authoritative: the real segmentation
+	// pipeline (fed by the fake test camera) is suppressed so baselines are
+	// driven purely by the deterministic synthetic masks below.
+	await page.goto(`${BASE_URL}?test&inject`);
 	await page.waitForSelector("[data-role='hero']");
 	await page.locator("[data-role='hero']").click();
 	await page.waitForFunction(() => (window as any).__rubato?.fps > 0, {
@@ -84,8 +87,13 @@ for (const presetName of PRESETS) {
 		// Inject body mask so body interaction is visible
 		await injectBodyFrames(page);
 
-		// Compare against baseline — animated presets need longer stabilization
-		const animated = ["shadow realm", "sarahdance"].includes(presetName);
+		// Compare against baseline — animated presets need looser tolerances.
+		// "default" is here too: its bright, high-contrast fog (visualize
+		// "both") shifts phase with wall-clock time between runs, unlike the
+		// darker fog of the other non-animated presets.
+		const animated = ["shadow realm", "sarahdance", "default"].includes(
+			presetName,
+		);
 		await expect(page).toHaveScreenshot(
 			`${presetName.replace(/ /g, "-")}.png`,
 			{
