@@ -29,6 +29,7 @@ import {
 } from "./fluid";
 import { initFog, renderFogToTexture, resizeFog, setFogCrop } from "./fog";
 import { FpsCounter } from "./fps";
+import { isGpuFailed } from "./gpu-flag";
 import { initGui, isGuiVisible, toggleGui } from "./gui";
 import {
 	hideHelpOverlay,
@@ -521,16 +522,26 @@ async function main(ws?: WsClient): Promise<void> {
 
 				const newModelUrl = (SEGMENTATION_MODELS[newModel] ??
 					SEGMENTATION_MODELS.fast)!;
-				const resolvedDelegate =
-					localStorage.getItem("rubato-gpu-failed") === "true"
-						? "CPU"
-						: newDelegate;
+				const resolvedDelegate = isGpuFailed() ? "CPU" : newDelegate;
 				void pipeline.reinit(newModelUrl, resolvedDelegate);
 			}
 		}
 	});
 
 	let frameCount = 0;
+
+	// Test-only (?inject): suppress the real segmentation feed so masks
+	// injected via __rubato.injectTestFrame are the sole source of frame
+	// state. Without this, real results from the fake test camera compete
+	// with injected masks (overwriting frame state and depositing their own
+	// motion), making injection-driven e2e suites non-deterministic.
+	const injectOnly = new URLSearchParams(location.search).has("inject");
+	if (injectOnly) {
+		// Determinism also requires a fixed config: autotune would otherwise
+		// switch camera resolution mid-test (changing the mask->display crop
+		// and thus golden screenshots) or swap models (resetting trail state).
+		params.autoTune.enabled = false;
+	}
 
 	// Set when a fresh segmentation result produced a new motion map; the next
 	// trail pass in loop() deposits it, then clears the flag. All other frames
@@ -562,19 +573,25 @@ async function main(ws?: WsClient): Promise<void> {
 		return (count / windowMs) * 1000;
 	}
 
+	// Mask data is needed when the overlay is visible OR fog interaction is
+	// active. Segmentation is skipped only when mask data is genuinely unused
+	// (perf savings on Pi).
+	function segmentationNeeded(): boolean {
+		return (
+			params.overlay.showOverlay ||
+			params.fog.maskInteraction > 0 ||
+			params.fog.trailInteraction > 0 ||
+			params.fog.mode === "shadow"
+		);
+	}
+
 	function produceFrameData(): FrameState {
 		const pipelineState = pipeline.getState();
 		const isReady =
 			pipelineState.status === "ready" || pipelineState.status === "processing";
 
-		// Produce mask data when needed: overlay visible OR fog interaction active.
-		// Skip segmentation only when mask data is genuinely unused (perf savings on Pi).
-		const needsMask =
-			params.overlay.showOverlay ||
-			params.fog.maskInteraction > 0 ||
-			params.fog.trailInteraction > 0 ||
-			params.fog.mode === "shadow";
-		if (video && isReady && needsMask) {
+		const needsMask = segmentationNeeded();
+		if (video && isReady && needsMask && !injectOnly) {
 			const skip = Math.max(1, Math.round(params.segmentation.frameSkip));
 
 			if (frameCount % skip === 0) {
@@ -631,7 +648,11 @@ async function main(ws?: WsClient): Promise<void> {
 			params.autoTune.targetFps = 24;
 		}
 
-		autoTuneTick();
+		// Feed the segmentation result rate to the tuner so it can gate
+		// upgrades / apply downgrade pressure on slow inference. When the
+		// mask isn't needed, no frames are sent — pass undefined ("no
+		// signal") so the decayed rate doesn't read as inference distress.
+		autoTuneTick(segmentationNeeded() ? pipeline.getResultRate() : undefined);
 
 		// Check if resolution changed via GUI (or auto-tuner)
 		if (params.camera.resolution !== currentResolution) {

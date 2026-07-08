@@ -23,6 +23,15 @@ const FOG_FRAMESKIP_LADDER = [1, 2, 3, 5];
 const MAX_FRAME_SKIP = 15;
 const MIN_SAMPLES_FOR_TRUST = 3;
 
+// --- Inference-rate thresholds (segmentation results/s) ---
+// Render fps alone is misleading: rendering stays fast even when CPU-delegate
+// inference crawls at ~5 results/s, so fps-only tuning sees headroom and
+// upgrades toward heavier models — making the silhouette even laggier.
+/** Upgrades require at least this many results/s in addition to fps headroom. */
+const HEALTHY_RESULT_RATE = 20;
+/** Sustained rates below this are downgrade pressure, like a sustained fps drop. */
+const LOW_RESULT_RATE = 10;
+
 // --- Configuration space ---
 
 interface Config {
@@ -109,6 +118,8 @@ let stableEnteredAt = 0;
 let upgradeHeadroomSince = 0;
 /** Timestamp when FPS first dropped significantly below target while stable. */
 let dropDetectedAt = 0;
+/** Timestamp when the inference result rate first measured below LOW_RESULT_RATE. */
+let lowRateSince = 0;
 /** Whether the current config is considered stable. */
 let isStable = false;
 /** Whether we've already logged hitting the quality floor. */
@@ -304,6 +315,7 @@ function resetTimers(): void {
 	stableEnteredAt = 0;
 	upgradeHeadroomSince = 0;
 	dropDetectedAt = 0;
+	lowRateSince = 0;
 	isStable = false;
 	floorLogged = false;
 }
@@ -366,7 +378,12 @@ export function resetAutoTuneFrames(): void {
 
 // --- Main tick ---
 
-export function autoTuneTick(): void {
+/**
+ * @param resultRate - Segmentation results/s (pipeline.getResultRate()), or
+ *   undefined when segmentation is inactive. 0 means "still warming up" —
+ *   both cases carry no signal, so they apply no pressure and no upgrade gate.
+ */
+export function autoTuneTick(resultRate?: number): void {
 	const now = performance.now();
 	frameTimes.push(now);
 	if (frameTimes.length > SAMPLE_WINDOW) frameTimes.shift();
@@ -403,9 +420,27 @@ export function autoTuneTick(): void {
 	const wellAboveTarget = fps > target + params.autoTune.upgradeHeadroom;
 	const inTargetBand = fps >= target - tolerance && !wellAboveTarget;
 
+	// --- Inference-rate signals ---
+	// The result rate is invisible to render fps: silhouette responsiveness is
+	// governed by it, so it gates upgrades and adds downgrade pressure.
+	const rateKnown = resultRate !== undefined && resultRate > 0;
+	const inferenceHealthy = !rateKnown || resultRate >= HEALTHY_RESULT_RATE;
+	const inferenceLow = rateKnown && resultRate < LOW_RESULT_RATE;
+	// Sustained-low timer (mirrors dropDetectedAt): the rate estimate is a
+	// smoothed EMA, but still require it to stay low for dropSustainedDuration
+	// before acting so a transient dip doesn't fire a degrade.
+	if (inferenceLow) {
+		if (lowRateSince === 0) lowRateSince = now;
+	} else {
+		lowRateSince = 0;
+	}
+	const sustainedLowRate =
+		lowRateSince !== 0 &&
+		now - lowRateSince >= params.autoTune.dropSustainedDuration;
+
 	// --- Stable state logic ---
 	if (isStable) {
-		if (significantDrop) {
+		if (significantDrop || inferenceLow) {
 			// Start or continue drop detection timer
 			if (dropDetectedAt === 0) {
 				dropDetectedAt = now;
@@ -416,9 +451,12 @@ export function autoTuneTick(): void {
 				// Sustained drop: break out of stable and degrade
 				isStable = false;
 				dropDetectedAt = 0;
+				const reason = significantDrop
+					? "sustained drop while stable"
+					: "low inference rate while stable";
 				const degradeTarget = findDegradeTarget(current, target);
 				if (degradeTarget && !configsEqual(degradeTarget, current)) {
-					switchConfig(degradeTarget, "↓", "sustained drop while stable");
+					switchConfig(degradeTarget, "↓", reason);
 					autoTuneState.status = "degrading";
 				} else {
 					log(
@@ -432,8 +470,10 @@ export function autoTuneTick(): void {
 			dropDetectedAt = 0;
 		}
 
-		// While stable, check for sustained headroom to attempt upgrade
-		if (wellAboveTarget) {
+		// While stable, check for sustained headroom to attempt upgrade.
+		// Upgrades need healthy inference too — heavier configs would slow
+		// an already-struggling segmentation rate further.
+		if (wellAboveTarget && inferenceHealthy) {
 			if (upgradeHeadroomSince === 0) {
 				upgradeHeadroomSince = now;
 			} else if (
@@ -456,6 +496,17 @@ export function autoTuneTick(): void {
 	}
 
 	// --- Non-stable: actively searching for a good config ---
+
+	// Sustained low inference rate is downgrade pressure regardless of render
+	// fps — checked before the target band, which only sees render fps.
+	if (sustainedLowRate) {
+		const degradeTarget = findDegradeTarget(current, target);
+		if (degradeTarget && !configsEqual(degradeTarget, current)) {
+			switchConfig(degradeTarget, "↓", "low inference rate");
+			autoTuneState.status = "degrading";
+			return;
+		}
+	}
 
 	if (inTargetBand) {
 		// FPS is in the sweet spot — start stability timer
@@ -496,8 +547,13 @@ export function autoTuneTick(): void {
 			}
 		}
 	} else if (wellAboveTarget) {
-		// FPS well above target — start hysteresis timer for upgrade
-		if (upgradeHeadroomSince === 0) {
+		// FPS well above target — start hysteresis timer for upgrade.
+		// Render headroom alone isn't enough: upgrades also require a
+		// healthy inference rate (see HEALTHY_RESULT_RATE).
+		if (!inferenceHealthy) {
+			upgradeHeadroomSince = 0;
+			autoTuneState.status = "optimal";
+		} else if (upgradeHeadroomSince === 0) {
 			upgradeHeadroomSince = now;
 			autoTuneState.status = "optimal";
 		} else if (
